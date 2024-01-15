@@ -8,6 +8,18 @@ allocator: std.mem.Allocator,
 content: []const u8,
 status_code: http.status_codes.StatusCode,
 
+pub fn init(
+    allocator: std.mem.Allocator,
+    content: []const u8,
+    status_code: http.status_codes.StatusCode,
+) Self {
+    return .{
+        .status_code = status_code,
+        .content = content,
+        .allocator = allocator,
+    };
+}
+
 pub fn deinit(self: *const Self) void {
     _ = self;
     // self.allocator.free(self.content);

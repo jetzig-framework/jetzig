@@ -1,26 +1,21 @@
 const std = @import("std");
 
-const root = @import("root");
+const jetzig = @import("../jetzig.zig");
 
 const Self = @This();
 
-server_options: root.jetzig.http.Server.ServerOptions,
+server_options: jetzig.http.Server.ServerOptions,
 allocator: std.mem.Allocator,
 host: []const u8,
 port: u16,
 root_path: []const u8,
 
-pub fn render(self: *const Self, data: anytype) root.views.View {
-    _ = self;
-    return .{ .data = data };
-}
-
 pub fn deinit(self: Self) void {
     _ = self;
 }
 
-pub fn start(self: Self, views: []root.jetzig.views.Route, templates: []root.jetzig.TemplateFn) !void {
-    var server = root.jetzig.http.Server.init(
+pub fn start(self: Self, views: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
+    var server = jetzig.http.Server.init(
         self.allocator,
         self.host,
         self.port,
@@ -32,6 +27,7 @@ pub fn start(self: Self, views: []root.jetzig.views.Route, templates: []root.jet
     defer server.deinit();
     defer self.allocator.free(self.root_path);
     defer self.allocator.free(self.host);
+    defer self.allocator.free(server.options.secret);
 
     server.listen() catch |err| {
         switch (err) {

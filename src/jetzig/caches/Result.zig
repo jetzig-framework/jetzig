@@ -2,13 +2,13 @@ const std = @import("std");
 
 const Self = @This();
 
-const root = @import("root");
+const jetzig = @import("../../jetzig.zig");
 
-value: root.jetzig.http.Response,
+value: jetzig.http.Response,
 cached: bool,
 allocator: std.mem.Allocator,
 
-pub fn init(allocator: std.mem.Allocator, value: root.jetzig.http.Response, cached: bool) Self {
+pub fn init(allocator: std.mem.Allocator, value: jetzig.http.Response, cached: bool) Self {
     return .{ .allocator = allocator, .cached = cached, .value = value };
 }
 

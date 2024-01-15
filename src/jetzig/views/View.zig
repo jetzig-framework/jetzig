@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const root = @import("root");
+const jetzig = @import("../../jetzig.zig");
 
-data: *root.jetzig.views.data.Data,
-status_code: root.jetzig.http.status_codes.StatusCode,
+data: *jetzig.data.Data,
+status_code: jetzig.http.status_codes.StatusCode,

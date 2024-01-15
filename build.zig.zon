@@ -20,8 +20,9 @@
             // When updating this field to a new URL, be sure to delete the corresponding
             // `hash`, otherwise you are communicating that you expect to find the old hash at
             // the new URL.
+            //
             .url = "https://github.com/bobf/zmpl/archive/refs/tags/0.0.1.tar.gz",
-            .hash = "1220eedaec5c45067b0158251fd49f3ecc9c7c4676f7e3e0567ca2b2c465fa6cd983",
+            .hash = "12205f95df0bf7a66c9d00ed76f8c3b1548eb958f9210425045c77f88ea165f20fef",
 
             // This is computed from the file contents of the directory of files that is
             // obtained after fetching `url` and applying the inclusion rules given by

@@ -16,7 +16,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: File system-based routing with [slug] matching.
 * :white_check_mark: _HTML_ and _JSON_ response (inferred from extension and/or `Accept` header).
 * :white_check_mark: _JSON_-compatible response data builder.
-* :white_check_mark: _HTML_ templating (see [Zmpl](https://github.com/bobf/zmpl).
+* :white_check_mark: _HTML_ templating (see [Zmpl](https://github.com/bobf/zmpl)).
 * :white_check_mark: Per-request arena allocator.
 * :x: Sessions.
 * :x: Cookies.
@@ -27,6 +27,8 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :x: Custom/dynamic routes.
 * :x: General-purpose cache.
 * :x: Background jobs.
+* :x: Testing helpers for testing HTTP requests/responses.
+* :x: Development server auto-reload.
 * :x: Database integration.
 * :x: Email receipt (via SendGrid/AWS SES/etc.)
 

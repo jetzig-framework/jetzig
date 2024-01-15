@@ -23,12 +23,20 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(exe);
 
     const jetzig_module = b.createModule(.{ .source_file = .{ .path = "src/jetzig.zig" } });
-    exe.addModule("jetzig", jetzig_module);
-    lib.addModule("jetzig", jetzig_module);
+    // exe.addModule("jetzig", jetzig_module);
+    // lib.addModule("jetzig", jetzig_module);
     try b.modules.put("jetzig", jetzig_module);
 
-    try b.env_map.put("ZMPL_TEMPLATES_PATH", "src/app/views");
-    const zmpl_module = b.dependency("zmpl", .{ .target = target, .optimize = optimize });
+    const zmpl_module = b.dependency(
+        "zmpl",
+        .{
+            .target = target,
+            .optimize = optimize,
+            .zmpl_templates_path = @as([]const u8, "src/app/views/"),
+            .zmpl_manifest_path = @as([]const u8, "src/app/views/zmpl.manifest.zig"),
+        },
+    );
+
     lib.addModule("zmpl", zmpl_module.module("zmpl"));
     exe.addModule("zmpl", zmpl_module.module("zmpl"));
 
@@ -53,11 +61,12 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_cmd.step);
 
     const main_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
 
+    main_tests.addModule("zmpl", zmpl_module.module("zmpl"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");
@@ -79,7 +88,7 @@ fn findViews(allocator: std.mem.Allocator) !std.ArrayList(*ViewItem) {
         const extension = std.fs.path.extension(entry.path);
         const basename = std.fs.path.basename(entry.path);
         if (std.mem.eql(u8, basename, "routes.zig")) continue;
-        if (std.mem.eql(u8, basename, "manifest.zig")) continue;
+        if (std.mem.eql(u8, basename, "zmpl.manifest.zig")) continue;
         if (std.mem.startsWith(u8, basename, ".")) continue;
         if (!std.mem.eql(u8, extension, ".zig")) continue;
 

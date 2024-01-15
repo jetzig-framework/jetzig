@@ -4,11 +4,11 @@ pub const zmpl = @import("zmpl");
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
+pub const data = @import("jetzig/data.zig");
 pub const caches = @import("jetzig/caches.zig");
 pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
 pub const App = @import("jetzig/App.zig");
-pub const DefaultAllocator = std.heap.GeneralPurposeAllocator(.{});
 
 pub fn init(allocator: std.mem.Allocator) !App {
     const args = try std.process.argsAlloc(allocator);
@@ -22,8 +22,6 @@ pub fn init(allocator: std.mem.Allocator) !App {
     // TODO: Fix this up with proper arg parsing
     const port: u16 = if (args.len > 2) try std.fmt.parseInt(u16, args[2], 10) else 8080;
     const use_cache: bool = args.len > 3 and std.mem.eql(u8, args[3], "--cache");
-    var debug: bool = args.len > 3 and std.mem.eql(u8, args[3], "--debug");
-    debug = debug or (args.len > 4 and std.mem.eql(u8, args[4], "--debug"));
     const server_cache = switch (use_cache) {
         true => caches.Cache{ .memory_cache = caches.MemoryCache.init(allocator) },
         false => caches.Cache{ .null_cache = caches.NullCache.init(allocator) },
@@ -38,11 +36,14 @@ pub fn init(allocator: std.mem.Allocator) !App {
         }
     };
 
-    const logger = loggers.Logger{ .development_logger = loggers.DevelopmentLogger.init(allocator, debug) };
+    const logger = loggers.Logger{ .development_logger = loggers.DevelopmentLogger.init(allocator) };
+    const secret = try generateSecret(allocator);
+
     const server_options = http.Server.ServerOptions{
         .cache = server_cache,
         .logger = logger,
         .root_path = root_path,
+        .secret = secret,
     };
 
     return .{
@@ -58,27 +59,35 @@ pub fn init(allocator: std.mem.Allocator) !App {
 // Each detected function is stored as a Route which can be accessed at runtime to route requests
 // to the appropriate View.
 pub fn route(comptime modules: anytype) []views.Route {
-    var size: u16 = 0;
+    var size: usize = 0;
 
     for (modules) |module| {
         const decls = @typeInfo(module).Struct.decls;
 
-        for (decls) |_| size += 1;
+        for (decls) |decl| {
+            if (@hasField(views.Route.ViewType, decl.name)) size += 1;
+        }
     }
 
     var detected: [size]views.Route = undefined;
+    var index: usize = 0;
 
-    for (modules, 1..) |module, module_index| {
+    for (modules) |module| {
         const decls = @typeInfo(module).Struct.decls;
 
-        for (decls, 1..) |decl, decl_index| {
+        for (decls) |decl| {
+            if (!@hasField(views.Route.ViewType, decl.name)) {
+                // TODO: Figure out how to log a warning here (comptime issues).
+                continue;
+            }
             const view = @unionInit(views.Route.ViewType, decl.name, @field(module, decl.name));
 
-            detected[module_index * decl_index - 1] = .{
+            detected[index] = .{
                 .name = @typeName(module),
                 .action = @field(views.Route.Action, decl.name),
                 .view = view,
             };
+            index += 1;
         }
     }
 
@@ -109,3 +118,40 @@ pub const TemplateFn = struct {
     name: []const u8,
     render: *const fn (*zmpl.Data) anyerror![]const u8,
 };
+
+pub fn generateSecret(allocator: std.mem.Allocator) ![]const u8 {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var secret: [64]u8 = undefined;
+
+    for (0..64) |index| {
+        secret[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len)];
+    }
+
+    return try allocator.dupe(u8, &secret);
+}
+
+pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]const u8 {
+    const encoder = std.base64.Base64Encoder.init(
+        std.base64.url_safe_no_pad.alphabet_chars,
+        std.base64.url_safe_no_pad.pad_char,
+    );
+    const size = encoder.calcSize(string.len);
+    const ptr = try allocator.alloc(u8, size);
+    _ = encoder.encode(ptr, string);
+    return ptr;
+}
+
+pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]const u8 {
+    const decoder = std.base64.Base64Decoder.init(
+        std.base64.url_safe_no_pad.alphabet_chars,
+        std.base64.url_safe_no_pad.pad_char,
+    );
+    const size = try decoder.calcSizeForSlice(string);
+    const ptr = try allocator.alloc(u8, size);
+    try decoder.decode(ptr, string);
+    return ptr;
+}
+
+test {
+    @import("std").testing.refAllDeclsRecursive(@This());
+}

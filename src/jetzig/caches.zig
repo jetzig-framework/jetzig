@@ -12,7 +12,7 @@ pub const Cache = union(enum) {
 
     pub fn deinit(self: *Cache) void {
         switch (self.*) {
-            inline else => |*case| try case.deinit(),
+            inline else => |*case| case.deinit(),
         }
     }
 
