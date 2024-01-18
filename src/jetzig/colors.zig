@@ -95,9 +95,9 @@ pub fn duration(allocator: std.mem.Allocator, delta: i64) ![]const u8 {
     var buf: [1024]u8 = undefined;
     const formatted_duration = try std.fmt.bufPrint(&buf, "{}", .{std.fmt.fmtDurationSigned(delta)});
 
-    if (delta < 100000) {
+    if (delta < 1000000) {
         return try runtimeGreen(allocator, formatted_duration);
-    } else if (delta < 500000) {
+    } else if (delta < 5000000) {
         return try runtimeYellow(allocator, formatted_duration);
     } else {
         return try runtimeRed(allocator, formatted_duration);

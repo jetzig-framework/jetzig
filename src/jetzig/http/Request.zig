@@ -126,6 +126,18 @@ pub fn hash(self: *Self) ![]const u8 {
     );
 }
 
+pub fn fmtMethod(self: *Self) []const u8 {
+    return switch (self.method) {
+        .GET => jetzig.colors.cyan("GET"),
+        .PUT => jetzig.colors.yellow("PUT"),
+        .PATCH => jetzig.colors.yellow("PATCH"),
+        .HEAD => jetzig.colors.white("HEAD"),
+        .POST => jetzig.colors.green("POST"),
+        .DELETE => jetzig.colors.red("DELETE"),
+        inline else => |method| jetzig.colors.white(@tagName(method)),
+    };
+}
+
 pub fn resourceModifier(self: *Self) ?Modifier {
     const basename = std.fs.path.basename(self.segments.items[self.segments.items.len - 1]);
     const extension = std.fs.path.extension(basename);

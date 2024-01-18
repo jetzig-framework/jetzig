@@ -234,10 +234,10 @@ fn requestLogMessage(self: *Self, request: *jetzig.http.Request, result: jetzig.
     const formatted_duration = try jetzig.colors.duration(self.allocator, self.duration());
     defer self.allocator.free(formatted_duration);
 
-    return try std.fmt.allocPrint(self.allocator, "[{s} {s}] {s} {s}", .{
-        status.format(),
+    return try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
         formatted_duration,
-        @tagName(request.method),
+        request.fmtMethod(),
+        status.format(),
         request.path,
     });
 }
