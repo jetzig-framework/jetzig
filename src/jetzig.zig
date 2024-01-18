@@ -36,8 +36,12 @@ pub fn init(allocator: std.mem.Allocator) !App {
         }
     };
 
-    const logger = loggers.Logger{ .development_logger = loggers.DevelopmentLogger.init(allocator) };
+    var logger = loggers.Logger{ .development_logger = loggers.DevelopmentLogger.init(allocator) };
     const secret = try generateSecret(allocator);
+    logger.debug(
+        "Running in development mode, using auto-generated cookie encryption key:\n  {s}",
+        .{secret},
+    );
 
     const server_options = http.Server.ServerOptions{
         .cache = server_cache,

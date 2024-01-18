@@ -12,8 +12,12 @@ pub fn put(id: []const u8, request: *Request, data: *Data) anyerror!View {
 
     const count = try request.session.get("count");
     if (count) |value| {
-        try request.session.put("count", data.integer(value.integer.value + 1));
-        try object.put("count", data.integer(value.integer.value + 1));
+        if (value == .integer) {
+            try request.session.put("count", data.integer(value.integer.value + 1));
+            try object.put("count", data.integer(value.integer.value + 1));
+        } else {
+            return error.InvalidSessionData;
+        }
     } else {
         try request.session.put("count", data.integer(0));
         try object.put("count", data.integer(0));
@@ -27,7 +31,11 @@ pub fn get(id: []const u8, request: *Request, data: *Data) anyerror!View {
         var object = try data.object();
         const count = try request.session.get("count");
         if (count) |value| {
-            try object.put("count", data.integer(value.integer.value + 1));
+            if (value == .integer) {
+                try object.put("count", data.integer(value.integer.value + 1));
+            } else {
+                try object.put("count", data.integer(0));
+            }
         } else {
             try object.put("count", data.integer(0));
         }

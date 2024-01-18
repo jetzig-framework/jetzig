@@ -18,10 +18,13 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: _JSON_-compatible response data builder.
 * :white_check_mark: _HTML_ templating (see [Zmpl](https://github.com/bobf/zmpl)).
 * :white_check_mark: Per-request arena allocator.
-* :x: Sessions.
-* :x: Cookies.
-* :x: Headers.
+* :white_check_mark: Sessions.
+* :white_check_mark: Cookies.
+* :x: Error handling.
+* :x: Headers (available but not yet wrapped).
+* :x: Param/JSON payload parsing/abstracting.
 * :x: Development-mode responses for debugging.
+* :x: Environment configurations (develompent/production/etc.)
 * :x: Middleware extensions (for e.g. authentication).
 * :x: Email delivery.
 * :x: Custom/dynamic routes.

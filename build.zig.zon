@@ -22,7 +22,7 @@
             // the new URL.
             //
             .url = "https://github.com/bobf/zmpl/archive/refs/tags/0.0.1.tar.gz",
-            .hash = "12205f95df0bf7a66c9d00ed76f8c3b1548eb958f9210425045c77f88ea165f20fef",
+            .hash = "12204256376f262a58935d66a2a0b41ac0447299b7e63a4c6ff160ddcef6572cd3c7",
 
             // This is computed from the file contents of the directory of files that is
             // obtained after fetching `url` and applying the inclusion rules given by

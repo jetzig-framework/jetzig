@@ -68,8 +68,8 @@ fn processRequests(self: *Self) !void {
         while (response.reset() != .closing) {
             self.processNextRequest(&response) catch |err| {
                 switch (err) {
-                    error.EndOfStream => continue,
-                    error.ConnectionResetByPeer => continue,
+                    error.EndOfStream, error.ConnectionResetByPeer => continue,
+                    error.UnknownHttpMethod => continue, // TODO: Render 400 Bad Request here ?
                     else => return err,
                 }
             };
@@ -100,8 +100,7 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
         try response.headers.append("Set-Cookie", header);
     }
     response.status = switch (result.value.status_code) {
-        .ok => .ok,
-        .not_found => .not_found,
+        inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
     };
 
     try response.do();
@@ -148,9 +147,12 @@ fn renderHTML(
             // FIXME: Tidy this up and use a hashmap for templates (or a more comprehensive
             // matching system) instead of an array.
             if (std.mem.eql(u8, expected_name, template.name)) {
-                const view = try matched_route.render(matched_route, request);
-                const content = try template.render(view.data);
-                return .{ .allocator = self.allocator, .content = content, .status_code = .ok };
+                const rendered = try self.renderView(matched_route, request, template);
+                return .{
+                    .allocator = self.allocator,
+                    .content = rendered.content,
+                    .status_code = rendered.view.status_code,
+                };
             }
         }
 
@@ -174,12 +176,15 @@ fn renderJSON(
     route: ?jetzig.views.Route,
 ) !jetzig.http.Response {
     if (route) |matched_route| {
-        const view = try matched_route.render(matched_route, request);
-        var data = view.data;
+        const rendered = try self.renderView(matched_route, request, null);
+        var data = rendered.view.data;
+
+        if (data.value) |_| {} else _ = try data.object();
+
         return .{
             .allocator = self.allocator,
             .content = try data.toJson(),
-            .status_code = .ok,
+            .status_code = rendered.view.status_code,
         };
     } else return .{
         .allocator = self.allocator,
@@ -188,10 +193,42 @@ fn renderJSON(
     };
 }
 
+const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
+fn renderView(
+    self: *Self,
+    matched_route: jetzig.views.Route,
+    request: *jetzig.http.Request,
+    template: ?jetzig.TemplateFn,
+) !RenderedView {
+    const view = matched_route.render(matched_route, request) catch |err| {
+        switch (err) {
+            error.OutOfMemory => return err,
+            else => return try self.internalServerError(request, err),
+        }
+    };
+    const content = if (template) |capture| try capture.render(view.data) else "";
+
+    return .{ .view = view, .content = content };
+}
+
+fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
+    _ = self;
+    request.response_data.reset();
+    var object = try request.response_data.object();
+    try object.put("error", request.response_data.string(@errorName(err)));
+    return .{
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = .internal_server_error },
+        .content = "An unexpected error occurred.",
+    };
+}
+
 fn requestLogMessage(self: *Self, request: *jetzig.http.Request, result: jetzig.caches.Result) ![]const u8 {
     const status: jetzig.http.status_codes.TaggedStatusCode = switch (result.value.status_code) {
-        .ok => .{ .ok = .{} },
-        .not_found => .{ .not_found = .{} },
+        inline else => |status_code| @unionInit(
+            jetzig.http.status_codes.TaggedStatusCode,
+            @tagName(status_code),
+            .{},
+        ),
     };
 
     const formatted_duration = try jetzig.colors.duration(self.allocator, self.duration());
