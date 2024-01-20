@@ -1,0 +1,14 @@
+.{
+    .name = "%%project_name%%",
+    .version = "0.0.0",
+    .dependencies = .{
+        .jetzig = .{
+            .url = "https://github.com/jetzig-framework/jetzig/archive/refs/tags/dev.tar.gz",
+            .hash = "122097efa94bcbc548aa170ea1c58afe6f21101032f8436a9324ea0435adbaa227ef",
+        },
+    },
+
+    .paths = .{
+        "",
+    },
+}

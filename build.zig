@@ -23,11 +23,11 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(exe);
 
     const jetzig_module = b.createModule(.{ .source_file = .{ .path = "src/jetzig.zig" } });
-    // exe.addModule("jetzig", jetzig_module);
-    // lib.addModule("jetzig", jetzig_module);
+    exe.addModule("jetzig", jetzig_module);
+    lib.addModule("jetzig", jetzig_module);
     try b.modules.put("jetzig", jetzig_module);
 
-    const zmpl_module = b.dependency(
+    const zmpl_dep = b.dependency(
         "zmpl",
         .{
             .target = target,
@@ -37,11 +37,14 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
-    lib.addModule("zmpl", zmpl_module.module("zmpl"));
-    exe.addModule("zmpl", zmpl_module.module("zmpl"));
+    lib.addModule("zmpl", zmpl_dep.module("zmpl"));
+    exe.addModule("zmpl", zmpl_dep.module("zmpl"));
+    try b.modules.put("zmpl", zmpl_dep.module("zmpl"));
+    try jetzig_module.dependencies.put("zmpl", zmpl_dep.module("zmpl"));
 
     var dir = std.fs.cwd();
-    var file = try dir.createFile("src/app/views/routes.zig", .{ .truncate = true });
+    var views_dir = try dir.makeOpenPath("src/app/views", .{});
+    var file = try views_dir.createFile("routes.zig", .{ .truncate = true });
     try file.writeAll("pub const routes = .{\n");
     const views = try findViews(b.allocator);
     for (views.items) |view| {
@@ -66,7 +69,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    main_tests.addModule("zmpl", zmpl_module.module("zmpl"));
+    main_tests.addModule("zmpl", zmpl_dep.module("zmpl"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");

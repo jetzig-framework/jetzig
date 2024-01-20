@@ -25,24 +25,48 @@ echo "Initializing new project in: ${project_path}"
 mkdir -p "${project_path}"
 
 do_exit () {
-  echo "Error fetching $1 - exiting."
+  echo "Error fetching '$1':"
+  echo "$2"
+  echo "Exiting."
   exit 1
 }
 
 remote_base=https://raw.githubusercontent.com/jetzig-framework/jetzig/main/src/init
 
 objects=(
-  build.zig
-  build.zig.zon
-  src/main.zig
-  src/app/views/index.zig
+  'build.zig'
+  'build.zig.zon'
+  'src/main.zig'
+  'src/app/views/index.zig'
+  'src/app/views/index.zmpl'
 )
 
-for object in "${objects[$@]}"
+for object in "${objects[@]}"
 do
-  echo "Creating output: ${object}"
+  printf "Creating output: ${object} "
   url="${remote_base}/${object}"
-  curl -qs --fail --output "${project_path}/${object}" "${url}" || do_exit "${url}"
+  mkdir -p "$(dirname "${project_path}/${object}")"
+  set +e
+  output=$(curl -s --fail --output "${project_path}/${object}" "${url}" 2>&1)
+  set -e
+  if (($?))
+  then
+    do_exit "${url}" "${output}"
+  else
+    echo "✅"
+  fi
 done
 
-echo "Project initialization complete. Welcome to Jetzig. ✈️🦎 "
+sed -i.bak -e "s,%%project_name%%,${project},g" 'src/build.zig' && rm build.zig.bak
+sed -i.bak -e "s,%%project_name%%,${project},g" 'src/build.zig.zon' && rm build.zig.zon.bak
+
+echo
+echo "Finished creating new project in: ${project_path}"
+echo
+echo "Run your new project:"
+echo
+echo "  cd '${project_path}'"
+echo '  zig build run'
+echo
+echo "Welcome to Jetzig. ✈️🦎 "
+echo
