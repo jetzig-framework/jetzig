@@ -98,7 +98,7 @@ pub const TaggedStatusCode = union(StatusCode) {
     switching_protocols: StatusCodeType("101", "Switching Protocols"),
     processing: StatusCodeType("102", "Processing"),
     early_hints: StatusCodeType("103", "Early Hints"),
-    ok: StatusCodeType("200", "Ok"),
+    ok: StatusCodeType("200", "OK"),
     created: StatusCodeType("201", "Created"),
     accepted: StatusCodeType("202", "Accepted"),
     non_authoritative_info: StatusCodeType("203", "Non Authoritative Information"),

@@ -8,6 +8,5 @@ const View = jetzig.views.View;
 pub fn index(request: *Request, data: *Data) anyerror!View {
     var object = try data.object();
     try object.put("foo", data.string("hello"));
-    // return error.OhNo;
     return request.render(.ok);
 }

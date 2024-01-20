@@ -4,7 +4,7 @@ _Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
 
 The framework is under active development and is currently in an alpha state.
 
-_Jetzig_ is an ambitious and opinionated web framework. It aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
+_Jetzig_ aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
 
 If you are interested in _Jetzig_ you will probably find these tools interesting too:
 
@@ -16,11 +16,11 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: File system-based routing with [slug] matching.
 * :white_check_mark: _HTML_ and _JSON_ response (inferred from extension and/or `Accept` header).
 * :white_check_mark: _JSON_-compatible response data builder.
-* :white_check_mark: _HTML_ templating (see [Zmpl](https://github.com/bobf/zmpl)).
+* :white_check_mark: _HTML_ templating (see [Zmpl](https://github.com/jetzig-framework/zmpl)).
 * :white_check_mark: Per-request arena allocator.
 * :white_check_mark: Sessions.
 * :white_check_mark: Cookies.
-* :x: Error handling.
+* :white_check_mark: Error handling.
 * :x: Headers (available but not yet wrapped).
 * :x: Param/JSON payload parsing/abstracting.
 * :x: Development-mode responses for debugging.
