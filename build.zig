@@ -23,11 +23,11 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(exe);
 
     const jetzig_module = b.createModule(.{ .source_file = .{ .path = "src/jetzig.zig" } });
-    // exe.addModule("jetzig", jetzig_module);
-    // lib.addModule("jetzig", jetzig_module);
+    exe.addModule("jetzig", jetzig_module);
+    lib.addModule("jetzig", jetzig_module);
     try b.modules.put("jetzig", jetzig_module);
 
-    const zmpl_module = b.dependency(
+    const zmpl_dep = b.dependency(
         "zmpl",
         .{
             .target = target,
@@ -37,11 +37,14 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
-    lib.addModule("zmpl", zmpl_module.module("zmpl"));
-    exe.addModule("zmpl", zmpl_module.module("zmpl"));
+    lib.addModule("zmpl", zmpl_dep.module("zmpl"));
+    exe.addModule("zmpl", zmpl_dep.module("zmpl"));
+    try b.modules.put("zmpl", zmpl_dep.module("zmpl"));
+    try jetzig_module.dependencies.put("zmpl", zmpl_dep.module("zmpl"));
 
     var dir = std.fs.cwd();
-    var file = try dir.createFile("src/app/views/routes.zig", .{ .truncate = true });
+    var views_dir = try dir.makeOpenPath("src/app/views", .{});
+    var file = try views_dir.createFile("routes.zig", .{ .truncate = true });
     try file.writeAll("pub const routes = .{\n");
     const views = try findViews(b.allocator);
     for (views.items) |view| {
@@ -51,6 +54,9 @@ pub fn build(b: *std.Build) !void {
 
     try file.writeAll("};\n");
     file.close();
+
+    const init = b.option(bool, "jetzig_init", "Pass -Djetzig_init=true to generate a new Jetzig project.") orelse false;
+    if (init) try initializeNewProject(b);
 
     const run_cmd = b.addRunArtifact(exe);
 
@@ -66,7 +72,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    main_tests.addModule("zmpl", zmpl_module.module("zmpl"));
+    main_tests.addModule("zmpl", zmpl_dep.module("zmpl"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");
@@ -104,4 +110,23 @@ fn findViews(allocator: std.mem.Allocator) !std.ArrayList(*ViewItem) {
         try array.append(ptr);
     }
     return array;
+}
+
+fn initializeNewProject(b: *std.Build) !void {
+    try copySourceFile(b, "main.zig");
+    try copySourceFile(b, "app/views/index.zig");
+}
+
+fn copySourceFile(b: *std.Build, path: []const u8) !void {
+    const cwd = std.fs.cwd();
+
+    var dest_dir = try cwd.makeOpenPath("src", .{});
+    defer dest_dir.close();
+    const dest_path = b.pathJoin(&[_][]const u8{ try dest_dir.realpathAlloc(b.allocator, "."), path });
+
+    var src_dir = try cwd.makeOpenPath(b.pathFromRoot("src/init"), .{});
+    defer src_dir.close();
+    const src_path = b.pathJoin(&[_][]const u8{ try src_dir.realpathAlloc(b.allocator, "."), path });
+
+    try std.fs.copyFileAbsolute(src_path, dest_path, .{});
 }
