@@ -201,6 +201,7 @@ fn renderView(
     template: ?jetzig.TemplateFn,
 ) !RenderedView {
     const view = matched_route.render(matched_route, request) catch |err| {
+        self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         switch (err) {
             error.OutOfMemory => return err,
             else => return try self.internalServerError(request, err),
@@ -216,9 +217,10 @@ fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror
     request.response_data.reset();
     var object = try request.response_data.object();
     try object.put("error", request.response_data.string(@errorName(err)));
+
     return .{
         .view = jetzig.views.View{ .data = request.response_data, .status_code = .internal_server_error },
-        .content = "An unexpected error occurred.",
+        .content = "Internal Server Error\n",
     };
 }
 
