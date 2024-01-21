@@ -21,6 +21,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Sessions.
 * :white_check_mark: Cookies.
 * :white_check_mark: Error handling.
+* :x: Static content from /public directory.
 * :x: Headers (available but not yet wrapped).
 * :x: Param/JSON payload parsing/abstracting.
 * :x: Development-mode responses for debugging.

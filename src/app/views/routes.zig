@@ -1,5 +1,5 @@
 pub const routes = .{
-  @import("foo/bar/baz.zig"),
+  @import("users.zig"),
+  @import("quotes.zig"),
   @import("index.zig"),
-  @import("options.zig"),
 };

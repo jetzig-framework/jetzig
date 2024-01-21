@@ -10,6 +10,11 @@ pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
 pub const App = @import("jetzig/App.zig");
 
+pub const config = struct {
+    pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
+    pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
+};
+
 pub fn init(allocator: std.mem.Allocator) !App {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);

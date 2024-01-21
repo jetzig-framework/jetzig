@@ -61,7 +61,7 @@ pub fn listen(self: *Self) !void {
 fn processRequests(self: *Self) !void {
     while (true) {
         var response = try self.server.accept(.{ .allocator = self.allocator });
-        defer response.deinit();
+        errdefer response.deinit();
 
         try response.headers.append("Connection", "close");
 
@@ -74,6 +74,8 @@ fn processRequests(self: *Self) !void {
                 }
             };
         }
+
+        response.deinit();
     }
 }
 
@@ -82,7 +84,7 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
 
     self.start_time = std.time.nanoTimestamp();
 
-    const body = try response.reader().readAllAlloc(self.allocator, 8192); // FIXME: Configurable max body size
+    const body = try response.reader().readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
     defer self.allocator.free(body);
 
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -99,6 +101,7 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     while (try cookie_it.next()) |header| {
         try response.headers.append("Set-Cookie", header);
     }
+    try response.headers.append("Content-Type", result.value.content_type);
     response.status = switch (result.value.status_code) {
         inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
     };
@@ -125,13 +128,37 @@ fn pageContent(self: *Self, request: *jetzig.http.Request) !jetzig.caches.Result
 }
 
 fn renderResponse(self: *Self, request: *jetzig.http.Request) !jetzig.http.Response {
-    const view = try self.matchView(request);
+    const static = self.matchStaticResource(request) catch |err| {
+        if (isUnhandledError(err)) return err;
+        const rendered = try self.internalServerError(request, err);
+        return .{
+            .allocator = self.allocator,
+            .status_code = .internal_server_error,
+            .content = rendered.content,
+            .content_type = "text/html",
+        };
+    };
+
+    if (static) |resource| return try self.renderStatic(request, resource);
+
+    const route = try self.matchRoute(request);
 
     switch (request.requestFormat()) {
-        .HTML => return self.renderHTML(request, view),
-        .JSON => return self.renderJSON(request, view),
-        .UNKNOWN => return self.renderHTML(request, view),
+        .HTML => return self.renderHTML(request, route),
+        .JSON => return self.renderJSON(request, route),
+        .UNKNOWN => return self.renderHTML(request, route),
     }
+}
+
+fn renderStatic(self: *Self, request: *jetzig.http.Request, resource: StaticResource) !jetzig.http.Response {
+    _ = request;
+    // TODO: Select an appropriate header from MIME type and add to request.response.headers
+    return .{
+        .allocator = self.allocator,
+        .status_code = .ok,
+        .content = resource.content,
+        .content_type = "application/octet-stream",
+    };
 }
 
 fn renderHTML(
@@ -152,6 +179,7 @@ fn renderHTML(
                     .allocator = self.allocator,
                     .content = rendered.content,
                     .status_code = rendered.view.status_code,
+                    .content_type = "text/html",
                 };
             }
         }
@@ -160,12 +188,14 @@ fn renderHTML(
             .allocator = self.allocator,
             .content = "",
             .status_code = .not_found,
+            .content_type = "text/html",
         };
     } else {
         return .{
             .allocator = self.allocator,
             .content = "",
             .status_code = .not_found,
+            .content_type = "text/html",
         };
     }
 }
@@ -180,20 +210,24 @@ fn renderJSON(
         var data = rendered.view.data;
 
         if (data.value) |_| {} else _ = try data.object();
+        try request.headers.append("Content-Type", "application/json");
 
         return .{
             .allocator = self.allocator,
             .content = try data.toJson(),
             .status_code = rendered.view.status_code,
+            .content_type = "application/json",
         };
     } else return .{
         .allocator = self.allocator,
         .content = "",
         .status_code = .not_found,
+        .content_type = "application/json",
     };
 }
 
 const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
+
 fn renderView(
     self: *Self,
     matched_route: jetzig.views.Route,
@@ -202,14 +236,19 @@ fn renderView(
 ) !RenderedView {
     const view = matched_route.render(matched_route, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
-        switch (err) {
-            error.OutOfMemory => return err,
-            else => return try self.internalServerError(request, err),
-        }
+        if (isUnhandledError(err)) return err;
+        return try self.internalServerError(request, err);
     };
     const content = if (template) |capture| try capture.render(view.data) else "";
 
     return .{ .view = view, .content = content };
+}
+
+fn isUnhandledError(err: anyerror) bool {
+    return switch (err) {
+        error.OutOfMemory => true,
+        else => false,
+    };
 }
 
 fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
@@ -248,7 +287,7 @@ fn duration(self: *Self) i64 {
     return @intCast(std.time.nanoTimestamp() - self.start_time);
 }
 
-fn matchView(self: *Self, request: *jetzig.http.Request) !?jetzig.views.Route {
+fn matchRoute(self: *Self, request: *jetzig.http.Request) !?jetzig.views.Route {
     for (self.routes) |route| {
         if (route.action == .index and try request.match(route)) return route;
     }
@@ -257,5 +296,36 @@ fn matchView(self: *Self, request: *jetzig.http.Request) !?jetzig.views.Route {
         if (try request.match(route)) return route;
     }
 
+    return null;
+}
+
+const StaticResource = struct { content: []const u8, mime_type: []const u8 = undefined };
+
+fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
+    _ = self;
+
+    if (request.path.len < 2) return null;
+    if (request.method != .GET) return null;
+
+    var iterable_dir = std.fs.cwd().openIterableDir("public", .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        }
+    };
+    var walker = try iterable_dir.walk(request.allocator);
+    while (try walker.next()) |file| {
+        if (file.kind != .file) continue;
+
+        if (std.mem.eql(u8, file.path, request.path[1..])) {
+            return .{
+                .content = try iterable_dir.dir.readFileAlloc(
+                    request.allocator,
+                    file.path,
+                    jetzig.config.max_bytes_static_content,
+                ),
+            };
+        }
+    }
     return null;
 }

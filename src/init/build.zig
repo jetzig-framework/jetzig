@@ -18,6 +18,19 @@ pub fn build(b: *std.Build) !void {
     exe.addModule("jetzig", jetzig.module("jetzig"));
     try b.modules.put("jetzig", jetzig.module("jetzig"));
 
+    const zmpl_dep = b.dependency(
+        "zmpl",
+        .{
+            .target = target,
+            .optimize = optimize,
+            .zmpl_templates_path = @as([]const u8, "src/app/views/"),
+            .zmpl_manifest_path = @as([]const u8, "src/app/views/zmpl.manifest.zig"),
+        },
+    );
+
+    exe.addModule("zmpl", zmpl_dep.module("zmpl"));
+    try b.modules.put("zmpl", zmpl_dep.module("zmpl"));
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
 

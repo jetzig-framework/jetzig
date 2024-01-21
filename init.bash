@@ -39,6 +39,11 @@ objects=(
   'src/main.zig'
   'src/app/views/index.zig'
   'src/app/views/index.zmpl'
+  'src/app/views/quotes.zig'
+  'src/app/views/quotes/get.zmpl'
+  'src/app/config/quotes.json'
+  'public/jetzig.png'
+  '.gitignore'
 )
 
 for object in "${objects[@]}"
@@ -57,8 +62,10 @@ do
   fi
 done
 
-sed -i.bak -e "s,%%project_name%%,${project},g" 'src/build.zig' && rm build.zig.bak
-sed -i.bak -e "s,%%project_name%%,${project},g" 'src/build.zig.zon' && rm build.zig.zon.bak
+sed -i.bak -e "s,%%project_name%%,${project},g" "${project_path}/build.zig"
+rm "${project_path}/build.zig.bak"
+sed -i.bak -e "s,%%project_name%%,${project},g" "${project_path}/build.zig.zon"
+rm "${project_path}/build.zig.zon.bak"
 
 echo
 echo "Finished creating new project in: ${project_path}"

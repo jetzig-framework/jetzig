@@ -21,7 +21,7 @@
       </div>
 
       <div>Take a look at the <span class="font-mono">src/app/</span> directory to see how this application works.</div>
-      <div>Visit <a class="font-bold text-[#39b54a]" href="https://www.jetzig.dev/">jetzig.dev</a> to get started.</div>
+      <div>Visit <a class="font-bold text-[#39b54a]" href="https://jetzig.dev/">jetzig.dev</a> to get started.</div>
     </div>
   </body>
 </html>
