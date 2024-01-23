@@ -30,7 +30,7 @@ pub fn init(
     routes: []jetzig.views.Route,
     templates: []jetzig.TemplateFn,
 ) Self {
-    const server = std.http.Server.init(allocator, .{ .reuse_address = true });
+    const server = std.http.Server.init( .{ .reuse_address = true });
 
     return .{
         .server = server,
@@ -106,7 +106,7 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
         inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
     };
 
-    try response.do();
+    try response.send();
     try response.writeAll(result.value.content);
 
     try response.finish();
@@ -307,7 +307,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
     if (request.path.len < 2) return null;
     if (request.method != .GET) return null;
 
-    var iterable_dir = std.fs.cwd().openIterableDir("public", .{}) catch |err| {
+    var iterable_dir = std.fs.cwd().openDir("public", .{.iterate = true}) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
             else => return err,
@@ -319,7 +319,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
 
         if (std.mem.eql(u8, file.path, request.path[1..])) {
             return .{
-                .content = try iterable_dir.dir.readFileAlloc(
+                .content = try iterable_dir.readFileAlloc(
                     request.allocator,
                     file.path,
                     jetzig.config.max_bytes_static_content,
