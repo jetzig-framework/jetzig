@@ -35,6 +35,7 @@ pub fn init(
         .CONNECT => Method.CONNECT,
         .OPTIONS => Method.OPTIONS,
         .TRACE => Method.TRACE,
+        _ => return error.jetzig_unsupported_http_method,
     };
 
     var it = std.mem.splitScalar(u8, response.request.target, '/');
