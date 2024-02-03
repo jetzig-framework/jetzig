@@ -6,3 +6,4 @@ zig-cache/
 *.core
 src/app/views/**/*.compiled.zig
 archive.tar.gz
+static/

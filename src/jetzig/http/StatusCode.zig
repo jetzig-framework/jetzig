@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const root = @import("root");
+const jetzig = @import("../jetzig.zig");
 
 pub const StatusCode = enum {
     ok,
@@ -20,13 +20,13 @@ pub fn StatusCodeType(comptime code: []const u8, comptime message: []const u8) t
             const full_message = code ++ " " ++ message;
 
             if (std.mem.startsWith(u8, code, "2")) {
-                return root.colors.green(full_message);
+                return jetzig.colors.green(full_message);
             } else if (std.mem.startsWith(u8, code, "3")) {
-                return root.colors.blue(full_message);
+                return jetzig.colors.blue(full_message);
             } else if (std.mem.startsWith(u8, code, "4")) {
-                return root.colors.yellow(full_message);
+                return jetzig.colors.yellow(full_message);
             } else if (std.mem.startsWith(u8, code, "5")) {
-                return root.colors.red(full_message);
+                return jetzig.colors.red(full_message);
             } else {
                 return full_message;
             }

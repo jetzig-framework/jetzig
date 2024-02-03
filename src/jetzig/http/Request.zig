@@ -23,9 +23,24 @@ cookies: *jetzig.http.Cookies,
 pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
-    response: *std.http.Server.Response,
+    response: ?*std.http.Server.Response,
 ) !Self {
-    const method = switch (response.request.method) {
+    if (response) |_| {} else {
+        return .{
+            .allocator = allocator,
+            .path = "/",
+            .method = .GET,
+            .headers = jetzig.http.Headers.init(allocator, std.http.Headers{ .allocator = allocator }),
+            .server = server,
+            .segments = std.ArrayList([]const u8).init(allocator),
+            .cookies = try allocator.create(jetzig.http.Cookies),
+            .session = try allocator.create(jetzig.http.Session),
+            .response_data = try allocator.create(jetzig.data.Data),
+        };
+    }
+
+    const resp = response.?;
+    const method = switch (resp.request.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
@@ -35,17 +50,17 @@ pub fn init(
         .CONNECT => Method.CONNECT,
         .OPTIONS => Method.OPTIONS,
         .TRACE => Method.TRACE,
-        _ => return error.jetzig_unsupported_http_method,
+        _ => return error.JetzigUnsupportedHttpMethod,
     };
 
-    var it = std.mem.splitScalar(u8, response.request.target, '/');
+    var it = std.mem.splitScalar(u8, resp.request.target, '/');
     var segments = std.ArrayList([]const u8).init(allocator);
     while (it.next()) |segment| try segments.append(segment);
 
     var cookies = try allocator.create(jetzig.http.Cookies);
     cookies.* = jetzig.http.Cookies.init(
         allocator,
-        response.request.headers.getFirstValue("Cookie") orelse "",
+        resp.request.headers.getFirstValue("Cookie") orelse "",
     );
     try cookies.parse();
 
@@ -66,9 +81,9 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = response.request.target,
+        .path = resp.request.target,
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator, response.request.headers),
+        .headers = jetzig.http.Headers.init(allocator, resp.request.headers),
         .server = server,
         .segments = segments,
         .cookies = cookies,
@@ -150,6 +165,8 @@ pub fn resourceModifier(self: *Self) ?Modifier {
 }
 
 pub fn resourceName(self: *Self) []const u8 {
+    if (self.segments.items.len == 0) return "default";
+
     const basename = std.fs.path.basename(self.segments.items[self.segments.items.len - 1]);
     const extension = std.fs.path.extension(basename);
     return basename[0 .. basename.len - extension.len];
@@ -172,14 +189,8 @@ pub fn match(self: *Self, route: jetzig.views.Route) !bool {
     switch (self.method) {
         .GET => {
             return switch (route.action) {
-                .index => blk: {
-                    if (std.mem.eql(u8, self.path, "/") and std.mem.eql(u8, route.name, "app.views.index")) {
-                        break :blk true;
-                    } else {
-                        break :blk std.mem.eql(u8, try self.fullName(), route.name);
-                    }
-                },
-                .get => std.mem.eql(u8, try self.fullNameWithStrippedResourceId(), route.name),
+                .index => std.mem.eql(u8, self.pathWithoutExtension(), route.uri_path),
+                .get => std.mem.eql(u8, self.pathWithoutResourceId(), route.uri_path),
                 else => false,
             };
         },
@@ -193,16 +204,20 @@ pub fn match(self: *Self, route: jetzig.views.Route) !bool {
     return false;
 }
 
-fn isEditAction(self: *Self) bool {
-    if (self.resourceModifier()) |modifier| {
-        return modifier == .edit;
-    } else return false;
+fn pathWithoutExtension(self: *Self) []const u8 {
+    const index = std.mem.indexOfScalar(u8, self.path, '.');
+    if (index) |capture| return self.path[0..capture] else return self.path;
 }
 
-fn isNewAction(self: *Self) bool {
-    if (self.resourceModifier()) |modifier| {
-        return modifier == .new;
-    } else return false;
+fn pathWithoutResourceId(self: *Self) []const u8 {
+    const path = self.pathWithoutExtension();
+    const index = std.mem.lastIndexOfScalar(u8, self.path, '/');
+    if (index) |capture| {
+        if (capture == 0) return "/";
+        return path[0..capture];
+    } else {
+        return path;
+    }
 }
 
 fn fullName(self: *Self) ![]const u8 {
@@ -216,13 +231,12 @@ fn fullNameWithStrippedResourceId(self: *Self) ![]const u8 {
 fn name(self: *Self, with_resource_id: bool) ![]const u8 {
     const dirname = try std.mem.join(
         self.allocator,
-        ".",
+        "_",
         self.segments.items[0 .. self.segments.items.len - 1],
     );
     defer self.allocator.free(dirname);
 
     return std.mem.concat(self.allocator, u8, &[_][]const u8{
-        "app.views",
         dirname,
         if (with_resource_id) "." else "",
         if (with_resource_id) self.resourceName() else "",

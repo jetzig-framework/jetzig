@@ -1,0 +1,4 @@
+zig-cache/
+zig-out/
+static/
+src/app/views/**/.*.zig

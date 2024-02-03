@@ -130,6 +130,7 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     response.transfer_encoding = .{ .content_length = result.value.content.len };
     var cookie_it = request.cookies.headerIterator();
     while (try cookie_it.next()) |header| {
+        // FIXME: Skip setting cookies that are already present ?
         try response.headers.append("Set-Cookie", header);
     }
     try response.headers.append("Content-Type", result.value.content_type);
@@ -192,12 +193,11 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !jetzig.http.Respo
 
 fn renderStatic(self: *Self, request: *jetzig.http.Request, resource: StaticResource) !jetzig.http.Response {
     _ = request;
-    // TODO: Select an appropriate header from MIME type and add to request.response.headers
     return .{
         .allocator = self.allocator,
         .status_code = .ok,
         .content = resource.content,
-        .content_type = "application/octet-stream",
+        .content_type = resource.mime_type,
     };
 }
 
@@ -207,13 +207,9 @@ fn renderHTML(
     route: ?jetzig.views.Route,
 ) !jetzig.http.Response {
     if (route) |matched_route| {
-        const expected_name = try matched_route.templateName(self.allocator);
-        defer self.allocator.free(expected_name);
-
         for (self.templates) |template| {
-            // FIXME: Tidy this up and use a hashmap for templates (or a more comprehensive
-            // matching system) instead of an array.
-            if (std.mem.eql(u8, expected_name, template.name)) {
+            // TODO: Use a hashmap to avoid O(n)
+            if (std.mem.eql(u8, matched_route.template, template.name)) {
                 const rendered = try self.renderView(matched_route, request, template);
                 return .{
                     .allocator = self.allocator,
@@ -270,11 +266,11 @@ const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
 
 fn renderView(
     self: *Self,
-    matched_route: jetzig.views.Route,
+    route: jetzig.views.Route,
     request: *jetzig.http.Request,
     template: ?jetzig.TemplateFn,
 ) !RenderedView {
-    const view = matched_route.render(matched_route, request) catch |err| {
+    const view = route.render(route, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         return try self.internalServerError(request, err);
@@ -357,9 +353,25 @@ fn matchRoute(self: *Self, request: *jetzig.http.Request) !?jetzig.views.Route {
     return null;
 }
 
-const StaticResource = struct { content: []const u8, mime_type: []const u8 = undefined };
+const StaticResource = struct { content: []const u8, mime_type: []const u8 = "application/octet-stream" };
 
 fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
+    const public_content = try self.matchPublicContent(request);
+    if (public_content) |content| return .{ .content = content };
+
+    const static_content = try self.matchStaticContent(request);
+    if (static_content) |content| return .{
+        .content = content,
+        .mime_type = switch (request.requestFormat()) {
+            .HTML, .UNKNOWN => "text/html",
+            .JSON => "application/json",
+        },
+    };
+
+    return null;
+}
+
+fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
     _ = self;
 
     if (request.path.len < 2) return null;
@@ -371,19 +383,54 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
             else => return err,
         }
     };
+
     var walker = try iterable_dir.walk(request.allocator);
+
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
 
         if (std.mem.eql(u8, file.path, request.path[1..])) {
-            return .{
-                .content = try iterable_dir.readFileAlloc(
-                    request.allocator,
-                    file.path,
-                    jetzig.config.max_bytes_static_content,
-                ),
+            return try iterable_dir.readFileAlloc(
+                request.allocator,
+                file.path,
+                jetzig.config.max_bytes_static_content,
+            );
+        }
+    }
+
+    return null;
+}
+
+fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
+    var static_dir = std.fs.cwd().openDir("static", .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        }
+    };
+
+    // TODO: Use a hashmap to avoid O(n)
+    for (self.routes) |route| {
+        if (route.static and try request.match(route)) {
+            const extension = switch (request.requestFormat()) {
+                .HTML, .UNKNOWN => ".html",
+                .JSON => ".json",
+            };
+
+            const path = try std.mem.concat(request.allocator, u8, &[_][]const u8{ route.name, extension });
+
+            return static_dir.readFileAlloc(
+                request.allocator,
+                path,
+                jetzig.config.max_bytes_static_content,
+            ) catch |err| {
+                switch (err) {
+                    error.FileNotFound => return null,
+                    else => return err,
+                }
             };
         }
     }
+
     return null;
 }

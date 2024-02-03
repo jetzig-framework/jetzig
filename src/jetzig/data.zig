@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const zmpl = @import("zmpl");
+const zmpl = @import("zmpl").zmpl;
 
 pub const Writer = zmpl.Data.Writer;
 pub const Data = zmpl.Data;
