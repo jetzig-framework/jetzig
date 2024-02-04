@@ -1,15 +1,20 @@
 # :airplane::lizard: Jetzig
 
+![Jetzig Logo](public/jetzig.png)
+
 _Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
 
 The framework is under active development and is currently in an alpha state.
 
 _Jetzig_ aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
 
+Join us on Discord ! [https://discord.gg/eufqssz7X6](https://discord.gg/eufqssz7X6).
+
 If you are interested in _Jetzig_ you will probably find these tools interesting too:
 
 * [Zap](https://github.com/zigzap/zap)
 * [http.zig](https://github.com/karlseguin/http.zig)
+* [zig-router](https://github.com/Cloudef/zig-router)
 
 ## Checklist
 
@@ -22,6 +27,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Cookies.
 * :white_check_mark: Error handling.
 * :white_check_mark: Static content from /public directory.
+* :x: Static content generation.
 * :x: Headers (available but not yet wrapped).
 * :x: Param/JSON payload parsing/abstracting.
 * :x: Development-mode responses for debugging.
