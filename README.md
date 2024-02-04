@@ -1,5 +1,3 @@
-# :airplane::lizard: Jetzig
-
 ![Jetzig Logo](public/jetzig.png)
 
 _Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
