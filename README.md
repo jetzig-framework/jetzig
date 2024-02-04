@@ -4,6 +4,8 @@ _Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
 
 The framework is under active development and is currently in an alpha state.
 
+Official website: [jetzig.dev](https://www.jetzig.dev/)
+
 _Jetzig_ aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
 
 Join us on Discord ! [https://discord.gg/eufqssz7X6](https://discord.gg/eufqssz7X6).
