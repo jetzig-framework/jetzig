@@ -98,16 +98,16 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     defer request.deinit();
 
     var middleware_data = std.BoundedArray(*anyopaque, middlewares.len).init(0) catch unreachable;
-    inline for (middlewares, 0..) |middleware, i| {
+    inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "init")) continue;
         const data = try @call(.always_inline, middleware.init, .{&request});
-        middleware_data.insert(i, data) catch unreachable; // We cannot overflow here because we know the length of the array
+        middleware_data.insert(index, data) catch unreachable; // We cannot overflow here because we know the length of the array
     }
 
-    inline for (middlewares, 0..) |middleware, i| {
+    inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "beforeRequest")) continue;
         if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(i);
+            const data = middleware_data.get(index);
             try @call(.always_inline, middleware.beforeRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
         } else {
             try @call(.always_inline, middleware.beforeRequest, .{&request});
@@ -117,10 +117,10 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     var result = try self.pageContent(&request);
     defer result.deinit();
 
-    inline for (middlewares, 0..) |middleware, i| {
+    inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "afterRequest")) continue;
         if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(i);
+            const data = middleware_data.get(index);
             try @call(.always_inline, middleware.afterRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request, &result });
         } else {
             try @call(.always_inline, middleware.afterRequest, .{ &request, &result });
@@ -146,10 +146,10 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     defer self.allocator.free(log_message);
     self.logger.debug("{s}", .{log_message});
 
-    inline for (middlewares, 0..) |middleware, i| {
+    inline for (middlewares, 0..) |middleware, index| {
         if (comptime @hasDecl(middleware, "init")) {
             if (comptime @hasDecl(middleware, "deinit")) {
-                const data = middleware_data.get(i);
+                const data = middleware_data.get(index);
                 @call(.always_inline, middleware.deinit, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
             }
         }
