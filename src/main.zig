@@ -37,7 +37,7 @@ const TestMiddleware = struct {
 
     pub fn afterRequest(middleware: *TestMiddleware, request: *jetzig.http.Request, result: *jetzig.caches.Result) !void {
         request.server.logger.debug("After request, custom data: {d}", .{middleware.my_data});
-        request.server.logger.debug("{s}", .{result.value.content});
+        request.server.logger.debug("{s}", .{result.value.content_type});
     }
 
     pub fn deinit(middleware: *TestMiddleware, request: *jetzig.http.Request) void {
