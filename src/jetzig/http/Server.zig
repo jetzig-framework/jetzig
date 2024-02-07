@@ -2,6 +2,10 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 
+const root_file = @import("root");
+const jetzig_server_options = if (@hasDecl(root_file, "jetzig_options")) root_file.jetzig_options else struct {};
+const middlewares: []const type = jetzig_server_options.middleware;
+
 pub const ServerOptions = struct {
     cache: jetzig.caches.Cache,
     logger: jetzig.loggers.Logger,
@@ -30,7 +34,7 @@ pub fn init(
     routes: []jetzig.views.Route,
     templates: []jetzig.TemplateFn,
 ) Self {
-    const server = std.http.Server.init( .{ .reuse_address = true });
+    const server = std.http.Server.init(.{ .reuse_address = true });
 
     return .{
         .server = server,
@@ -93,8 +97,35 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     var request = try jetzig.http.Request.init(arena.allocator(), self, response);
     defer request.deinit();
 
-    const result = try self.pageContent(&request);
+    var middleware_data = std.BoundedArray(*anyopaque, middlewares.len).init(0) catch unreachable;
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "init")) continue;
+        const data = try @call(.always_inline, middleware.init, .{&request});
+        middleware_data.insert(index, data) catch unreachable; // We cannot overflow here because we know the length of the array
+    }
+
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "beforeRequest")) continue;
+        if (comptime @hasDecl(middleware, "init")) {
+            const data = middleware_data.get(index);
+            try @call(.always_inline, middleware.beforeRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
+        } else {
+            try @call(.always_inline, middleware.beforeRequest, .{&request});
+        }
+    }
+
+    var result = try self.pageContent(&request);
     defer result.deinit();
+
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "afterRequest")) continue;
+        if (comptime @hasDecl(middleware, "init")) {
+            const data = middleware_data.get(index);
+            try @call(.always_inline, middleware.afterRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request, &result });
+        } else {
+            try @call(.always_inline, middleware.afterRequest, .{ &request, &result });
+        }
+    }
 
     response.transfer_encoding = .{ .content_length = result.value.content.len };
     var cookie_it = request.cookies.headerIterator();
@@ -114,6 +145,15 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     const log_message = try self.requestLogMessage(&request, result);
     defer self.allocator.free(log_message);
     self.logger.debug("{s}", .{log_message});
+
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime @hasDecl(middleware, "init")) {
+            if (comptime @hasDecl(middleware, "deinit")) {
+                const data = middleware_data.get(index);
+                @call(.always_inline, middleware.deinit, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
+            }
+        }
+    }
 }
 
 fn pageContent(self: *Self, request: *jetzig.http.Request) !jetzig.caches.Result {
@@ -307,7 +347,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
     if (request.path.len < 2) return null;
     if (request.method != .GET) return null;
 
-    var iterable_dir = std.fs.cwd().openDir("public", .{.iterate = true}) catch |err| {
+    var iterable_dir = std.fs.cwd().openDir("public", .{ .iterate = true }) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
             else => return err,
