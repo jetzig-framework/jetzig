@@ -3,6 +3,6 @@
 // This file should _not_ be stored in version control.
 pub const templates = struct {
   pub const index = @import(".index.zmpl.compiled.zig");
-  pub const users_get = @import("users/.get.zmpl.compiled.zig");
   pub const quotes_get = @import("quotes/.get.zmpl.compiled.zig");
+  pub const users_get = @import("users/.get.zmpl.compiled.zig");
 };

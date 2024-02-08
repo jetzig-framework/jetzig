@@ -21,8 +21,8 @@
             // `hash`, otherwise you are communicating that you expect to find the old hash at
             // the new URL.
             //
-            .url = "https://github.com/jetzig-framework/zmpl/archive/abe0d2b27f22b449eb021bcf8f5722fa38229c6a.tar.gz",
-            .hash = "122007e90e8db4781ef886cc6c11b4fba6d9b0cf79d0df0e616894c7f72ac1f5f4cb",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/dde755c61b2cf7ddbb65c81b98a8877c0806cf6e.tar.gz",
+            .hash = "122093ac6e80128800873132da4a2f2e754cd2b7b7c3f0e84bdf6fa385f80615c37d",
             // This is computed from the file contents of the directory of files that is
             // obtained after fetching `url` and applying the inclusion rules given by
             // `paths`.
