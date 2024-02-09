@@ -4,7 +4,7 @@ const jetzig = @import("../../jetzig.zig");
 
 const root_file = @import("root");
 const jetzig_server_options = if (@hasDecl(root_file, "jetzig_options")) root_file.jetzig_options else struct {};
-const middlewares: []const type = jetzig_server_options.middleware;
+const middlewares: []const type = if (@hasDecl(jetzig_server_options, "middlewares")) jetzig_server_options.middlewares else &.{};
 
 pub const ServerOptions = struct {
     cache: jetzig.caches.Cache,

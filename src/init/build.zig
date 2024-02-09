@@ -17,22 +17,12 @@ pub fn build(b: *std.Build) void {
     const jetzig_dep = b.dependency("jetzig", .{ .optimize = optimize, .target = target });
     const compile_view_step = jetzig_build.CompileViewsStep.create(b, .{ .template_path = "src/app/views/" });
 
-    const lib = b.addStaticLibrary(.{
-        .name = "%%project_name%%",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = .{ .path = "src/root.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
-    b.installArtifact(lib);
 
     const exe = b.addExecutable(.{
-        .name = "jetzig-demo",
+        .name = "%%project_name%%",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
