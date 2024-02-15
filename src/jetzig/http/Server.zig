@@ -292,15 +292,33 @@ fn isUnhandledError(err: anyerror) bool {
 }
 
 fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
-    _ = self;
     request.response_data.reset();
+
     var object = try request.response_data.object();
     try object.put("error", request.response_data.string(@errorName(err)));
+
+    const stack = @errorReturnTrace();
+    if (stack) |capture| try self.logStackTrace(capture, request, object);
 
     return .{
         .view = jetzig.views.View{ .data = request.response_data, .status_code = .internal_server_error },
         .content = "Internal Server Error\n",
     };
+}
+fn logStackTrace(
+    self: *Self,
+    stack: *std.builtin.StackTrace,
+    request: *jetzig.http.Request,
+    object: *jetzig.data.Value,
+) !void {
+    _ = self;
+    std.debug.print("\nStack Trace:\n{}", .{stack});
+    var array = std.ArrayList(u8).init(request.allocator);
+    const writer = array.writer();
+    try stack.format("", .{}, writer);
+    // TODO: Generate an array of objects with stack trace in useful data structure instead of
+    // dumping the whole formatted backtrace as a JSON string:
+    try object.put("backtrace", request.response_data.string(array.items));
 }
 
 fn requestLogMessage(self: *Self, request: *jetzig.http.Request, result: jetzig.caches.Result) ![]const u8 {

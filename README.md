@@ -28,9 +28,9 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Error handling.
 * :white_check_mark: Static content from /public directory.
 * :white_check_mark: Headers (available but not yet wrapped).
+* :white_check_mark: Stack trace output on error.
 * :x: Static content generation (nearly there!).
 * :x: Param/JSON payload parsing/abstracting.
-* :x: Development-mode responses for debugging.
 * :x: Environment configurations (develompent/production/etc.)
 * :x: Middleware extensions (for e.g. authentication).
 * :x: Email delivery.
@@ -45,3 +45,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 ## LICENSE
 
 [MIT](LICENSE)
+
+## Contributors
+
+* [Bob Farrell](https://github.com/bobf)
