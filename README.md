@@ -48,4 +48,5 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 
 ## Contributors
 
+* [Zackary Housend](github.com/z1fire)
 * [Bob Farrell](https://github.com/bobf)
