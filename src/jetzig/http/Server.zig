@@ -371,7 +371,9 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
             else => return err,
         }
     };
+    defer iterable_dir.close();
     var walker = try iterable_dir.walk(request.allocator);
+    defer walker.deinit();
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
 
