@@ -65,21 +65,21 @@ pub fn deinit(self: *Self) void {
     if (self.cookie) |*ptr| self.allocator.free(ptr.*.value);
 }
 
-pub fn get(self: *Self, key: []const u8) !?jetzig.data.Value {
+pub fn get(self: *Self, key: []const u8) !?*jetzig.data.Value {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
-    return switch (self.data.value.?) {
+    return switch (self.data.value.?.*) {
         .object => self.data.value.?.object.get(key),
         else => unreachable,
     };
 }
 
-pub fn put(self: *Self, key: []const u8, value: jetzig.data.Value) !void {
+pub fn put(self: *Self, key: []const u8, value: *jetzig.data.Value) !void {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
-    switch (self.data.value.?) {
+    switch (self.data.value.?.*) {
         .object => |*object| {
-            try object.put(key, value);
+            try object.*.put(key, value);
         },
         else => unreachable,
     }

@@ -4,6 +4,10 @@ pub const jetzig = @import("jetzig");
 pub const templates = @import("app/views/zmpl.manifest.zig").templates;
 pub const routes = @import("routes").routes;
 
+pub const jetzig_options = struct {
+    pub const middleware: []const type = &.{@import("DemoMiddleware.zig")};
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);

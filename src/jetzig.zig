@@ -10,6 +10,12 @@ pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
 pub const App = @import("jetzig/App.zig");
 
+// Convenience for view function parameters.
+pub const Request = http.Request;
+pub const StaticRequest = http.StaticRequest;
+pub const Data = data.Data;
+pub const View = views.View;
+
 pub const config = struct {
     pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
     pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
@@ -97,6 +103,7 @@ pub fn route(comptime routes: anytype) []views.Route {
             .static = false,
             .uri_path = dynamic_route.uri_path,
             .template = dynamic_route.template,
+            .json_params = &.{},
         };
         index += 1;
     }
@@ -110,6 +117,11 @@ pub fn route(comptime routes: anytype) []views.Route {
             ),
         };
 
+        comptime var params_size = 0;
+        inline for (static_route.params) |_| params_size += 1;
+        comptime var static_params: [params_size][]const u8 = undefined;
+        inline for (static_route.params, 0..) |json, params_index| static_params[params_index] = json;
+
         detected[index] = .{
             .name = static_route.name,
             .action = @field(views.Route.Action, static_route.action),
@@ -117,6 +129,7 @@ pub fn route(comptime routes: anytype) []views.Route {
             .static = true,
             .uri_path = static_route.uri_path,
             .template = static_route.template,
+            .json_params = &static_params,
         };
         index += 1;
     }

@@ -15,6 +15,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * [Zap](https://github.com/zigzap/zap)
 * [http.zig](https://github.com/karlseguin/http.zig)
 * [zig-router](https://github.com/Cloudef/zig-router)
+* [zig-webui](https://github.com/webui-dev/zig-webui/)
 
 ## Checklist
 

@@ -24,6 +24,15 @@ pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.Templ
         templates,
     );
 
+    for (routes) |*route| {
+        var mutable = @constCast(route); // FIXME
+        try mutable.initParams(self.allocator);
+    }
+    defer for (routes) |*route| {
+        var mutable = @constCast(route); // FIXME
+        mutable.deinitParams();
+    };
+
     defer server.deinit();
     defer self.allocator.free(self.root_path);
     defer self.allocator.free(self.host);

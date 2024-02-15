@@ -39,7 +39,8 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("zmpl", zmpl_dep.module("zmpl"));
 
     // This is the way to make it look nice in the zig build script
-    // If we would do it the other way around, we would have to do b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
+    // If we would do it the other way around, we would have to do
+    // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
 
     const main_tests = b.addTest(.{
@@ -47,6 +48,15 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
+
+    const docs_step = b.step("docs", "Generate documentation");
+    const docs_install = b.addInstallDirectory(.{
+        .source_dir = lib.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+
+    docs_step.dependOn(&docs_install.step);
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     const run_main_tests = b.addRunArtifact(main_tests);
