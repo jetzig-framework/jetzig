@@ -162,5 +162,5 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]const u
 }
 
 test {
-    @import("std").testing.refAllDeclsRecursive(@This());
+    @import("std").testing.refAllDecls(@This());
 }

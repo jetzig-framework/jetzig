@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const template_path = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse "src/app/views/";
-    const manifest : []const u8 = b.pathJoin(&.{ template_path, "zmpl.manifest.zig" });
+    const manifest: []const u8 = b.pathJoin(&.{ template_path, "zmpl.manifest.zig" });
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
@@ -24,13 +24,13 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(exe);
 
-    const jetzig_module = b.addModule("jetzig",.{ .root_source_file = .{ .path = "src/jetzig.zig" } });
+    const jetzig_module = b.addModule("jetzig", .{ .root_source_file = .{ .path = "src/jetzig.zig" } });
     exe.root_module.addImport("jetzig", jetzig_module);
     lib.root_module.addImport("jetzig", jetzig_module);
 
     const zmpl_dep = b.dependency(
         "zmpl",
-        .{ .target = target, .optimize = optimize, .zmpl_templates_path = template_path, .zmpl_manifest_path =  manifest},
+        .{ .target = target, .optimize = optimize, .zmpl_templates_path = template_path, .zmpl_manifest_path = manifest },
     );
 
     lib.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
@@ -90,7 +90,10 @@ pub const CompileViewsStep = struct {
             .makeFn = &make,
         });
         const compile_step_view = owner.allocator.create(CompileViewsStep) catch @panic("Out of memory");
-        compile_step_view.* = .{ .step = step, .template_path = options.template_path, };
+        compile_step_view.* = .{
+            .step = step,
+            .template_path = options.template_path,
+        };
         return compile_step_view;
     }
 
