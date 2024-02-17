@@ -29,12 +29,13 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Static content from /public directory.
 * :white_check_mark: Headers (available but not yet wrapped).
 * :white_check_mark: Stack trace output on error.
-* :x: Static content generation (nearly there!).
+* :white_check_mark: Static content generation.
 * :x: Param/JSON payload parsing/abstracting.
+* :x: Static content paramater definitions.
 * :x: Environment configurations (develompent/production/etc.)
 * :x: Middleware extensions (for e.g. authentication).
 * :x: Email delivery.
-* :x: Custom/dynamic routes.
+* :x: Custom/non-conventional routes.
 * :x: General-purpose cache.
 * :x: Background jobs.
 * :x: Testing helpers for testing HTTP requests/responses.
@@ -48,5 +49,6 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 
 ## Contributors
 
-* [Zackary Housend](github.com/z1fire)
+* [Zackary Housend](https://github.com/z1fire)
+* [Andreas Stührk](https://github.com/Trundle)
 * [Bob Farrell](https://github.com/bobf)
