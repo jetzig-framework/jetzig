@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const zmpl = @import("zmpl");
+pub const zmpl = @import("zmpl").zmpl;
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
@@ -67,37 +67,58 @@ pub fn init(allocator: std.mem.Allocator) !App {
 // Receives an array of imported modules and detects functions defined on them.
 // Each detected function is stored as a Route which can be accessed at runtime to route requests
 // to the appropriate View.
-pub fn route(comptime modules: anytype) []views.Route {
+pub fn route(comptime routes: anytype) []views.Route {
     var size: usize = 0;
 
-    for (modules) |module| {
-        const decls = @typeInfo(module).Struct.decls;
+    for (routes.dynamic) |_| {
+        size += 1;
+    }
 
-        for (decls) |decl| {
-            if (@hasField(views.Route.ViewType, decl.name)) size += 1;
-        }
+    for (routes.static) |_| {
+        size += 1;
     }
 
     var detected: [size]views.Route = undefined;
     var index: usize = 0;
 
-    for (modules) |module| {
-        const decls = @typeInfo(module).Struct.decls;
+    for (routes.dynamic) |dynamic_route| {
+        const view = views.Route.ViewType{
+            .dynamic = @unionInit(
+                views.Route.DynamicViewType,
+                dynamic_route.action,
+                dynamic_route.function,
+            ),
+        };
 
-        for (decls) |decl| {
-            if (!@hasField(views.Route.ViewType, decl.name)) {
-                // TODO: Figure out how to log a warning here (comptime issues).
-                continue;
-            }
-            const view = @unionInit(views.Route.ViewType, decl.name, @field(module, decl.name));
+        detected[index] = .{
+            .name = dynamic_route.name,
+            .action = @field(views.Route.Action, dynamic_route.action),
+            .view = view,
+            .static = false,
+            .uri_path = dynamic_route.uri_path,
+            .template = dynamic_route.template,
+        };
+        index += 1;
+    }
 
-            detected[index] = .{
-                .name = @typeName(module),
-                .action = @field(views.Route.Action, decl.name),
-                .view = view,
-            };
-            index += 1;
-        }
+    for (routes.static) |static_route| {
+        const view = views.Route.ViewType{
+            .static = @unionInit(
+                views.Route.StaticViewType,
+                static_route.action,
+                static_route.function,
+            ),
+        };
+
+        detected[index] = .{
+            .name = static_route.name,
+            .action = @field(views.Route.Action, static_route.action),
+            .view = view,
+            .static = true,
+            .uri_path = static_route.uri_path,
+            .template = static_route.template,
+        };
+        index += 1;
     }
 
     return &detected;

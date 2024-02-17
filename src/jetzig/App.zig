@@ -14,13 +14,13 @@ pub fn deinit(self: Self) void {
     _ = self;
 }
 
-pub fn start(self: Self, views: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
+pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
     var server = jetzig.http.Server.init(
         self.allocator,
         self.host,
         self.port,
         self.server_options,
-        views,
+        routes,
         templates,
     );
 
