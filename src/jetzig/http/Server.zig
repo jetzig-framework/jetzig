@@ -408,6 +408,7 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
             else => return err,
         }
     };
+    defer static_dir.close();
 
     // TODO: Use a hashmap to avoid O(n)
     for (self.routes) |route| {

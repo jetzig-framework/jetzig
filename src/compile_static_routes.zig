@@ -39,7 +39,8 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
         const view = try route.renderStatic(route, &request);
         defer view.deinit();
 
-        const dir = try std.fs.cwd().makeOpenPath("static", .{});
+        var dir = try std.fs.cwd().makeOpenPath("static", .{});
+        defer dir.close();
 
         const json_path = try std.mem.concat(
             allocator,
