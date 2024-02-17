@@ -1,4 +1,4 @@
-![Jetzig Logo](public/jetzig.png)
+![Jetzig Logo](demo/public/jetzig.png)
 
 _Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
 
