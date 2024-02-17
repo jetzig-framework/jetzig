@@ -5,7 +5,7 @@ const Request = jetzig.http.Request;
 const Data = jetzig.data.Data;
 const View = jetzig.views.View;
 
-pub fn get(id: []const u8, request: *Request, data: *Data) anyerror!View {
+pub fn get(id: []const u8, request: *Request, data: *Data) !View {
     var body = try data.object();
 
     const random_quote = try randomQuote(request.allocator);
