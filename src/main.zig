@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const jetzig = @import("jetzig.zig");
 pub const templates = @import("app/views/zmpl.manifest.zig").templates;
-pub const routes = @import("app/views/routes.zig").routes;
+pub const routes = @import("routes").routes;
 
 pub const jetzig_options = struct {
     pub const middleware: []const type = &.{ TestMiddleware, IncompleteMiddleware, IncompleteMiddleware2 };

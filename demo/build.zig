@@ -26,21 +26,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const template_path = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse "src/app/views/";
-    const manifest_path: []const u8 = b.pathJoin(&.{ template_path, "zmpl.manifest.zig" });
-
-    const zmpl_dep = b.dependency(
-        "zmpl",
-        .{
-            .target = target,
-            .optimize = optimize,
-            .zmpl_templates_path = template_path,
-            .zmpl_manifest_path = manifest_path,
-        },
-    );
-
     const jetzig_module = jetzig_dep.module("jetzig");
-    const zmpl_module = zmpl_dep.module("zmpl");
+    const zmpl_module = jetzig_dep.module("zmpl");
 
     exe.root_module.addImport("jetzig", jetzig_module);
     lib.root_module.addImport("jetzig", jetzig_module);

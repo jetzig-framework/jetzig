@@ -15,21 +15,12 @@ pub fn build(b: *std.Build) !void {
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .path = "src/jetzig.zig" },
         .target = target,
         .optimize = optimize,
     });
 
     b.installArtifact(lib);
-
-    const exe = b.addExecutable(.{
-        .name = "jetzig",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    b.installArtifact(exe);
 
     const jetzig_module = b.addModule("jetzig", .{ .root_source_file = .{ .path = "src/jetzig.zig" } });
     lib.root_module.addImport("jetzig", jetzig_module);
@@ -45,20 +36,11 @@ pub fn build(b: *std.Build) !void {
     );
 
     lib.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
-    exe.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     jetzig_module.addImport("zmpl", zmpl_dep.module("zmpl"));
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
-
-    const run_cmd = b.addRunArtifact(exe);
-
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },

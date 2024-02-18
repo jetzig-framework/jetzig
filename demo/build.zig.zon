@@ -18,10 +18,6 @@
         .jetzig = .{
             .path = "../",
         },
-        .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/40158f08fbde4a67d44bf0387649e324ad7ef668.tar.gz",
-            .hash = "12201558739a1032ba9c104d9c900055988f11e2af8014b4159c259b7d1103398f0b",
-        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally
