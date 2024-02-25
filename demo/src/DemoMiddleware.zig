@@ -16,9 +16,9 @@ pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
     self.my_data = 43;
 }
 
-pub fn afterRequest(self: *Self, request: *jetzig.http.Request, result: *jetzig.caches.Result) !void {
+pub fn afterRequest(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     request.server.logger.debug("[middleware] After request, custom data: {d}", .{self.my_data});
-    request.server.logger.debug("[middleware] content-type: {s}", .{result.value.content_type});
+    request.server.logger.debug("[middleware] content-type: {s}", .{response.content_type});
 }
 
 pub fn deinit(self: *Self, request: *jetzig.http.Request) void {

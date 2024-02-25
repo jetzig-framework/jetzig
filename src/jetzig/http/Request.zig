@@ -16,6 +16,7 @@ headers: jetzig.http.Headers,
 segments: std.ArrayList([]const u8),
 server: *jetzig.http.Server,
 session: *jetzig.http.Session,
+response: *jetzig.http.Response,
 status_code: jetzig.http.status_codes.StatusCode = undefined,
 response_data: *jetzig.data.Data,
 query_data: *jetzig.data.Data,
@@ -26,10 +27,10 @@ body: []const u8,
 pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
-    response: *std.http.Server.Response,
+    response: *jetzig.http.Response,
     body: []const u8,
 ) !Self {
-    const method = switch (response.request.method) {
+    const method = switch (response.std_response.request.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
@@ -42,14 +43,14 @@ pub fn init(
         _ => return error.JetzigUnsupportedHttpMethod,
     };
 
-    var it = std.mem.splitScalar(u8, response.request.target, '/');
+    var it = std.mem.splitScalar(u8, response.std_response.request.target, '/');
     var segments = std.ArrayList([]const u8).init(allocator);
     while (it.next()) |segment| try segments.append(segment);
 
     var cookies = try allocator.create(jetzig.http.Cookies);
     cookies.* = jetzig.http.Cookies.init(
         allocator,
-        response.request.headers.getFirstValue("Cookie") orelse "",
+        response.std_response.request.headers.getFirstValue("Cookie") orelse "",
     );
     try cookies.parse();
 
@@ -75,9 +76,9 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = response.request.target,
+        .path = response.std_response.request.target,
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator, response.request.headers),
+        .headers = jetzig.http.Headers.init(allocator, response.std_response.request.headers),
         .server = server,
         .segments = segments,
         .cookies = cookies,
@@ -86,6 +87,7 @@ pub fn init(
         .query_data = query_data,
         .query = query,
         .body = body,
+        .response = response,
     };
 }
 

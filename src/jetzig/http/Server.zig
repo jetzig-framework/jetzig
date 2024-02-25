@@ -67,7 +67,12 @@ pub fn listen(self: *Self) !void {
 
 fn processRequests(self: *Self) !void {
     while (true) {
-        var response = try self.server.accept(.{ .allocator = self.allocator });
+        var std_response = try self.server.accept(.{ .allocator = self.allocator });
+
+        var response = try jetzig.http.Response.init(
+            self.allocator,
+            &std_response,
+        );
         errdefer response.deinit();
 
         try response.headers.append("Connection", "close");
@@ -86,12 +91,12 @@ fn processRequests(self: *Self) !void {
     }
 }
 
-fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
+fn processNextRequest(self: *Self, response: *jetzig.http.Response) !void {
     try response.wait();
 
     self.start_time = std.time.nanoTimestamp();
 
-    const body = try response.reader().readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
+    const body = try response.read();
     defer self.allocator.free(body);
 
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -102,119 +107,97 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
 
     var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
 
-    var result = try self.pageContent(&request);
-    defer result.deinit();
+    try self.renderResponse(&request, response);
 
-    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request, &result);
+    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request, response);
 
-    response.transfer_encoding = .{ .content_length = result.value.content.len };
+    response.setTransferEncoding(.{ .content_length = response.content.len });
+
     var cookie_it = request.cookies.headerIterator();
     while (try cookie_it.next()) |header| {
         // FIXME: Skip setting cookies that are already present ?
         try response.headers.append("Set-Cookie", header);
     }
 
-    try response.headers.append("Content-Type", result.value.content_type);
+    try response.headers.append("Content-Type", response.content_type);
 
-    response.status = switch (result.value.status_code) {
-        inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
-    };
-
-    try response.send();
-    try response.writeAll(result.value.content);
     try response.finish();
 
-    const log_message = try self.requestLogMessage(&request, result);
+    const log_message = try self.requestLogMessage(&request, response);
     defer self.allocator.free(log_message);
     self.logger.debug("{s}", .{log_message});
 
     jetzig.http.middleware.deinit(&middleware_data, &request);
 }
 
-fn pageContent(self: *Self, request: *jetzig.http.Request) !jetzig.caches.Result {
-    const cache_key = try request.hash();
-
-    if (self.cache.get(cache_key)) |item| {
-        return item;
-    } else {
-        const response = try self.renderResponse(request);
-        return try self.cache.put(cache_key, response);
-    }
-}
-
-fn renderResponse(self: *Self, request: *jetzig.http.Request) !jetzig.http.Response {
+fn renderResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     const static = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
+
         const rendered = try self.renderInternalServerError(request, err);
-        return .{
-            .allocator = self.allocator,
-            .status_code = .internal_server_error,
-            .content = rendered.content,
-            .content_type = "text/html",
-        };
+
+        response.content = rendered.content;
+        response.status_code = .internal_server_error;
+        response.content_type = "text/html";
+
+        return;
     };
 
-    if (static) |resource| return try self.renderStatic(request, resource);
+    if (static) |resource| {
+        try renderStatic(resource, response);
+        return;
+    }
 
     const route = try self.matchRoute(request, false);
 
     switch (request.requestFormat()) {
-        .HTML => return self.renderHTML(request, route),
-        .JSON => return self.renderJSON(request, route),
-        .UNKNOWN => return self.renderHTML(request, route),
+        .HTML => try self.renderHTML(request, response, route),
+        .JSON => try self.renderJSON(request, response, route),
+        .UNKNOWN => try self.renderHTML(request, response, route),
     }
 }
 
-fn renderStatic(self: *Self, request: *jetzig.http.Request, resource: StaticResource) !jetzig.http.Response {
-    _ = request;
-    return .{
-        .allocator = self.allocator,
-        .status_code = .ok,
-        .content = resource.content,
-        .content_type = resource.mime_type,
-    };
+fn renderStatic(resource: StaticResource, response: *jetzig.http.Response) !void {
+    response.status_code = .ok;
+    response.content = resource.content;
+    response.content_type = resource.mime_type;
 }
 
 fn renderHTML(
     self: *Self,
     request: *jetzig.http.Request,
+    response: *jetzig.http.Response,
     route: ?jetzig.views.Route,
-) !jetzig.http.Response {
+) !void {
     if (route) |matched_route| {
         for (self.templates) |template| {
             // TODO: Use a hashmap to avoid O(n)
             if (std.mem.eql(u8, matched_route.template, template.name)) {
                 const rendered = try self.renderView(matched_route, request, template);
-                return .{
-                    .allocator = self.allocator,
-                    .content = rendered.content,
-                    .status_code = rendered.view.status_code,
-                    .content_type = "text/html",
-                };
+                response.content = rendered.content;
+                response.status_code = rendered.view.status_code;
+                response.content_type = "text/html";
+                return;
             }
         }
 
-        return .{
-            .allocator = self.allocator,
-            .content = "",
-            .status_code = .not_found,
-            .content_type = "text/html",
-        };
+        response.content = "";
+        response.status_code = .not_found;
+        response.content_type = "text/html";
+        return;
     } else {
-        return .{
-            .allocator = self.allocator,
-            .content = "",
-            .status_code = .not_found,
-            .content_type = "text/html",
-        };
+        response.content = "";
+        response.status_code = .not_found;
+        response.content_type = "text/html";
     }
 }
 
 fn renderJSON(
     self: *Self,
     request: *jetzig.http.Request,
+    response: *jetzig.http.Response,
     route: ?jetzig.views.Route,
-) !jetzig.http.Response {
+) !void {
     if (route) |matched_route| {
         const rendered = try self.renderView(matched_route, request, null);
         var data = rendered.view.data;
@@ -222,18 +205,14 @@ fn renderJSON(
         if (data.value) |_| {} else _ = try data.object();
         try request.headers.append("Content-Type", "application/json");
 
-        return .{
-            .allocator = self.allocator,
-            .content = try data.toJson(),
-            .status_code = rendered.view.status_code,
-            .content_type = "application/json",
-        };
-    } else return .{
-        .allocator = self.allocator,
-        .content = "",
-        .status_code = .not_found,
-        .content_type = "application/json",
-    };
+        response.content = try data.toJson();
+        response.status_code = rendered.view.status_code;
+        response.content_type = "application/json";
+    } else {
+        response.content = "";
+        response.status_code = .not_found;
+        response.content_type = "application/json";
+    }
 }
 
 const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
@@ -313,8 +292,8 @@ fn logStackTrace(
     try object.put("backtrace", request.response_data.string(array.items));
 }
 
-fn requestLogMessage(self: *Self, request: *jetzig.http.Request, result: jetzig.caches.Result) ![]const u8 {
-    const status: jetzig.http.status_codes.TaggedStatusCode = switch (result.value.status_code) {
+fn requestLogMessage(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) ![]const u8 {
+    const status: jetzig.http.status_codes.TaggedStatusCode = switch (response.status_code) {
         inline else => |status_code| @unionInit(
             jetzig.http.status_codes.TaggedStatusCode,
             @tagName(status_code),
