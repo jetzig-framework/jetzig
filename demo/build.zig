@@ -36,7 +36,7 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(exe);
 
-    var generate_routes = GenerateRoutes.init(b.allocator, "src/app/views");
+    var generate_routes = try GenerateRoutes.init(b.allocator, "src/app/views");
     try generate_routes.generateRoutes();
     const write_files = b.addWriteFiles();
     const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);
@@ -77,7 +77,7 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run_cmd.step);
 
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/root.zig" },
+        .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });

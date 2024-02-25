@@ -1,11 +1,7 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-const Request = jetzig.http.Request;
-const Data = jetzig.data.Data;
-const View = jetzig.views.View;
-
-pub fn get(id: []const u8, request: *Request, data: *Data) !View {
+pub fn get(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var body = try data.object();
 
     const random_quote = try randomQuote(request.allocator);
@@ -18,6 +14,13 @@ pub fn get(id: []const u8, request: *Request, data: *Data) !View {
         try body.put("author", data.string("Zig Ziglar"));
     }
 
+    return request.render(.ok);
+}
+
+pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
+    _ = data;
+    const params = try request.params();
+    std.debug.print("{}\n", .{params});
     return request.render(.ok);
 }
 

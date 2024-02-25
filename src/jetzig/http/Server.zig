@@ -3,8 +3,11 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
 const root_file = @import("root");
-const jetzig_server_options = if (@hasDecl(root_file, "jetzig_options")) root_file.jetzig_options else struct {};
-const middlewares: []const type = if (@hasDecl(jetzig_server_options, "middlewares")) jetzig_server_options.middlewares else &.{};
+
+pub const jetzig_server_options = if (@hasDecl(root_file, "jetzig_options"))
+    root_file.jetzig_options
+else
+    struct {};
 
 pub const ServerOptions = struct {
     cache: jetzig.caches.Cache,
@@ -94,38 +97,15 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
 
-    var request = try jetzig.http.Request.init(arena.allocator(), self, response);
+    var request = try jetzig.http.Request.init(arena.allocator(), self, response, body);
     defer request.deinit();
 
-    var middleware_data = std.BoundedArray(*anyopaque, middlewares.len).init(0) catch unreachable;
-    inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, "init")) continue;
-        const data = try @call(.always_inline, middleware.init, .{&request});
-        middleware_data.insert(index, data) catch unreachable; // We cannot overflow here because we know the length of the array
-    }
-
-    inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, "beforeRequest")) continue;
-        if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(index);
-            try @call(.always_inline, middleware.beforeRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
-        } else {
-            try @call(.always_inline, middleware.beforeRequest, .{&request});
-        }
-    }
+    var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
 
     var result = try self.pageContent(&request);
     defer result.deinit();
 
-    inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, "afterRequest")) continue;
-        if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(index);
-            try @call(.always_inline, middleware.afterRequest, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request, &result });
-        } else {
-            try @call(.always_inline, middleware.afterRequest, .{ &request, &result });
-        }
-    }
+    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request, &result);
 
     response.transfer_encoding = .{ .content_length = result.value.content.len };
     var cookie_it = request.cookies.headerIterator();
@@ -133,28 +113,22 @@ fn processNextRequest(self: *Self, response: *std.http.Server.Response) !void {
         // FIXME: Skip setting cookies that are already present ?
         try response.headers.append("Set-Cookie", header);
     }
+
     try response.headers.append("Content-Type", result.value.content_type);
+
     response.status = switch (result.value.status_code) {
         inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
     };
 
     try response.send();
     try response.writeAll(result.value.content);
-
     try response.finish();
 
     const log_message = try self.requestLogMessage(&request, result);
     defer self.allocator.free(log_message);
     self.logger.debug("{s}", .{log_message});
 
-    inline for (middlewares, 0..) |middleware, index| {
-        if (comptime @hasDecl(middleware, "init")) {
-            if (comptime @hasDecl(middleware, "deinit")) {
-                const data = middleware_data.get(index);
-                @call(.always_inline, middleware.deinit, .{ @as(*middleware, @ptrCast(@alignCast(data))), &request });
-            }
-        }
-    }
+    jetzig.http.middleware.deinit(&middleware_data, &request);
 }
 
 fn pageContent(self: *Self, request: *jetzig.http.Request) !jetzig.caches.Result {
@@ -171,7 +145,7 @@ fn pageContent(self: *Self, request: *jetzig.http.Request) !jetzig.caches.Result
 fn renderResponse(self: *Self, request: *jetzig.http.Request) !jetzig.http.Response {
     const static = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
-        const rendered = try self.internalServerError(request, err);
+        const rendered = try self.renderInternalServerError(request, err);
         return .{
             .allocator = self.allocator,
             .status_code = .internal_server_error,
@@ -182,7 +156,7 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !jetzig.http.Respo
 
     if (static) |resource| return try self.renderStatic(request, resource);
 
-    const route = try self.matchRoute(request);
+    const route = try self.matchRoute(request, false);
 
     switch (request.requestFormat()) {
         .HTML => return self.renderHTML(request, route),
@@ -273,11 +247,19 @@ fn renderView(
     const view = route.render(route, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
-        return try self.internalServerError(request, err);
+        if (isBadRequest(err)) return try self.renderBadRequest(request);
+        return try self.renderInternalServerError(request, err);
     };
     const content = if (template) |capture| try capture.render(view.data) else "";
 
     return .{ .view = view, .content = content };
+}
+
+fn isBadRequest(err: anyerror) bool {
+    return switch (err) {
+        error.JetzigBodyParseError, error.JetzigQueryParseError => true,
+        else => false,
+    };
 }
 
 fn isUnhandledError(err: anyerror) bool {
@@ -287,7 +269,7 @@ fn isUnhandledError(err: anyerror) bool {
     };
 }
 
-fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
+fn renderInternalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
     request.response_data.reset();
 
     var object = try request.response_data.object();
@@ -301,6 +283,20 @@ fn internalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror
         .content = "Internal Server Error\n",
     };
 }
+
+fn renderBadRequest(self: *Self, request: *jetzig.http.Request) !RenderedView {
+    _ = self;
+    request.response_data.reset();
+
+    var object = try request.response_data.object();
+    try object.put("error", request.response_data.string("Bad Request"));
+
+    return .{
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = .bad_request },
+        .content = "Bad Request\n",
+    };
+}
+
 fn logStackTrace(
     self: *Self,
     stack: *std.builtin.StackTrace,
@@ -341,15 +337,28 @@ fn duration(self: *Self) i64 {
     return @intCast(std.time.nanoTimestamp() - self.start_time);
 }
 
-fn matchRoute(self: *Self, request: *jetzig.http.Request) !?jetzig.views.Route {
+fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?jetzig.views.Route {
     for (self.routes) |route| {
-        if (route.action == .index and try request.match(route)) return route;
+        // .index routes always take precedence.
+        if (route.static == static and route.action == .index and try request.match(route)) return route;
     }
 
     for (self.routes) |route| {
-        if (try request.match(route)) return route;
+        if (route.static == static and try request.match(route)) return route;
     }
 
+    return null;
+}
+
+fn matchStaticParams(self: *Self, request: *jetzig.http.Request, route: jetzig.views.Route) !?usize {
+    _ = self;
+    const params = try request.params();
+
+    for (route.params.items, 0..) |static_params, index| {
+        if (try static_params.getValue("params")) |expected_params| {
+            if (expected_params.eql(params)) return index;
+        }
+    }
     return null;
 }
 
@@ -383,8 +392,10 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
             else => return err,
         }
     };
+    defer iterable_dir.close();
 
     var walker = try iterable_dir.walk(request.allocator);
+    defer walker.deinit();
 
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
@@ -410,19 +421,14 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
     };
     defer static_dir.close();
 
-    // TODO: Use a hashmap to avoid O(n)
-    for (self.routes) |route| {
-        if (route.static and try request.match(route)) {
-            const extension = switch (request.requestFormat()) {
-                .HTML, .UNKNOWN => ".html",
-                .JSON => ".json",
-            };
+    const matched_route = try self.matchRoute(request, true);
 
-            const path = try std.mem.concat(request.allocator, u8, &[_][]const u8{ route.name, extension });
-
+    if (matched_route) |route| {
+        const static_path = try self.staticPath(request, route);
+        if (static_path) |capture| {
             return static_dir.readFileAlloc(
                 request.allocator,
-                path,
+                capture,
                 jetzig.config.max_bytes_static_content,
             ) catch |err| {
                 switch (err) {
@@ -430,8 +436,55 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
                     else => return err,
                 }
             };
-        }
+        } else return null;
     }
 
     return null;
+}
+
+fn staticPath(self: *Self, request: *jetzig.http.Request, route: jetzig.views.Route) !?[]const u8 {
+    _ = self;
+    const params = try request.params();
+    const extension = switch (request.requestFormat()) {
+        .HTML, .UNKNOWN => ".html",
+        .JSON => ".json",
+    };
+
+    for (route.params.items, 0..) |static_params, index| {
+        if (try static_params.getValue("params")) |expected_params| {
+            switch (route.action) {
+                .index, .post => {},
+                inline else => {
+                    if (try static_params.getValue("id")) |id| {
+                        switch (id.*) {
+                            .string => |capture| {
+                                if (!std.mem.eql(u8, capture.value, request.resourceId())) continue;
+                            },
+                            // Should be unreachable but we want to avoid a runtime panic.
+                            inline else => continue,
+                        }
+                    }
+                },
+            }
+            if (!expected_params.eql(params)) continue;
+
+            const index_fmt = try std.fmt.allocPrint(request.allocator, "{}", .{index});
+            defer request.allocator.free(index_fmt);
+
+            return try std.mem.concat(
+                request.allocator,
+                u8,
+                &[_][]const u8{ route.name, "_", index_fmt, extension },
+            );
+        }
+    }
+
+    switch (route.action) {
+        .index, .post => return try std.mem.concat(
+            request.allocator,
+            u8,
+            &[_][]const u8{ route.name, "_", extension },
+        ),
+        else => return null,
+    }
 }
