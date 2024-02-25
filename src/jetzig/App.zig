@@ -14,6 +14,9 @@ pub fn deinit(self: Self) void {
     _ = self;
 }
 
+/// Starts an application. `routes` should be `@import("routes").routes`, a generated file
+/// automatically created at build time. `templates` should be
+/// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
 pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
     var server = jetzig.http.Server.init(
         self.allocator,

@@ -155,6 +155,8 @@ pub fn generateRoutes(self: *Self) !void {
 
     try writer.writeAll("    };\n");
     try writer.writeAll("};");
+
+    // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
 }
 
 fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !void {

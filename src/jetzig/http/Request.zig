@@ -43,9 +43,22 @@ pub fn init(
         _ => return error.JetzigUnsupportedHttpMethod,
     };
 
+    // TODO: Replace all this with a `Path` type which exposes all components of the path in a
+    // sensible way:
+    // * Array of segments: "/foo/bar/baz" => .{ "foo", "bar", "baz" }
+    // * Resource ID: "/foo/bar/baz/1" => "1"
+    // * Extension: "/foo/bar/baz/1.json" => ".json"
+    // * Query params: "/foo/bar/baz?foo=bar&baz=qux" => .{ .foo = "bar", .baz => "qux" }
+    // * Anything else ?
     var it = std.mem.splitScalar(u8, response.std_response.request.target, '/');
     var segments = std.ArrayList([]const u8).init(allocator);
-    while (it.next()) |segment| try segments.append(segment);
+    while (it.next()) |segment| {
+        if (std.mem.indexOfScalar(u8, segment, '?')) |query_index| {
+            try segments.append(segment[0..query_index]);
+        } else {
+            try segments.append(segment);
+        }
+    }
 
     var cookies = try allocator.create(jetzig.http.Cookies);
     cookies.* = jetzig.http.Cookies.init(
@@ -149,7 +162,7 @@ fn parseQueryString(self: *Self) !bool {
         if (self.path.len - 1 < index + 1) return false;
 
         self.query.* = jetzig.http.Query.init(
-            self.server.allocator,
+            self.allocator,
             self.path[index + 1 ..],
             self.query_data,
         );
@@ -214,7 +227,7 @@ pub fn resourceModifier(self: *Self) ?Modifier {
 }
 
 pub fn resourceName(self: *Self) []const u8 {
-    if (self.segments.items.len == 0) return "default";
+    if (self.segments.items.len == 0) return "default"; // Should never happen ?
 
     const basename = std.fs.path.basename(self.segments.items[self.segments.items.len - 1]);
     if (std.mem.indexOfScalar(u8, basename, '?')) |index| {
@@ -264,7 +277,7 @@ fn isMatch(self: *Self, match_type: enum { exact, resource_id }, route: jetzig.v
         .resource_id => self.pathWithoutExtensionAndResourceId(),
     };
 
-    return (std.mem.eql(u8, path, route.uri_path));
+    return std.mem.eql(u8, path, route.uri_path);
 }
 
 // TODO: Be a bit more deterministic in identifying extension, e.g. deal with `.` characters

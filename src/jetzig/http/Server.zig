@@ -67,18 +67,22 @@ pub fn listen(self: *Self) !void {
 
 fn processRequests(self: *Self) !void {
     while (true) {
-        var std_response = try self.server.accept(.{ .allocator = self.allocator });
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        const allocator = arena.allocator();
+
+        var std_response = try self.server.accept(.{ .allocator = allocator });
 
         var response = try jetzig.http.Response.init(
-            self.allocator,
+            allocator,
             &std_response,
         );
         errdefer response.deinit();
+        errdefer arena.deinit();
 
         try response.headers.append("Connection", "close");
 
         while (response.reset() != .closing) {
-            self.processNextRequest(&response) catch |err| {
+            self.processNextRequest(allocator, &response) catch |err| {
                 switch (err) {
                     error.EndOfStream, error.ConnectionResetByPeer => continue,
                     error.UnknownHttpMethod => continue, // TODO: Render 400 Bad Request here ?
@@ -88,10 +92,11 @@ fn processRequests(self: *Self) !void {
         }
 
         response.deinit();
+        arena.deinit();
     }
 }
 
-fn processNextRequest(self: *Self, response: *jetzig.http.Response) !void {
+fn processNextRequest(self: *Self, allocator: std.mem.Allocator, response: *jetzig.http.Response) !void {
     try response.wait();
 
     self.start_time = std.time.nanoTimestamp();
@@ -99,10 +104,7 @@ fn processNextRequest(self: *Self, response: *jetzig.http.Response) !void {
     const body = try response.read();
     defer self.allocator.free(body);
 
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
-    defer arena.deinit();
-
-    var request = try jetzig.http.Request.init(arena.allocator(), self, response, body);
+    var request = try jetzig.http.Request.init(allocator, self, response, body);
     defer request.deinit();
 
     var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
@@ -180,16 +182,11 @@ fn renderHTML(
                 return;
             }
         }
-
-        response.content = "";
-        response.status_code = .not_found;
-        response.content_type = "text/html";
-        return;
-    } else {
-        response.content = "";
-        response.status_code = .not_found;
-        response.content_type = "text/html";
     }
+
+    response.content = "";
+    response.status_code = .not_found;
+    response.content_type = "text/html";
 }
 
 fn renderJSON(
@@ -329,22 +326,10 @@ fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?jetzig
     return null;
 }
 
-fn matchStaticParams(self: *Self, request: *jetzig.http.Request, route: jetzig.views.Route) !?usize {
-    _ = self;
-    const params = try request.params();
-
-    for (route.params.items, 0..) |static_params, index| {
-        if (try static_params.getValue("params")) |expected_params| {
-            if (expected_params.eql(params)) return index;
-        }
-    }
-    return null;
-}
-
 const StaticResource = struct { content: []const u8, mime_type: []const u8 = "application/octet-stream" };
 
 fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
-    const public_content = try self.matchPublicContent(request);
+    const public_content = try matchPublicContent(request);
     if (public_content) |content| return .{ .content = content };
 
     const static_content = try self.matchStaticContent(request);
@@ -359,9 +344,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
     return null;
 }
 
-fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
-    _ = self;
-
+fn matchPublicContent(request: *jetzig.http.Request) !?[]const u8 {
     if (request.path.len < 2) return null;
     if (request.method != .GET) return null;
 
@@ -403,7 +386,8 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
     const matched_route = try self.matchRoute(request, true);
 
     if (matched_route) |route| {
-        const static_path = try self.staticPath(request, route);
+        const static_path = try staticPath(request, route);
+
         if (static_path) |capture| {
             return static_dir.readFileAlloc(
                 request.allocator,
@@ -421,9 +405,10 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
     return null;
 }
 
-fn staticPath(self: *Self, request: *jetzig.http.Request, route: jetzig.views.Route) !?[]const u8 {
-    _ = self;
+fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]const u8 {
     const params = try request.params();
+    defer params.deinit();
+
     const extension = switch (request.requestFormat()) {
         .HTML, .UNKNOWN => ".html",
         .JSON => ".json",
@@ -439,8 +424,8 @@ fn staticPath(self: *Self, request: *jetzig.http.Request, route: jetzig.views.Ro
                             .string => |capture| {
                                 if (!std.mem.eql(u8, capture.value, request.resourceId())) continue;
                             },
-                            // Should be unreachable but we want to avoid a runtime panic.
-                            inline else => continue,
+                            // Should be unreachable - this means generated `routes.zig` is incoherent:
+                            inline else => return error.JetzigRouteError,
                         }
                     }
                 },

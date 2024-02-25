@@ -8,12 +8,26 @@ pub const data = @import("jetzig/data.zig");
 pub const caches = @import("jetzig/caches.zig");
 pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
+
+/// The primary interface for a Jetzig application. Create an `App` in your application's
+/// `src/main.zig` and call `start` to launch the application.
 pub const App = @import("jetzig/App.zig");
 
-// Convenience for view function parameters.
+/// An HTTP request which is passed to (dynamic) view functions and provides access to params,
+/// headers, and functions to render a response.
 pub const Request = http.Request;
+
+/// A build-time request. Provides a similar interface to a `Request` but outputs are generated
+/// when building the application and then returned immediately to the client for matching
+/// requests.
 pub const StaticRequest = http.StaticRequest;
+
+/// Generic, JSON-compatible data type. Provides `Value` which in turn provides `Object`,
+/// `Array`, `String`, `Integer`, `Float`, `Boolean`, and `NullType`.
 pub const Data = data.Data;
+
+/// The return value of all view functions. Call `request.render(.ok)` in a view function to
+/// generate a `View`.
 pub const View = views.View;
 
 pub const config = struct {

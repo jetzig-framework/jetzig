@@ -30,8 +30,8 @@ pub fn init(
 
 pub fn deinit(self: *const Self) void {
     self.headers.deinit();
-    // self.allocator.free(self.content);
-    // self.allocator.free(self.content_type);
+    self.allocator.destroy(self.headers);
+    self.std_response.deinit();
 }
 
 const ResetState = enum { reset, closing };
@@ -49,10 +49,17 @@ pub fn wait(self: *const Self) !void {
     try self.std_response.wait();
 }
 
+/// Finalizes a request. Appends any stored headers, sets the response status code, and writes
+/// the response body.
 pub fn finish(self: *const Self) !void {
     self.std_response.status = switch (self.status_code) {
         inline else => |status_code| @field(std.http.Status, @tagName(status_code)),
     };
+
+    var it = self.headers.iterator();
+    while (it.next()) |header| {
+        try self.std_response.headers.append(header.name, header.value);
+    }
 
     try self.std_response.send();
     try self.std_response.writeAll(self.content);
@@ -75,13 +82,4 @@ const TransferEncodingOptions = struct {
 pub fn setTransferEncoding(self: *const Self, transfer_encoding: TransferEncodingOptions) void {
     // TODO: Chunked encoding
     self.std_response.transfer_encoding = .{ .content_length = transfer_encoding.content_length };
-}
-
-pub fn dupe(self: *const Self) !Self {
-    return .{
-        .allocator = self.allocator,
-        .status_code = self.status_code,
-        .content_type = try self.allocator.dupe(u8, self.content_type),
-        .content = try self.allocator.dupe(u8, self.content),
-    };
 }

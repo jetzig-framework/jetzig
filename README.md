@@ -1,6 +1,6 @@
 ![Jetzig Logo](demo/public/jetzig.png)
 
-_Jetzig_ is a web framework written in [Zig](https://ziglang.org) :lizard:.
+_Jetzig_ is a web framework written in 100% pure [Zig](https://ziglang.org) :lizard: for _Linux_, _OS X_, _Windows_, and any _OS_ that can compile _Zig_ code.
 
 The framework is under active development and is currently in an alpha state.
 
@@ -16,6 +16,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * [http.zig](https://github.com/karlseguin/http.zig)
 * [zig-router](https://github.com/Cloudef/zig-router)
 * [zig-webui](https://github.com/webui-dev/zig-webui/)
+* [ZTS](https://github.com/zigster64/zts)
 
 ## Checklist
 
@@ -28,7 +29,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Cookies.
 * :white_check_mark: Error handling.
 * :white_check_mark: Static content from /public directory.
-* :white_check_mark: Headers (available but not yet wrapped).
+* :white_check_mark: Request/response headers.
 * :white_check_mark: Stack trace output on error.
 * :white_check_mark: Static content generation.
 * :x: Param/JSON payload parsing/abstracting.
