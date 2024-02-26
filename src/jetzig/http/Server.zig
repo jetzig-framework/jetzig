@@ -26,6 +26,7 @@ options: ServerOptions,
 start_time: i128 = undefined,
 routes: []jetzig.views.Route,
 templates: []jetzig.TemplateFn,
+mime_map: *jetzig.http.mime.MimeMap,
 
 const Self = @This();
 
@@ -36,6 +37,7 @@ pub fn init(
     options: ServerOptions,
     routes: []jetzig.views.Route,
     templates: []jetzig.TemplateFn,
+    mime_map: *jetzig.http.mime.MimeMap,
 ) Self {
     const server = std.http.Server.init(.{ .reuse_address = true });
 
@@ -49,6 +51,7 @@ pub fn init(
         .options = options,
         .routes = routes,
         .templates = templates,
+        .mime_map = mime_map,
     };
 }
 
@@ -329,8 +332,8 @@ fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?jetzig
 const StaticResource = struct { content: []const u8, mime_type: []const u8 = "application/octet-stream" };
 
 fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
-    const public_content = try matchPublicContent(request);
-    if (public_content) |content| return .{ .content = content };
+    const public_resource = try self.matchPublicContent(request);
+    if (public_resource) |resource| return resource;
 
     const static_content = try self.matchStaticContent(request);
     if (static_content) |content| return .{
@@ -344,11 +347,14 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
     return null;
 }
 
-fn matchPublicContent(request: *jetzig.http.Request) !?[]const u8 {
+fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResource {
     if (request.path.len < 2) return null;
     if (request.method != .GET) return null;
 
-    var iterable_dir = std.fs.cwd().openDir("public", .{ .iterate = true }) catch |err| {
+    var iterable_dir = std.fs.cwd().openDir(
+        jetzig.config.public_content.path,
+        .{ .iterate = true, .no_follow = true },
+    ) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
             else => return err,
@@ -363,11 +369,17 @@ fn matchPublicContent(request: *jetzig.http.Request) !?[]const u8 {
         if (file.kind != .file) continue;
 
         if (std.mem.eql(u8, file.path, request.path[1..])) {
-            return try iterable_dir.readFileAlloc(
+            const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
                 jetzig.config.max_bytes_static_content,
             );
+            const extension = std.fs.path.extension(file.path);
+            const mime_type = if (self.mime_map.get(extension)) |mime| mime else "application/octet-stream";
+            return .{
+                .content = content,
+                .mime_type = mime_type,
+            };
         }
     }
 

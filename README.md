@@ -32,10 +32,11 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Request/response headers.
 * :white_check_mark: Stack trace output on error.
 * :white_check_mark: Static content generation.
-* :x: Param/JSON payload parsing/abstracting.
-* :x: Static content paramater definitions.
+* :white_check_mark: Param/JSON payload parsing/abstracting.
+* :white_check_mark: Static content parameter definitions.
+* :white_check_mark: Middleware interface.
+* :white_check_mark: MIME type inference.
 * :x: Environment configurations (develompent/production/etc.)
-* :x: Middleware extensions (for e.g. authentication).
 * :x: Email delivery.
 * :x: Custom/non-conventional routes.
 * :x: General-purpose cache.

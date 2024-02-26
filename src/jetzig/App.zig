@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const jetzig = @import("../jetzig.zig");
+const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
 const Self = @This();
 
@@ -18,6 +19,10 @@ pub fn deinit(self: Self) void {
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
 pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
+    var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
+    defer mime_map.deinit();
+    try mime_map.build();
+
     var server = jetzig.http.Server.init(
         self.allocator,
         self.host,
@@ -25,6 +30,7 @@ pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.Templ
         self.server_options,
         routes,
         templates,
+        &mime_map,
     );
 
     for (routes) |*route| {

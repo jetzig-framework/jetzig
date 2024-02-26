@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const GenerateRoutes = @import("src/GenerateRoutes.zig");
+pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 pub const TemplateFn = @import("src/jetzig.zig").TemplateFn;
 pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
 pub const http = @import("src/jetzig/http.zig");
@@ -20,9 +21,12 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    const mime_module = try GenerateMimeTypes.generateMimeModule(b);
+
     b.installArtifact(lib);
 
     const jetzig_module = b.addModule("jetzig", .{ .root_source_file = .{ .path = "src/jetzig.zig" } });
+    jetzig_module.addImport("mime_types", mime_module);
     lib.root_module.addImport("jetzig", jetzig_module);
 
     const zmpl_dep = b.dependency(
