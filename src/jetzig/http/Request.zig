@@ -275,9 +275,63 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
     return self.query_body.?.data.value.?;
 }
 
+/// Put a String or Array into the key-value store.
+/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
+pub fn kvPut(
+    self: *Request,
+    comptime value_type: jetzig.jetkv.value_types,
+    key: jetzig.jetkv.types.String,
+    value: jetzig.jetkv.ValueType(value_type),
+) !void {
+    try self.server.jet_kv.put(value_type, key, value);
+}
+
+/// Get a String or Array from the key-value store.
+/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
+pub fn kvGet(
+    self: *Request,
+    comptime value_type: jetzig.jetkv.value_types,
+    key: jetzig.jetkv.types.String,
+) ?jetzig.jetkv.ValueType(value_type) {
+    return self.server.jet_kv.get(value_type, key);
+}
+
+/// Pop a String from an Array in the key-value store.
+pub fn kvPop(self: *Request, key: jetzig.jetkv.types.String) ?jetzig.jetkv.types.String {
+    return self.server.jet_kv.pop(key);
+}
+
+/// Return a new Array suitable for use in the KV store.
+pub fn kvArray(self: Request) jetzig.jetkv.types.Array {
+    return jetzig.jetkv.types.Array.init(self.allocator);
+}
+
+/// Creates a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
+/// Call `Job.put(...)` to set job params.
+/// Call `Job.background()` to run the job outside of the request/response flow.
+/// e.g.:
+/// ```
+/// pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
+///     var job = try request.job("foo"); // Will invoke `process()` in `src/app/jobs/foo.zig`
+///     try job.put("foo", data.string("bar"));
+///     try job.background(); // Job added to queue and processed by job worker.
+///     return request.render(.ok);
+/// }
+/// ```
+pub fn job(self: *Request, job_name: []const u8) !*jetzig.Job {
+    const background_job = try self.allocator.create(jetzig.Job);
+    background_job.* = jetzig.Job.init(
+        self.allocator,
+        self.server.jet_kv,
+        self.server.logger,
+        self.server.job_definitions,
+        job_name,
+    );
+    return background_job;
+}
+
 fn extensionFormat(self: *Request) ?jetzig.http.Request.Format {
     const extension = self.path.extension orelse return null;
-
     if (std.mem.eql(u8, extension, ".html")) {
         return .HTML;
     } else if (std.mem.eql(u8, extension, ".json")) {

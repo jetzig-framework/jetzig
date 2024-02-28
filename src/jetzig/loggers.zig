@@ -61,4 +61,15 @@ pub const Logger = union(enum) {
             inline else => |*logger| try logger.logRequest(request),
         }
     }
+
+    pub fn log(
+        self: *const Logger,
+        comptime level: LogLevel,
+        comptime message: []const u8,
+        args: anytype,
+    ) !void {
+        switch (self.*) {
+            inline else => |*logger| try logger.log(level, message, args),
+        }
+    }
 };

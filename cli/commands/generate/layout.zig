@@ -1,16 +1,21 @@
 const std = @import("std");
 
 /// Run the layout generator. Create a layout template in `src/app/views/layouts`
-pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8) !void {
-    if (args.len != 1) {
+pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, help: bool) !void {
+    if (help or args.len != 1) {
         std.debug.print(
-            \\Expected a layout name.
+            \\Generate a layout. Layouts encapsulate common boilerplate mark-up.
+            \\
+            \\Specify a layout name to create a new Zmpl template in src/app/views/layouts/
             \\
             \\Example:
             \\
             \\  jetzig generate layout standard
             \\
         , .{});
+
+        if (help) return;
+
         return error.JetzigCommandError;
     }
 

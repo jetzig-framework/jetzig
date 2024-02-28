@@ -5,12 +5,12 @@ const args = @import("args");
 const jetzig = @import("../jetzig.zig");
 const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
-const Self = @This();
+const App = @This();
 
 server_options: jetzig.http.Server.ServerOptions,
 allocator: std.mem.Allocator,
 
-pub fn deinit(self: Self) void {
+pub fn deinit(self: App) void {
     _ = self;
 }
 
@@ -21,7 +21,7 @@ const AppOptions = struct {};
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
-pub fn start(self: Self, routes_module: type, options: AppOptions) !void {
+pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     _ = options; // See `AppOptions`
 
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
@@ -57,6 +57,8 @@ pub fn start(self: Self, routes_module: type, options: AppOptions) !void {
         self.allocator.destroy(route);
     };
 
+    var jet_kv = jetzig.jetkv.JetKV.init(self.allocator, .{});
+
     if (self.server_options.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
@@ -76,9 +78,24 @@ pub fn start(self: Self, routes_module: type, options: AppOptions) !void {
         self.allocator,
         self.server_options,
         routes.items,
+        &routes_module.jobs,
         &mime_map,
+        &jet_kv,
     );
     defer server.deinit();
+
+    var worker_pool = jetzig.jobs.Pool.init(
+        self.allocator,
+        &jet_kv,
+        &routes_module.jobs,
+        server.logger, // TODO: Optional separate log streams for workers
+    );
+    defer worker_pool.deinit();
+
+    try worker_pool.work(
+        jetzig.config.get(usize, "job_worker_threads"),
+        jetzig.config.get(usize, "job_worker_sleep_interval_ms"),
+    );
 
     server.listen() catch |err| {
         switch (err) {

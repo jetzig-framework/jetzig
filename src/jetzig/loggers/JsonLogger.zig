@@ -24,6 +24,7 @@ allocator: std.mem.Allocator,
 stdout: std.fs.File,
 stderr: std.fs.File,
 level: LogLevel,
+mutex: std.Thread.Mutex,
 
 /// Initialize a new JSON Logger.
 pub fn init(
@@ -37,12 +38,13 @@ pub fn init(
         .level = level,
         .stdout = stdout,
         .stderr = stderr,
+        .mutex = std.Thread.Mutex{},
     };
 }
 
 /// Generic log function, receives log level, message (format string), and args for format string.
 pub fn log(
-    self: JsonLogger,
+    self: *const JsonLogger,
     comptime level: LogLevel,
     comptime message: []const u8,
     args: anytype,
@@ -63,6 +65,9 @@ pub fn log(
     const json = try std.json.stringifyAlloc(self.allocator, log_message, .{ .whitespace = .minified });
     defer self.allocator.free(json);
 
+    @constCast(self).mutex.lock();
+    defer @constCast(self).mutex.unlock();
+
     try writer.writeAll(json);
     try writer.writeByte('\n');
 
@@ -70,7 +75,7 @@ pub fn log(
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.
-pub fn logRequest(self: JsonLogger, request: *const jetzig.http.Request) !void {
+pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) !void {
     const level: LogLevel = .INFO;
 
     const duration = jetzig.util.duration(request.start_time);
@@ -99,6 +104,9 @@ pub fn logRequest(self: JsonLogger, request: *const jetzig.http.Request) !void {
 
     const file = self.getFile(level);
     const writer = file.writer();
+
+    @constCast(self).mutex.lock();
+    defer @constCast(self).mutex.unlock();
 
     try writer.writeAll(json);
     try writer.writeByte('\n');

@@ -4,27 +4,21 @@ const view = @import("generate/view.zig");
 const partial = @import("generate/partial.zig");
 const layout = @import("generate/layout.zig");
 const middleware = @import("generate/middleware.zig");
+const job = @import("generate/job.zig");
 const secret = @import("generate/secret.zig");
 const util = @import("../util.zig");
 
 /// Command line options for the `generate` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[view|partial|layout|middleware|secret] [options]",
+        .usage_summary = "[view|partial|layout|middleware|job|secret] [options]",
         .full_text =
-        \\Generates scaffolding for views, middleware, and other objects in future.
+        \\Generate scaffolding for views, middleware, and other objects.
         \\
-        \\When generating a view, by default all actions will be included.
-        \\Optionally pass one or more of the following arguments to specify desired actions:
+        \\Pass `--help` to any generator for more information, e.g.:
         \\
-        \\  index, get, post, patch, put, delete
+        \\  jetzig generate view --help
         \\
-        \\Each view action can be qualified with a `:static` option to mark the view content
-        \\as statically generated at build time.
-        \\
-        \\e.g. generate a view named `iguanas` with a static `index` action:
-        \\
-        \\  jetzig generate view iguanas index:static get post delete
         ,
     };
 };
@@ -41,11 +35,8 @@ pub fn run(
     defer cwd.close();
 
     _ = options;
-    if (other_options.help) {
-        try args.printHelp(Options, "jetzig generate", writer);
-        return;
-    }
-    var generate_type: ?enum { view, partial, layout, middleware, secret } = null;
+
+    var generate_type: ?enum { view, partial, layout, middleware, job, secret } = null;
     var sub_args = std.ArrayList([]const u8).init(allocator);
     defer sub_args.deinit();
 
@@ -56,6 +47,8 @@ pub fn run(
             generate_type = .partial;
         } else if (generate_type == null and std.mem.eql(u8, arg, "layout")) {
             generate_type = .layout;
+        } else if (generate_type == null and std.mem.eql(u8, arg, "job")) {
+            generate_type = .job;
         } else if (generate_type == null and std.mem.eql(u8, arg, "middleware")) {
             generate_type = .middleware;
         } else if (generate_type == null and std.mem.eql(u8, arg, "secret")) {
@@ -68,16 +61,22 @@ pub fn run(
         }
     }
 
+    if (other_options.help and generate_type == null) {
+        try args.printHelp(Options, "jetzig generate", writer);
+        return;
+    }
+
     if (generate_type) |capture| {
         return switch (capture) {
-            .view => view.run(allocator, cwd, sub_args.items),
-            .partial => partial.run(allocator, cwd, sub_args.items),
-            .layout => layout.run(allocator, cwd, sub_args.items),
-            .middleware => middleware.run(allocator, cwd, sub_args.items),
-            .secret => secret.run(allocator, cwd, sub_args.items),
+            .view => view.run(allocator, cwd, sub_args.items, other_options.help),
+            .partial => partial.run(allocator, cwd, sub_args.items, other_options.help),
+            .layout => layout.run(allocator, cwd, sub_args.items, other_options.help),
+            .job => job.run(allocator, cwd, sub_args.items, other_options.help),
+            .middleware => middleware.run(allocator, cwd, sub_args.items, other_options.help),
+            .secret => secret.run(allocator, cwd, sub_args.items, other_options.help),
         };
     } else {
-        std.debug.print("Missing sub-command. Expected: [view|partial|layout|middleware]\n", .{});
+        std.debug.print("Missing sub-command. Expected: [view|partial|layout|job|middleware|secret]\n", .{});
         return error.JetzigCommandError;
     }
 }

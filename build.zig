@@ -1,12 +1,15 @@
 const std = @import("std");
 
-pub const GenerateRoutes = @import("src/GenerateRoutes.zig");
+pub const Routes = @import("src/Routes.zig");
 pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 pub const TemplateFn = @import("src/jetzig.zig").TemplateFn;
 pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
 pub const http = @import("src/jetzig/http.zig");
 pub const data = @import("src/jetzig/data.zig");
 pub const views = @import("src/jetzig/views.zig");
+pub const Route = views.Route;
+pub const Job = @import("src/jetzig.zig").Job;
+
 const zmpl_build = @import("zmpl");
 
 pub fn build(b: *std.Build) !void {
@@ -72,6 +75,8 @@ pub fn build(b: *std.Build) !void {
 
     const zmpl_module = zmpl_dep.module("zmpl");
 
+    const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
+
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
@@ -83,6 +88,7 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("args", zig_args_dep.module("args"));
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
+    jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },
@@ -100,6 +106,7 @@ pub fn build(b: *std.Build) !void {
     docs_step.dependOn(&docs_install.step);
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
+    main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");
@@ -132,7 +139,18 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         }
     }
 
-    var generate_routes = try GenerateRoutes.init(b.allocator, "src/app/views");
+    const root_path = b.build_root.path orelse try std.fs.cwd().realpathAlloc(b.allocator, ".");
+    const templates_path = try std.fs.path.join(
+        b.allocator,
+        &[_][]const u8{ root_path, "src", "app", "views" },
+    );
+
+    const jobs_path = try std.fs.path.join(
+        b.allocator,
+        &[_][]const u8{ root_path, "src", "app", "jobs" },
+    );
+
+    var generate_routes = try Routes.init(b.allocator, root_path, templates_path, jobs_path);
     try generate_routes.generateRoutes();
     const write_files = b.addWriteFiles();
     const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);

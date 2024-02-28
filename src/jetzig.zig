@@ -2,6 +2,7 @@ const std = @import("std");
 
 pub const zmpl = @import("zmpl").zmpl;
 pub const zmd = @import("zmd").zmd;
+pub const jetkv = @import("jetkv");
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
@@ -12,6 +13,7 @@ pub const middleware = @import("jetzig/middleware.zig");
 pub const util = @import("jetzig/util.zig");
 pub const types = @import("jetzig/types.zig");
 pub const markdown = @import("jetzig/markdown.zig");
+pub const jobs = @import("jetzig/jobs.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -37,7 +39,22 @@ pub const Data = data.Data;
 /// generate a `View`.
 pub const View = views.View;
 
+/// A route definition. Generated at build type by `Routes.zig`.
+pub const Route = views.Route;
+
 const root = @import("root");
+
+/// An asynchronous job that runs outside of the request/response flow. Create via `Request.job`
+/// and set params with `Job.put`, then call `Job.schedule()` to add to the
+/// job queue.
+pub const Job = jobs.Job;
+
+/// A container for a job definition, includes the job name and run function.
+pub const JobDefinition = jobs.Job.JobDefinition;
+
+/// A generic logger type. Provides all standard log levels as functions (`INFO`, `WARN`,
+/// `ERROR`, etc.). Note that all log functions are CAPITALIZED.
+pub const Logger = loggers.Logger;
 
 /// Global configuration. Override these values by defining in `src/main.zig` with:
 /// ```zig
@@ -69,6 +86,14 @@ pub const config = struct {
 
     /// A struct of fragments to use when rendering Markdown templates.
     pub const markdown_fragments = zmd.html.DefaultFragments;
+
+    /// The number of worker threads to spawn on startup for processing Jobs (NOT the number of
+    /// HTTP server worker threads).
+    pub const job_worker_threads: usize = 1;
+
+    /// Duration before looking for more Jobs when the queue is found to be empty, in
+    /// milliseconds.
+    pub const job_worker_sleep_interval_ms: usize = 10;
 
     /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
     pub fn get(T: type, comptime key: []const u8) T {

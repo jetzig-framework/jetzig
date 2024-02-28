@@ -3,18 +3,21 @@ const jetzig = @import("jetzig.zig");
 
 ast: std.zig.Ast = undefined,
 allocator: std.mem.Allocator,
+root_path: []const u8,
 views_path: []const u8,
+jobs_path: []const u8,
 buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
 data: *jetzig.data.Data,
 
-const Self = @This();
+const Routes = @This();
 
 const Function = struct {
     name: []const u8,
     view_name: []const u8,
     args: []Arg,
+    routes: *const Routes,
     path: []const u8,
     source: []const u8,
     params: std.ArrayList([]const u8),
@@ -23,31 +26,36 @@ const Function = struct {
     /// The full name of a route. This **must** match the naming convention used by static route
     /// compilation.
     /// path: `src/app/views/iguanas.zig`, action: `index` => `iguanas_index`
-    pub fn fullName(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        const relative_path = try std.fs.path.relative(allocator, "src/app/views/", self.path);
-        defer allocator.free(relative_path);
+    pub fn fullName(self: Function) ![]const u8 {
+        const relative_path = try self.routes.relativePathFrom(.views, self.path, .posix);
+        defer self.routes.allocator.free(relative_path);
 
         const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
-        std.mem.replaceScalar(u8, path, '\\', '/');
         std.mem.replaceScalar(u8, path, '/', '_');
 
-        return std.mem.concat(allocator, u8, &[_][]const u8{ path, "_", self.name });
+        return std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ path, "_", self.name });
+    }
+
+    pub fn viewName(self: Function) ![]const u8 {
+        const relative_path = try self.routes.relativePathFrom(.views, self.path, .posix);
+        defer self.routes.allocator.free(relative_path);
+
+        return try self.routes.allocator.dupe(u8, chompExtension(relative_path));
     }
 
     /// The path used to match the route. Resource ID and extension is not included here and is
     /// appended as needed during matching logic at run time.
-    pub fn uriPath(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        const relative_path = try std.fs.path.relative(allocator, "src/app/views/", self.path);
-        defer allocator.free(relative_path);
+    pub fn uriPath(self: Function) ![]const u8 {
+        const relative_path = try self.routes.relativePathFrom(.views, self.path, .posix);
+        defer self.routes.allocator.free(relative_path);
 
         const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
-        std.mem.replaceScalar(u8, path, '\\', '/');
-        if (std.mem.eql(u8, path, "root")) return try allocator.dupe(u8, "/");
+        if (std.mem.eql(u8, path, "root")) return try self.routes.allocator.dupe(u8, "/");
 
-        return try std.mem.concat(allocator, u8, &[_][]const u8{ "/", path });
+        return try std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ "/", path });
     }
 
-    pub fn lessThanFn(context: void, lhs: @This(), rhs: @This()) bool {
+    pub fn lessThanFn(context: void, lhs: Function, rhs: Function) bool {
         _ = context;
         return std.mem.order(u8, lhs.name, rhs.name).compare(std.math.CompareOperator.lt);
     }
@@ -58,7 +66,7 @@ const Arg = struct {
     name: []const u8,
     type_name: []const u8,
 
-    pub fn typeBasename(self: @This()) ![]const u8 {
+    pub fn typeBasename(self: Arg) ![]const u8 {
         if (std.mem.indexOfScalar(u8, self.type_name, '.')) |_| {
             var it = std.mem.splitBackwardsScalar(u8, self.type_name, '.');
             while (it.next()) |capture| {
@@ -76,13 +84,20 @@ const Arg = struct {
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, views_path: []const u8) !Self {
+pub fn init(
+    allocator: std.mem.Allocator,
+    root_path: []const u8,
+    views_path: []const u8,
+    jobs_path: []const u8,
+) !Routes {
     const data = try allocator.create(jetzig.data.Data);
     data.* = jetzig.data.Data.init(allocator);
 
     return .{
         .allocator = allocator,
+        .root_path = root_path,
         .views_path = views_path,
+        .jobs_path = jobs_path,
         .buffer = std.ArrayList(u8).init(allocator),
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
@@ -90,7 +105,7 @@ pub fn init(allocator: std.mem.Allocator, views_path: []const u8) !Self {
     };
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Routes) void {
     self.ast.deinit(self.allocator);
     self.buffer.deinit();
     self.static_routes.deinit();
@@ -98,13 +113,76 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Generates the complete route set for the application
-pub fn generateRoutes(self: *Self) !void {
+pub fn generateRoutes(self: *Routes) !void {
     const writer = self.buffer.writer();
 
-    var views_dir = try std.fs.cwd().openDir(self.views_path, .{ .iterate = true });
-    defer views_dir.close();
+    try writer.writeAll(
+        \\const jetzig = @import("jetzig");
+        \\
+        \\pub const routes = [_]jetzig.Route{
+        \\
+    );
 
-    var walker = try views_dir.walk(self.allocator);
+    try self.writeRoutes(writer);
+
+    try writer.writeAll(
+        \\};
+        \\
+    );
+
+    try writer.writeAll(
+        \\
+        \\pub const jobs = [_]jetzig.JobDefinition{
+        \\
+    );
+
+    try self.writeJobs(writer);
+
+    try writer.writeAll(
+        \\};
+        \\
+    );
+
+    // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
+}
+
+pub fn relativePathFrom(
+    self: Routes,
+    root: enum { root, views, jobs },
+    sub_path: []const u8,
+    format: enum { os, posix },
+) ![]u8 {
+    const root_path = switch (root) {
+        .root => self.root_path,
+        .views => self.views_path,
+        .jobs => self.jobs_path,
+    };
+
+    const path = try std.fs.path.relative(self.allocator, root_path, sub_path);
+    defer self.allocator.free(path);
+
+    return switch (format) {
+        .posix => try self.normalizePosix(path),
+        .os => try self.allocator.dupe(u8, path),
+    };
+}
+
+fn writeRoutes(self: *Routes, writer: anytype) !void {
+    var dir = std.fs.openDirAbsolute(self.views_path, .{ .iterate = true }) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.debug.print(
+                    "[jetzig] Views directory not found, no routes generated: `{s}`\n",
+                    .{self.views_path},
+                );
+                return;
+            },
+            else => return err,
+        }
+    };
+    defer dir.close();
+
+    var walker = try dir.walk(self.allocator);
     defer walker.deinit();
 
     while (try walker.next()) |entry| {
@@ -114,7 +192,10 @@ pub fn generateRoutes(self: *Self) !void {
 
         if (!std.mem.eql(u8, extension, ".zig")) continue;
 
-        const view_routes = try self.generateRoutesForView(views_dir, entry.path);
+        const realpath = try dir.realpathAlloc(self.allocator, entry.path);
+        defer self.allocator.free(realpath);
+
+        const view_routes = try self.generateRoutesForView(dir, try self.allocator.dupe(u8, realpath));
 
         for (view_routes.static) |view_route| {
             try self.static_routes.append(view_route);
@@ -128,35 +209,24 @@ pub fn generateRoutes(self: *Self) !void {
     std.sort.pdq(Function, self.static_routes.items, {}, Function.lessThanFn);
     std.sort.pdq(Function, self.dynamic_routes.items, {}, Function.lessThanFn);
 
-    try writer.writeAll(
-        \\const jetzig = @import("jetzig");
-        \\
-        \\pub const routes = [_]jetzig.views.Route{
-        \\
-    );
-
     for (self.static_routes.items) |static_route| {
         try self.writeRoute(writer, static_route);
     }
 
     for (self.dynamic_routes.items) |dynamic_route| {
         try self.writeRoute(writer, dynamic_route);
-        const name = try dynamic_route.fullName(self.allocator);
+        const name = try dynamic_route.fullName();
         defer self.allocator.free(name);
     }
 
     std.debug.print("[jetzig] Imported {} route(s)\n", .{self.dynamic_routes.items.len});
-
-    try writer.writeAll("};");
-
-    // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
 }
 
-fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !void {
-    const full_name = try route.fullName(self.allocator);
+fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) !void {
+    const full_name = try route.fullName();
     defer self.allocator.free(full_name);
 
-    const uri_path = try route.uriPath(self.allocator);
+    const uri_path = try route.uriPath();
     defer self.allocator.free(uri_path);
 
     const output_template =
@@ -164,7 +234,7 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         \\            .name = "{0s}",
         \\            .action = .{1s},
         \\            .view_name = "{2s}",
-        \\            .view = jetzig.views.Route.ViewType{{ .{3s} = .{{ .{1s} = @import("{7s}").{1s} }} }},
+        \\            .view = jetzig.Route.ViewType{{ .{3s} = .{{ .{1s} = @import("{7s}").{1s} }} }},
         \\            .static = {4s},
         \\            .uri_path = "{5s}",
         \\            .template = "{6s}",
@@ -174,11 +244,10 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         \\
     ;
 
-    const module_path = try self.allocator.dupe(u8, route.path);
+    const module_path = try self.relativePathFrom(.root, route.path, .posix);
     defer self.allocator.free(module_path);
 
-    const view_name = try self.allocator.dupe(u8, route.view_name);
-    std.mem.replaceScalar(u8, view_name, '\\', '/');
+    const view_name = try route.viewName();
     defer self.allocator.free(view_name);
 
     const template = try std.mem.concat(self.allocator, u8, &[_][]const u8{ view_name, "/", route.name });
@@ -206,9 +275,9 @@ const RouteSet = struct {
     static: []Function,
 };
 
-fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !RouteSet {
-    const stat = try views_dir.statFile(path);
-    const source = try views_dir.readFileAllocOptions(self.allocator, path, stat.size, null, @alignOf(u8), 0);
+fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !RouteSet {
+    const stat = try dir.statFile(path);
+    const source = try dir.readFileAllocOptions(self.allocator, path, stat.size, null, @alignOf(u8), 0);
     defer self.allocator.free(source);
 
     self.ast = try std.zig.Ast.parse(self.allocator, source, .zig);
@@ -271,7 +340,7 @@ fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !
 }
 
 // Parse the `pub const static_params` definition and into a `jetzig.data.Value`.
-fn parseStaticParamsDecl(self: *Self, decl: std.zig.Ast.full.VarDecl, params: *jetzig.data.Value) !void {
+fn parseStaticParamsDecl(self: *Routes, decl: std.zig.Ast.full.VarDecl, params: *jetzig.data.Value) !void {
     const init_node = self.ast.nodes.items(.tag)[decl.ast.init_node];
     switch (init_node) {
         .struct_init_dot_two, .struct_init_dot_two_comma => {
@@ -282,7 +351,7 @@ fn parseStaticParamsDecl(self: *Self, decl: std.zig.Ast.full.VarDecl, params: *j
 }
 // Recursively parse a struct into a jetzig.data.Value so it can be serialized as JSON and stored
 // in `routes.zig` - used for static param comparison at runtime.
-fn parseStruct(self: *Self, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
+fn parseStruct(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
     var struct_buf: [2]std.zig.Ast.Node.Index = undefined;
     const maybe_struct_init = self.ast.fullStructInit(&struct_buf, node);
 
@@ -297,7 +366,7 @@ fn parseStruct(self: *Self, node: std.zig.Ast.Node.Index, params: *jetzig.data.V
 }
 
 // Array of param sets for a route, e.g. `.{ .{ .foo = "bar" } }
-fn parseArray(self: *Self, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
+fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
     var array_buf: [2]std.zig.Ast.Node.Index = undefined;
     const maybe_array = self.ast.fullArrayInit(&array_buf, node);
 
@@ -349,7 +418,7 @@ fn parseArray(self: *Self, node: std.zig.Ast.Node.Index, params: *jetzig.data.Va
 }
 
 // Parse the value of a param field (recursively when field is a struct/array)
-fn parseField(self: *Self, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
+fn parseField(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
     const tag = self.ast.nodes.items(.tag)[node];
     switch (tag) {
         // Route params, e.g. `.index = .{ ... }`
@@ -397,7 +466,7 @@ fn parseNumber(value: []const u8, data: *jetzig.data.Data) !*jetzig.data.Value {
     }
 }
 
-fn isStaticParamsDecl(self: *Self, decl: std.zig.Ast.full.VarDecl) bool {
+fn isStaticParamsDecl(self: *Routes, decl: std.zig.Ast.full.VarDecl) bool {
     if (decl.visib_token) |token_index| {
         const visibility = self.ast.tokenSlice(token_index);
         const mutability = self.ast.tokenSlice(decl.ast.mut_token);
@@ -411,7 +480,7 @@ fn isStaticParamsDecl(self: *Self, decl: std.zig.Ast.full.VarDecl) bool {
 }
 
 fn parseFunction(
-    self: *Self,
+    self: *Routes,
     index: usize,
     path: []const u8,
     source: []const u8,
@@ -442,7 +511,8 @@ fn parseFunction(
         return .{
             .name = function_name,
             .view_name = try self.allocator.dupe(u8, view_name),
-            .path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path }),
+            .routes = self,
+            .path = path,
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),
             .params = std.ArrayList([]const u8).init(self.allocator),
@@ -452,7 +522,7 @@ fn parseFunction(
     return null;
 }
 
-fn parseTypeExpr(self: *Self, node: std.zig.Ast.Node) ![]const u8 {
+fn parseTypeExpr(self: *Routes, node: std.zig.Ast.Node) ![]const u8 {
     switch (node.tag) {
         // Currently all expected params are pointers, keeping this here in case that changes in future:
         .identifier => {},
@@ -486,4 +556,82 @@ fn isActionFunctionName(name: []const u8) bool {
     }
 
     return false;
+}
+
+inline fn chompExtension(path: []const u8) []const u8 {
+    return path[0 .. path.len - std.fs.path.extension(path).len];
+}
+
+fn zigEscape(self: Routes, input: []const u8) ![]const u8 {
+    var buf = std.ArrayList(u8).init(self.allocator);
+    const writer = buf.writer();
+    try std.zig.stringEscape(input, "", .{}, writer);
+    return try buf.toOwnedSlice();
+}
+
+fn normalizePosix(self: Routes, path: []const u8) ![]u8 {
+    var buf = std.ArrayList([]const u8).init(self.allocator);
+    defer buf.deinit();
+
+    var it = std.mem.splitSequence(u8, path, std.fs.path.sep_str);
+    while (it.next()) |segment| try buf.append(segment);
+
+    return try std.mem.join(self.allocator, std.fs.path.sep_str_posix, buf.items);
+}
+
+//
+// Generate Jobs
+//
+
+fn writeJobs(self: Routes, writer: anytype) !void {
+    var dir = std.fs.openDirAbsolute(self.jobs_path, .{ .iterate = true }) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.debug.print(
+                    "[jetzig] Jobs directory not found, no jobs generated: `{s}`\n",
+                    .{self.jobs_path},
+                );
+                return;
+            },
+            else => return err,
+        }
+    };
+    defer dir.close();
+
+    var count: usize = 0;
+    var walker = try dir.walk(self.allocator);
+    while (try walker.next()) |entry| {
+        if (!std.mem.eql(u8, std.fs.path.extension(entry.path), ".zig")) continue;
+
+        const realpath = try dir.realpathAlloc(self.allocator, entry.path);
+        defer self.allocator.free(realpath);
+
+        const root_relative_path = try self.relativePathFrom(.root, realpath, .posix);
+        defer self.allocator.free(root_relative_path);
+
+        const jobs_relative_path = try self.relativePathFrom(.jobs, realpath, .posix);
+        defer self.allocator.free(jobs_relative_path);
+
+        const module_path = try self.zigEscape(root_relative_path);
+        defer self.allocator.free(module_path);
+
+        const name_path = try self.zigEscape(jobs_relative_path);
+        defer self.allocator.free(name_path);
+
+        const name = chompExtension(name_path);
+
+        try writer.writeAll(try std.fmt.allocPrint(
+            self.allocator,
+            \\    .{{
+            \\        .name = "{0s}",
+            \\        .runFn = @import("{1s}").run,
+            \\    }},
+            \\
+        ,
+            .{ name, module_path },
+        ));
+        count += 1;
+    }
+
+    std.debug.print("[jetzig] Imported {} job(s)\n", .{count});
 }
