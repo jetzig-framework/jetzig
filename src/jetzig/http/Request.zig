@@ -187,6 +187,23 @@ pub fn params(self: *Self) !*jetzig.data.Value {
     }
 }
 
+/// Put a String or Array into the key-value store.
+/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
+pub fn kvPut(self: *Self, comptime T: type, key: jetzig.KVString, value: T) !void {
+    try self.server.jet_kv.put(T, key, value);
+}
+
+/// Get a String or Array from the key-value store.
+/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
+pub fn kvGet(self: *Self, comptime T: type, key: jetzig.KVString) ?T {
+    return self.server.jet_kv.get(T, key);
+}
+
+/// Pop a String from an Array in the key-value store.
+pub fn kvPop(self: *Self, key: jetzig.KVString) ?jetzig.KVString {
+    return self.server.jet_kv.pop(key);
+}
+
 fn queryParams(self: *Self) !*jetzig.data.Value {
     if (!try self.parseQueryString()) {
         self.query.data = try self.allocator.create(jetzig.data.Data);

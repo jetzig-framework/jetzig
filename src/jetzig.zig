@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const zmpl = @import("zmpl").zmpl;
+pub const jetkv = @import("jetkv");
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
@@ -8,6 +9,12 @@ pub const data = @import("jetzig/data.zig");
 pub const caches = @import("jetzig/caches.zig");
 pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
+
+/// An array type that can be stored in the key-value store.
+pub const KVArray = jetkv.types.Array;
+
+/// A string type that can be stored in the key-value store.
+pub const KVString = jetkv.types.String;
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.

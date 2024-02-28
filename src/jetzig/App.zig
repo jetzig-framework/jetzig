@@ -47,6 +47,7 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
         route.deinitParams();
         self.allocator.destroy(route);
     };
+    var jet_kv = jetzig.jetkv.JetKV.init(self.allocator, .{});
 
     var server = jetzig.http.Server.init(
         self.allocator,
@@ -55,6 +56,7 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
         self.server_options,
         routes.items,
         &mime_map,
+        &jet_kv,
     );
 
     defer server.deinit();

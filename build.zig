@@ -37,9 +37,12 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
+    const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
+
     lib.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     jetzig_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     lib.root_module.addImport("args", zig_args_dep.module("args"));
+    jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do

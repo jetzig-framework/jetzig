@@ -10,6 +10,11 @@
             .url = "https://github.com/MasterQ32/zig-args/archive/89f18a104d9c13763b90e97d6b4ce133da8a3e2b.tar.gz",
             .hash = "12203ded54c85878eea7f12744066dcb4397177395ac49a7b2aa365bf6047b623829",
         },
+        .jetkv = .{
+            .path = "../jetkv",
+            // .url = "https://github.com/jetzig-framework/jetkv/archive/85eb0f9e081bb869abcef98e8b4467af198a086b.tar.gz",
+            // .hash = "12209c1a63a1fb50c93a0a6f7e94a77466cf1bee35f4ef9147cfc6905cf64a2b9970",
+        },
     },
 
     .paths = .{

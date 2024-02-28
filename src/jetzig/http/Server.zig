@@ -27,6 +27,7 @@ start_time: i128 = undefined,
 routes: []*jetzig.views.Route,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
+jet_kv: *jetzig.jetkv.JetKV,
 
 const Self = @This();
 
@@ -37,6 +38,7 @@ pub fn init(
     options: ServerOptions,
     routes: []*jetzig.views.Route,
     mime_map: *jetzig.http.mime.MimeMap,
+    jet_kv: *jetzig.jetkv.JetKV,
 ) Self {
     return .{
         .allocator = allocator,
@@ -47,6 +49,7 @@ pub fn init(
         .options = options,
         .routes = routes,
         .mime_map = mime_map,
+        .jet_kv = jet_kv,
     };
 }
 
