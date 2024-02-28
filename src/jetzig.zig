@@ -37,6 +37,11 @@ pub const Data = data.Data;
 /// generate a `View`.
 pub const View = views.View;
 
+/// An asynchronous job that runs outside of the request/response flow. Create via `Request.job`
+/// and set params with `BackgroundJob.put`, then call `BackgroundJob.background()` to add to the
+/// job queue.
+pub const BackgroundJob = @import("jetzig/BackgroundJob.zig");
+
 pub const config = struct {
     pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
     pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);

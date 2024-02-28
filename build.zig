@@ -65,6 +65,7 @@ pub fn build(b: *std.Build) !void {
     docs_step.dependOn(&docs_install.step);
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
+    main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");

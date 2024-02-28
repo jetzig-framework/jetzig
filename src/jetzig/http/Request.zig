@@ -204,6 +204,24 @@ pub fn kvPop(self: *Self, key: jetzig.KVString) ?jetzig.KVString {
     return self.server.jet_kv.pop(key);
 }
 
+/// Creates a new BackgroundJob. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
+/// Call `BackgroundJob.put(...)` to set job params.
+/// Call `BackgroundJob.background()` to run the job outside of the request/response flow.
+/// e.g.:
+/// ```
+/// pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
+///     var job = try request.job("foo"); // Will invoke `process()` in `src/app/jobs/foo.zig`
+///     try job.put("foo", data.string("bar"));
+///     try job.background(); // Job added to queue and processed by job worker.
+///     return request.render(.ok);
+/// }
+/// ```
+pub fn job(self: *Self, job_name: []const u8) !*jetzig.BackgroundJob {
+    const background_job = try self.allocator.create(jetzig.BackgroundJob);
+    background_job.* = jetzig.BackgroundJob.init(self.allocator, job_name);
+    return background_job;
+}
+
 fn queryParams(self: *Self) !*jetzig.data.Value {
     if (!try self.parseQueryString()) {
         self.query.data = try self.allocator.create(jetzig.data.Data);
