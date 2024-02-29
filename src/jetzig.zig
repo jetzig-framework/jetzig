@@ -33,6 +33,7 @@ pub const View = views.View;
 pub const config = struct {
     pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
     pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
+    pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
     pub const public_content = .{ .path = "public" };
 };
 

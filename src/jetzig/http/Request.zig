@@ -16,21 +16,23 @@ headers: jetzig.http.Headers,
 segments: std.ArrayList([]const u8),
 server: *jetzig.http.Server,
 session: *jetzig.http.Session,
+std_http_request: std.http.Server.Request,
 response: *jetzig.http.Response,
 status_code: jetzig.http.status_codes.StatusCode = undefined,
 response_data: *jetzig.data.Data,
 query_data: *jetzig.data.Data,
 query: *jetzig.http.Query,
 cookies: *jetzig.http.Cookies,
-body: []const u8,
+body: []const u8 = undefined,
+processed: bool = false,
 
 pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
+    std_http_request: std.http.Server.Request,
     response: *jetzig.http.Response,
-    body: []const u8,
 ) !Self {
-    const method = switch (response.std_response.request.method) {
+    const method = switch (std_http_request.head.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
@@ -50,7 +52,7 @@ pub fn init(
     // * Extension: "/foo/bar/baz/1.json" => ".json"
     // * Query params: "/foo/bar/baz?foo=bar&baz=qux" => .{ .foo = "bar", .baz => "qux" }
     // * Anything else ?
-    var it = std.mem.splitScalar(u8, response.std_response.request.target, '/');
+    var it = std.mem.splitScalar(u8, std_http_request.head.target, '/');
     var segments = std.ArrayList([]const u8).init(allocator);
     while (it.next()) |segment| {
         if (std.mem.indexOfScalar(u8, segment, '?')) |query_index| {
@@ -61,9 +63,8 @@ pub fn init(
     }
 
     var cookies = try allocator.create(jetzig.http.Cookies);
-    cookies.* = jetzig.http.Cookies.init(
-        allocator,
-        response.std_response.request.headers.getFirstValue("Cookie") orelse "",
+    cookies.* = jetzig.http.Cookies.init(allocator, ""
+    // response.std_response.request.headers.getFirstValue("Cookie") orelse "",
     );
     try cookies.parse();
 
@@ -89,26 +90,60 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = response.std_response.request.target,
+        .path = std_http_request.head.target,
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator, response.std_response.request.headers),
+        .headers = jetzig.http.Headers.init(allocator),
         .server = server,
         .segments = segments,
         .cookies = cookies,
         .session = session,
+        .response = response,
         .response_data = response_data,
         .query_data = query_data,
         .query = query,
-        .body = body,
-        .response = response,
+        .std_http_request = std_http_request,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.session.deinit();
+    // self.session.deinit();
     self.segments.deinit();
     self.allocator.destroy(self.cookies);
     self.allocator.destroy(self.session);
+    if (self.processed) self.allocator.free(self.body);
+}
+
+/// Process request, read body if present, parse headers (TODO)
+pub fn process(self: *Self) !void {
+    var headers_it = self.std_http_request.iterateHeaders();
+    while (headers_it.next()) |header| {
+        try self.headers.append(header.name, header.value);
+    }
+    const reader = try self.std_http_request.reader();
+    self.body = try reader.readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
+    self.processed = true;
+}
+
+pub fn respond(self: *Self) !void {
+    if (!self.processed) unreachable;
+
+    var cookie_it = self.cookies.headerIterator();
+    while (try cookie_it.next()) |header| {
+        // FIXME: Skip setting cookies that are already present ?
+        try self.response.headers.append("Set-Cookie", header);
+    }
+
+    // TODO: Move to jetzig.http.Response.stdHeaders()
+    var std_response_headers = std.ArrayList(std.http.Header).init(self.allocator);
+    var headers_it = self.response.headers.iterator();
+    while (headers_it.next()) |header| try std_response_headers.append(
+        .{ .name = header.name, .value = header.value },
+    );
+
+    try self.std_http_request.respond(
+        self.response.content,
+        .{ .keep_alive = false, .extra_headers = std_response_headers.items },
+    );
 }
 
 pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
@@ -129,6 +164,8 @@ pub fn getHeader(self: *Self, key: []const u8) ?[]const u8 {
 /// otherwise the parsed JSON request body will take precedence and query parameters will be
 /// ignored.
 pub fn params(self: *Self) !*jetzig.data.Value {
+    if (!self.processed) unreachable;
+
     switch (self.requestFormat()) {
         .JSON => {
             if (self.body.len == 0) return self.queryParams();
@@ -137,7 +174,7 @@ pub fn params(self: *Self) !*jetzig.data.Value {
             data.* = jetzig.data.Data.init(self.allocator);
             data.fromJson(self.body) catch |err| {
                 switch (err) {
-                    error.UnexpectedEndOfInput => return error.JetzigBodyParseError,
+                    error.SyntaxError, error.UnexpectedEndOfInput => return error.JetzigBodyParseError,
                     else => return err,
                 }
             };
@@ -253,22 +290,30 @@ pub fn resourceId(self: *Self) []const u8 {
 
 // Determine if a given route matches the current request.
 pub fn match(self: *Self, route: jetzig.views.Route) !bool {
-    switch (self.method) {
-        .GET => {
-            return switch (route.action) {
-                .index => self.isMatch(.exact, route),
-                .get => self.isMatch(.resource_id, route),
-                else => false,
-            };
+    return switch (self.method) {
+        .GET => switch (route.action) {
+            .index => self.isMatch(.exact, route),
+            .get => self.isMatch(.resource_id, route),
+            else => false,
         },
-        .POST => return self.isMatch(.exact, route),
-        .PUT => return self.isMatch(.resource_id, route),
-        .PATCH => return self.isMatch(.resource_id, route),
-        .DELETE => return self.isMatch(.resource_id, route),
-        else => return false,
-    }
-
-    return false;
+        .POST => switch (route.action) {
+            .post => self.isMatch(.exact, route),
+            else => false,
+        },
+        .PUT => switch (route.action) {
+            .put => self.isMatch(.resource_id, route),
+            else => false,
+        },
+        .PATCH => switch (route.action) {
+            .patch => self.isMatch(.resource_id, route),
+            else => false,
+        },
+        .DELETE => switch (route.action) {
+            .delete => self.isMatch(.resource_id, route),
+            else => false,
+        },
+        .HEAD, .CONNECT, .OPTIONS, .TRACE => false,
+    };
 }
 
 fn isMatch(self: *Self, match_type: enum { exact, resource_id }, route: jetzig.views.Route) bool {

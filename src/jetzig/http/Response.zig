@@ -5,7 +5,6 @@ const http = @import("../http.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
-std_response: *std.http.Server.Response,
 headers: *jetzig.http.Headers,
 content: []const u8,
 status_code: http.status_codes.StatusCode,
@@ -13,14 +12,12 @@ content_type: []const u8,
 
 pub fn init(
     allocator: std.mem.Allocator,
-    std_response: *std.http.Server.Response,
 ) !Self {
     const headers = try allocator.create(jetzig.http.Headers);
-    headers.* = jetzig.http.Headers.init(allocator, std_response.headers);
+    headers.* = jetzig.http.Headers.init(allocator);
 
     return .{
         .allocator = allocator,
-        .std_response = std_response,
         .status_code = .no_content,
         .content_type = "application/octet-stream",
         .content = "",
@@ -46,7 +43,8 @@ pub fn reset(self: *const Self) ResetState {
 
 /// Waits for the current request to finish sending.
 pub fn wait(self: *const Self) !void {
-    try self.std_response.wait();
+    _ = self;
+    //     try self.std_request.server.
 }
 
 /// Finalizes a request. Appends any stored headers, sets the response status code, and writes
@@ -68,7 +66,8 @@ pub fn finish(self: *const Self) !void {
 
 /// Reads the current request body. Caller owns memory.
 pub fn read(self: *const Self) ![]const u8 {
-    return try self.std_response.reader().readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
+    const reader = try self.std_request.reader();
+    return try reader.readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
 }
 
 const TransferEncodingOptions = struct {
