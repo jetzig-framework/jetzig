@@ -61,7 +61,10 @@ pub fn initParams(self: *Self, allocator: std.mem.Allocator) !void {
 }
 
 pub fn deinitParams(self: *const Self) void {
-    for (self.params.items) |data| data.deinit();
+    for (self.params.items) |data| {
+        data.deinit();
+        data._allocator.destroy(data);
+    }
     self.params.deinit();
 }
 

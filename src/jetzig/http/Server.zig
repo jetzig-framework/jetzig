@@ -16,7 +16,6 @@ pub const ServerOptions = struct {
     secret: []const u8,
 };
 
-server: std.http.Server,
 allocator: std.mem.Allocator,
 port: u16,
 host: []const u8,
@@ -24,9 +23,10 @@ cache: jetzig.caches.Cache,
 logger: jetzig.loggers.Logger,
 options: ServerOptions,
 start_time: i128 = undefined,
-routes: []jetzig.views.Route,
+routes: []*jetzig.views.Route,
 templates: []jetzig.TemplateFn,
 mime_map: *jetzig.http.mime.MimeMap,
+std_net_server: std.net.Server = undefined,
 
 const Self = @This();
 
@@ -35,14 +35,11 @@ pub fn init(
     host: []const u8,
     port: u16,
     options: ServerOptions,
-    routes: []jetzig.views.Route,
+    routes: []*jetzig.views.Route,
     templates: []jetzig.TemplateFn,
     mime_map: *jetzig.http.mime.MimeMap,
 ) Self {
-    const server = std.http.Server.init(.{ .reuse_address = true });
-
     return .{
-        .server = server,
         .allocator = allocator,
         .host = host,
         .port = port,
@@ -56,109 +53,93 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
-    self.server.deinit();
+    self.std_net_server.deinit();
 }
 
 pub fn listen(self: *Self) !void {
-    const address = std.net.Address.parseIp(self.host, self.port) catch unreachable;
+    const address = try std.net.Address.parseIp("127.0.0.1", 8080);
+    self.std_net_server = try address.listen(.{ .reuse_port = true });
 
-    try self.server.listen(address);
     const cache_status = if (self.options.cache == .null_cache) "disabled" else "enabled";
     self.logger.debug("Listening on http://{s}:{} [cache:{s}]", .{ self.host, self.port, cache_status });
     try self.processRequests();
 }
 
 fn processRequests(self: *Self) !void {
+    // TODO: Keepalive
     while (true) {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer arena.deinit();
         const allocator = arena.allocator();
 
-        var std_response = try self.server.accept(.{ .allocator = allocator });
+        const connection = try self.std_net_server.accept();
 
-        var response = try jetzig.http.Response.init(
-            allocator,
-            &std_response,
-        );
-        errdefer response.deinit();
-        errdefer arena.deinit();
+        var buf: [jetzig.config.http_buffer_size]u8 = undefined;
+        var std_http_server = std.http.Server.init(connection, &buf);
+        errdefer std_http_server.connection.stream.close();
 
-        try response.headers.append("Connection", "close");
+        self.processNextRequest(allocator, &std_http_server) catch |err| {
+            if (isBadHttpError(err)) {
+                std.debug.print("Encountered HTTP error: {s}\n", .{@errorName(err)});
+                std_http_server.connection.stream.close();
+                continue;
+            } else return err;
+        };
 
-        while (response.reset() != .closing) {
-            self.processNextRequest(allocator, &response) catch |err| {
-                switch (err) {
-                    error.EndOfStream, error.ConnectionResetByPeer => continue,
-                    error.UnknownHttpMethod => continue, // TODO: Render 400 Bad Request here ?
-                    else => return err,
-                }
-            };
-        }
-
-        response.deinit();
+        std_http_server.connection.stream.close();
         arena.deinit();
     }
 }
 
-fn processNextRequest(self: *Self, allocator: std.mem.Allocator, response: *jetzig.http.Response) !void {
-    try response.wait();
-
+fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
     self.start_time = std.time.nanoTimestamp();
 
-    const body = try response.read();
-    defer self.allocator.free(body);
+    const std_http_request = try std_http_server.receiveHead();
+    if (std_http_server.state == .receiving_head) return error.JetzigParseHeadError;
 
-    var request = try jetzig.http.Request.init(allocator, self, response, body);
-    defer request.deinit();
+    var response = try jetzig.http.Response.init(allocator);
+    var request = try jetzig.http.Request.init(allocator, self, std_http_request, &response);
+
+    try request.process();
 
     var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
 
-    try self.renderResponse(&request, response);
+    try self.renderResponse(&request);
+    try request.response.headers.append("content-type", response.content_type);
+    try request.respond();
 
-    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request, response);
+    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request);
+    jetzig.http.middleware.deinit(&middleware_data, &request);
 
-    response.setTransferEncoding(.{ .content_length = response.content.len });
-
-    var cookie_it = request.cookies.headerIterator();
-    while (try cookie_it.next()) |header| {
-        // FIXME: Skip setting cookies that are already present ?
-        try response.headers.append("Set-Cookie", header);
-    }
-
-    try response.headers.append("Content-Type", response.content_type);
-
-    try response.finish();
-
-    const log_message = try self.requestLogMessage(&request, response);
+    const log_message = try self.requestLogMessage(&request);
     defer self.allocator.free(log_message);
     self.logger.debug("{s}", .{log_message});
-
-    jetzig.http.middleware.deinit(&middleware_data, &request);
 }
 
-fn renderResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
-    const static = self.matchStaticResource(request) catch |err| {
+fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
+    const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
         const rendered = try self.renderInternalServerError(request, err);
 
-        response.content = rendered.content;
-        response.status_code = .internal_server_error;
-        response.content_type = "text/html";
+        request.response.content = rendered.content;
+        request.response.status_code = .internal_server_error;
+        request.response.content_type = "text/html";
 
         return;
     };
 
-    if (static) |resource| {
-        try renderStatic(resource, response);
+    if (static_resource) |resource| {
+        try renderStatic(resource, request.response);
         return;
     }
 
     const route = try self.matchRoute(request, false);
 
     switch (request.requestFormat()) {
-        .HTML => try self.renderHTML(request, response, route),
-        .JSON => try self.renderJSON(request, response, route),
-        .UNKNOWN => try self.renderHTML(request, response, route),
+        .HTML => try self.renderHTML(request, route),
+        .JSON => try self.renderJSON(request, route),
+        .UNKNOWN => try self.renderHTML(request, route),
     }
 }
 
@@ -171,32 +152,30 @@ fn renderStatic(resource: StaticResource, response: *jetzig.http.Response) !void
 fn renderHTML(
     self: *Self,
     request: *jetzig.http.Request,
-    response: *jetzig.http.Response,
-    route: ?jetzig.views.Route,
+    route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
         for (self.templates) |template| {
             // TODO: Use a hashmap to avoid O(n)
             if (std.mem.eql(u8, matched_route.template, template.name)) {
                 const rendered = try self.renderView(matched_route, request, template);
-                response.content = rendered.content;
-                response.status_code = rendered.view.status_code;
-                response.content_type = "text/html";
+                request.response.content = rendered.content;
+                request.response.status_code = rendered.view.status_code;
+                request.response.content_type = "text/html";
                 return;
             }
         }
     }
 
-    response.content = "";
-    response.status_code = .not_found;
-    response.content_type = "text/html";
+    request.response.content = "";
+    request.response.status_code = .not_found;
+    request.response.content_type = "text/html";
 }
 
 fn renderJSON(
     self: *Self,
     request: *jetzig.http.Request,
-    response: *jetzig.http.Response,
-    route: ?jetzig.views.Route,
+    route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
         const rendered = try self.renderView(matched_route, request, null);
@@ -205,13 +184,13 @@ fn renderJSON(
         if (data.value) |_| {} else _ = try data.object();
         try request.headers.append("Content-Type", "application/json");
 
-        response.content = try data.toJson();
-        response.status_code = rendered.view.status_code;
-        response.content_type = "application/json";
+        request.response.content = try data.toJson();
+        request.response.status_code = rendered.view.status_code;
+        request.response.content_type = "application/json";
     } else {
-        response.content = "";
-        response.status_code = .not_found;
-        response.content_type = "application/json";
+        request.response.content = "";
+        request.response.status_code = .not_found;
+        request.response.content_type = "application/json";
     }
 }
 
@@ -219,11 +198,11 @@ const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
 
 fn renderView(
     self: *Self,
-    route: jetzig.views.Route,
+    route: *jetzig.views.Route,
     request: *jetzig.http.Request,
     template: ?jetzig.TemplateFn,
 ) !RenderedView {
-    const view = route.render(route, request) catch |err| {
+    const view = route.render(route.*, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
@@ -244,6 +223,24 @@ fn isBadRequest(err: anyerror) bool {
 fn isUnhandledError(err: anyerror) bool {
     return switch (err) {
         error.OutOfMemory => true,
+        else => false,
+    };
+}
+
+fn isBadHttpError(err: anyerror) bool {
+    return switch (err) {
+        error.JetzigParseHeadError,
+        error.UnknownHttpMethod,
+        error.HttpHeadersInvalid,
+        error.HttpHeaderContinuationsUnsupported,
+        error.HttpTransferEncodingUnsupported,
+        error.HttpConnectionHeaderUnsupported,
+        error.InvalidContentLength,
+        error.CompressionUnsupported,
+        error.MissingFinalNewline,
+        error.HttpConnectionClosing,
+        error.ConnectionResetByPeer,
+        => true,
         else => false,
     };
 }
@@ -292,8 +289,8 @@ fn logStackTrace(
     try object.put("backtrace", request.response_data.string(array.items));
 }
 
-fn requestLogMessage(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) ![]const u8 {
-    const status: jetzig.http.status_codes.TaggedStatusCode = switch (response.status_code) {
+fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
+    const status: jetzig.http.status_codes.TaggedStatusCode = switch (request.response.status_code) {
         inline else => |status_code| @unionInit(
             jetzig.http.status_codes.TaggedStatusCode,
             @tagName(status_code),
@@ -316,14 +313,14 @@ fn duration(self: *Self) i64 {
     return @intCast(std.time.nanoTimestamp() - self.start_time);
 }
 
-fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?jetzig.views.Route {
+fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?*jetzig.views.Route {
     for (self.routes) |route| {
         // .index routes always take precedence.
-        if (route.static == static and route.action == .index and try request.match(route)) return route;
+        if (route.static == static and route.action == .index and try request.match(route.*)) return route;
     }
 
     for (self.routes) |route| {
-        if (route.static == static and try request.match(route)) return route;
+        if (route.static == static and try request.match(route.*)) return route;
     }
 
     return null;
@@ -398,7 +395,7 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
     const matched_route = try self.matchRoute(request, true);
 
     if (matched_route) |route| {
-        const static_path = try staticPath(request, route);
+        const static_path = try staticPath(request, route.*);
 
         if (static_path) |capture| {
             return static_dir.readFileAlloc(

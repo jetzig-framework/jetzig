@@ -18,8 +18,10 @@ pub fn get(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jetzig
 }
 
 pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+    var root = try data.object();
     const params = try request.params();
+    try root.put("param", params.get("foo").?);
+
     std.debug.print("{}\n", .{params});
     return request.render(.ok);
 }

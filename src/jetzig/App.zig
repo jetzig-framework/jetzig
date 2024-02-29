@@ -18,29 +18,45 @@ pub fn deinit(self: Self) void {
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
-pub fn start(self: Self, routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
+pub fn start(self: Self, comptime_routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
     defer mime_map.deinit();
     try mime_map.build();
+
+    var routes = std.ArrayList(*jetzig.views.Route).init(self.allocator);
+
+    for (comptime_routes) |*comptime_route| {
+        var route = try self.allocator.create(jetzig.views.Route);
+        route.* = jetzig.views.Route{
+            .name = comptime_route.name,
+            .action = comptime_route.action,
+            .uri_path = comptime_route.uri_path,
+            .view = comptime_route.view,
+            .static_view = comptime_route.static_view,
+            .static = comptime_route.static,
+            .render = comptime_route.render,
+            .renderStatic = comptime_route.renderStatic,
+            .template = comptime_route.template,
+            .json_params = comptime_route.json_params,
+        };
+        try route.initParams(self.allocator);
+        try routes.append(route);
+    }
+    defer routes.deinit();
+    defer for (routes.items) |route| {
+        route.deinitParams();
+        self.allocator.destroy(route);
+    };
 
     var server = jetzig.http.Server.init(
         self.allocator,
         self.host,
         self.port,
         self.server_options,
-        routes,
+        routes.items,
         templates,
         &mime_map,
     );
-
-    for (routes) |*route| {
-        var mutable = @constCast(route); // FIXME
-        try mutable.initParams(self.allocator);
-    }
-    defer for (routes) |*route| {
-        var mutable = @constCast(route); // FIXME
-        mutable.deinitParams();
-    };
 
     defer server.deinit();
     defer self.allocator.free(self.root_path);
