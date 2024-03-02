@@ -137,12 +137,8 @@ pub fn respond(self: *Self) !void {
         try self.response.headers.append("Set-Cookie", header);
     }
 
-    // TODO: Move to jetzig.http.Response.stdHeaders()
-    var std_response_headers = std.ArrayList(std.http.Header).init(self.allocator);
-    var headers_it = self.response.headers.iterator();
-    while (headers_it.next()) |header| try std_response_headers.append(
-        .{ .name = header.name, .value = header.value },
-    );
+    var std_response_headers = try self.response.headers.stdHeaders();
+    defer std_response_headers.deinit(self.allocator);
 
     try self.std_http_request.respond(
         self.response.content,
