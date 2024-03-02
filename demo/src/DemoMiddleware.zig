@@ -12,13 +12,13 @@ pub fn init(request: *jetzig.http.Request) !*Self {
 }
 
 pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
-    request.server.logger.debug("[middleware] Before request, custom data: {d}", .{self.my_data});
+    request.server.logger.debug("[DemoMiddleware] Before request, custom data: {d}", .{self.my_data});
     self.my_data = 43;
 }
 
 pub fn afterRequest(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
-    request.server.logger.debug("[middleware] After request, custom data: {d}", .{self.my_data});
-    request.server.logger.debug("[middleware] content-type: {s}", .{response.content_type});
+    request.server.logger.debug("[DemoMiddleware] After request, custom data: {d}", .{self.my_data});
+    request.server.logger.debug("[DemoMiddleware] content-type: {s}", .{response.content_type});
 }
 
 pub fn deinit(self: *Self, request: *jetzig.http.Request) void {

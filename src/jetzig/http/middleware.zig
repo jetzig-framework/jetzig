@@ -40,7 +40,6 @@ pub fn beforeMiddleware(request: *jetzig.http.Request) !MiddlewareData {
 pub fn afterMiddleware(
     middleware_data: *MiddlewareData,
     request: *jetzig.http.Request,
-    response: *jetzig.http.Response,
 ) !void {
     inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "afterRequest")) continue;
@@ -49,10 +48,10 @@ pub fn afterMiddleware(
             try @call(
                 .always_inline,
                 middleware.afterRequest,
-                .{ @as(*middleware, @ptrCast(@alignCast(data))), request, response },
+                .{ @as(*middleware, @ptrCast(@alignCast(data))), request, request.response },
             );
         } else {
-            try @call(.always_inline, middleware.afterRequest, .{ request, response });
+            try @call(.always_inline, middleware.afterRequest, .{ request, request.response });
         }
     }
 }
