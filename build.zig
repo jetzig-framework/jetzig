@@ -12,7 +12,6 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const template_path = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse "src/app/views/";
-    const manifest: []const u8 = b.pathJoin(&.{ template_path, "zmpl.manifest.zig" });
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
@@ -35,7 +34,6 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .zmpl_templates_path = template_path,
-            .zmpl_manifest_path = manifest,
         },
     );
 

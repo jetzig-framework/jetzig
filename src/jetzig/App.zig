@@ -18,7 +18,7 @@ pub fn deinit(self: Self) void {
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
-pub fn start(self: Self, comptime_routes: []jetzig.views.Route, templates: []jetzig.TemplateFn) !void {
+pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
     defer mime_map.deinit();
     try mime_map.build();
@@ -54,7 +54,6 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route, templates: []jet
         self.port,
         self.server_options,
         routes.items,
-        templates,
         &mime_map,
     );
 

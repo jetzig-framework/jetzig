@@ -153,31 +153,6 @@ pub fn route(comptime routes: anytype) []views.Route {
     return &detected;
 }
 
-// Receives a type (an imported module). All pub const declarations are considered as compiled
-// Zmpl templates, each implementing a `render` function.
-pub fn loadTemplates(comptime module: type) []TemplateFn {
-    var size: u16 = 0;
-    const decls = @typeInfo(module).Struct.decls;
-
-    for (decls) |_| size += 1;
-
-    var detected: [size]TemplateFn = undefined;
-
-    for (decls, 0..) |decl, decl_index| {
-        detected[decl_index] = .{
-            .render = @field(module, decl.name).render,
-            .name = decl.name,
-        };
-    }
-
-    return &detected;
-}
-
-pub const TemplateFn = struct {
-    name: []const u8,
-    render: *const fn (*zmpl.Data) anyerror![]const u8,
-};
-
 pub fn generateSecret(allocator: std.mem.Allocator) ![]const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     var secret: [64]u8 = undefined;

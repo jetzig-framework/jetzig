@@ -55,13 +55,9 @@ pub fn build(b: *std.Build) !void {
     lib.root_module.addImport("routes", routes_module);
     routes_module.addImport("jetzig", jetzig_module);
 
-    const templates_module = b.createModule(
-        .{ .root_source_file = .{ .path = "src/app/views/zmpl.manifest.zig" } },
-    );
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
-    exe_static_routes.root_module.addImport("templates", templates_module);
-    templates_module.addImport("zmpl", zmpl_module);
+    exe_static_routes.root_module.addImport("zmpl", zmpl_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     exe.step.dependOn(&run_static_routes_cmd.step);

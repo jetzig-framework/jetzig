@@ -1,7 +1,7 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
-const templates = @import("templates").templates;
+const zmpl = @import("zmpl");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -94,8 +94,7 @@ fn writeContent(
 
     std.debug.print("[jetzig] Compiled static route: {s}\n", .{json_path});
 
-    if (@hasDecl(templates, route.template)) {
-        const template = @field(templates, route.template);
+    if (zmpl.find(route.template)) |template| {
         const html_path = try std.mem.concat(
             allocator,
             u8,

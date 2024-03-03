@@ -1,7 +1,6 @@
 const std = @import("std");
 
 pub const jetzig = @import("jetzig");
-pub const templates = @import("app/views/zmpl.manifest.zig").templates;
 pub const routes = @import("routes").routes;
 
 pub const jetzig_options = struct {
@@ -16,8 +15,5 @@ pub fn main() !void {
     const app = try jetzig.init(allocator);
     defer app.deinit();
 
-    try app.start(
-        comptime jetzig.route(routes),
-        comptime jetzig.loadTemplates(templates),
-    );
+    try app.start(comptime jetzig.route(routes));
 }

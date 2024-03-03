@@ -31,19 +31,14 @@ pub const MimeMap = struct {
     }
 
     pub fn deinit(self: *MimeMap) void {
-        var it = self.map.iterator();
-        while (it.next()) |item| {
-            self.allocator.free(item.key_ptr.*);
-            self.allocator.free(item.value_ptr.*);
-        }
         self.map.deinit();
     }
 
     pub fn build(self: *MimeMap) !void {
         for (mime_types) |mime_type| {
             try self.map.put(
-                try self.allocator.dupe(u8, mime_type.file_type),
-                try self.allocator.dupe(u8, mime_type.name),
+                mime_type.file_type,
+                mime_type.name,
             );
         }
     }

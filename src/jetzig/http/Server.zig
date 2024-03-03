@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
+const zmpl = @import("zmpl");
 
 const root_file = @import("root");
 
@@ -24,7 +25,6 @@ logger: jetzig.loggers.Logger,
 options: ServerOptions,
 start_time: i128 = undefined,
 routes: []*jetzig.views.Route,
-templates: []jetzig.TemplateFn,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
 
@@ -36,7 +36,6 @@ pub fn init(
     port: u16,
     options: ServerOptions,
     routes: []*jetzig.views.Route,
-    templates: []jetzig.TemplateFn,
     mime_map: *jetzig.http.mime.MimeMap,
 ) Self {
     return .{
@@ -47,7 +46,6 @@ pub fn init(
         .logger = options.logger,
         .options = options,
         .routes = routes,
-        .templates = templates,
         .mime_map = mime_map,
     };
 }
@@ -123,7 +121,7 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
         const rendered = try self.renderInternalServerError(request, err);
 
         request.response.content = rendered.content;
-        request.response.status_code = .internal_server_error;
+        request.response.status_code = rendered.view.status_code;
         request.response.content_type = "text/html";
 
         return;
@@ -155,15 +153,19 @@ fn renderHTML(
     route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
-        for (self.templates) |template| {
-            // TODO: Use a hashmap to avoid O(n)
-            if (std.mem.eql(u8, matched_route.template, template.name)) {
-                const rendered = try self.renderView(matched_route, request, template);
-                request.response.content = rendered.content;
-                request.response.status_code = rendered.view.status_code;
+        if (zmpl.find(matched_route.template)) |template| {
+            const rendered = self.renderView(matched_route, request, template) catch |err| {
+                if (isUnhandledError(err)) return err;
+                const rendered_error = try self.renderInternalServerError(request, err);
+                request.response.content = rendered_error.content;
+                request.response.status_code = rendered_error.view.status_code;
                 request.response.content_type = "text/html";
                 return;
-            }
+            };
+            request.response.content = rendered.content;
+            request.response.status_code = rendered.view.status_code;
+            request.response.content_type = "text/html";
+            return;
         }
     }
 
@@ -200,7 +202,7 @@ fn renderView(
     self: *Self,
     route: *jetzig.views.Route,
     request: *jetzig.http.Request,
-    template: ?jetzig.TemplateFn,
+    template: ?zmpl.manifest.Template,
 ) !RenderedView {
     const view = route.render(route.*, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
