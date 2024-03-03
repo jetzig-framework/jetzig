@@ -1,0 +1,40 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *' #Makes sense, we are testing against master
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        #Deactivated windows for I don't know why it fails
+        #os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      
+      - name: Setup Zig
+      # You may pin to the exact commit or the version.
+      # uses: goto-bus-stop/setup-zig@41ae19e72e21b9a1380e86ff9f058db709fc8fc6
+        uses: goto-bus-stop/setup-zig@v2.2.0
+        with:
+          version: master
+          
+      - run: zig version
+      - run: zig env
+      
+      - name: Build
+        run: zig build --verbose
+
+      - name: Run Tests
+        run: zig build test
