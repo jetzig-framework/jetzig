@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) !void {
 
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
 
-    b.installArtifact(lib);
+    const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
 
     const jetzig_module = b.addModule("jetzig", .{ .root_source_file = .{ .path = "src/jetzig.zig" } });
     jetzig_module.addImport("mime_types", mime_module);
@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) !void {
 
     lib.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     jetzig_module.addImport("zmpl", zmpl_dep.module("zmpl"));
+    lib.root_module.addImport("args", zig_args_dep.module("args"));
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do

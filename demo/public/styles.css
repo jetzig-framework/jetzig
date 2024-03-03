@@ -1,0 +1,10 @@
+/* Root stylesheet. Load into your Zmpl template with:
+ *
+ * <link rel="stylesheet" href="/styles.css" />
+ *
+ */
+
+.message {
+    font-weight: bold;
+    font-size: 3rem;
+}
