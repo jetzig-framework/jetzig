@@ -39,3 +39,41 @@ jobs:
 
       - name: Run Tests
         run: zig build test
+
+      - name: Build artifacts
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          declare -a targets=("x86_64-windows" "x86_64-linux" "x86_64-macos" "aarch64-macos")
+          mkdir -p "artifacts/"
+          for target in "${targets[@]}"; do
+            mkdir -p artifacts/$target
+            echo "Building target ${target}..."	    
+            zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix artifacts/${target}/ &
+            sed -e '1,5d' < README.md > artifacts/${target}/README.md
+            cp LICENSE artifacts/${target}/
+          done
+          wait
+      - name: Upload artifacts Target Windows
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          path: artifacts/x86_64-windows
+      - name: Upload artifacts Target Linux
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          path: artifacts/x86_64-linux
+      - name: Upload artifacts Target MacOS
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          path: artifacts/x86_64-macos
+      - name: Upload artifacts Target MacOS 2
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          path: artifacts/aarch64-macos
