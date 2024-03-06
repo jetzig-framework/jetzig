@@ -60,23 +60,23 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
         with:
-          name: builds
+          name: build-windows
           path: artifacts/x86_64-windows
       - name: Upload artifacts Target Linux
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
         with:
-          name: builds
+          name: build-linux
           path: artifacts/x86_64-linux
       - name: Upload artifacts Target MacOS
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
         with:
-          name: builds
+          name: builds-macos-x86
           path: artifacts/x86_64-macos
       - name: Upload artifacts Target MacOS 2
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
         with:
-          name: builds
+          name: build-macos-aarch64
           path: artifacts/aarch64-macos
