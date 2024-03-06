@@ -1,0 +1,15 @@
+.{
+    .name = "jetzig-cli",
+    .version = "0.0.0",
+    .minimum_zig_version = "0.12.0",
+
+    .dependencies = .{
+        .args = .{
+            .url = "https://github.com/MasterQ32/zig-args/archive/89f18a104d9c13763b90e97d6b4ce133da8a3e2b.tar.gz",
+            .hash = "12203ded54c85878eea7f12744066dcb4397177395ac49a7b2aa365bf6047b623829",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}

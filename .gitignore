@@ -1,9 +1,4 @@
-TODO.md
-main
-get/
 zig-out/
 zig-cache/
 *.core
-src/app/views/**/*.compiled.zig
-archive.tar.gz
 static/

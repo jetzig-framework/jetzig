@@ -4,7 +4,7 @@ pub const jetzig = @import("jetzig");
 pub const routes = @import("routes").routes;
 
 pub const jetzig_options = struct {
-    pub const middleware: []const type = &.{@import("DemoMiddleware.zig")};
+    pub const middleware: []const type = &.{@import("app/middleware/DemoMiddleware.zig")};
 };
 
 pub fn main() !void {
