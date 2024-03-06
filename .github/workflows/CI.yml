@@ -29,7 +29,7 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2.2.0
         with:
           version: master
-          cache: false
+          cache: true # Let's see how this behaves
           
       - run: zig version
       - run: zig env
@@ -45,14 +45,16 @@ jobs:
         run: |
           declare -a targets=("x86_64-windows" "x86_64-linux" "x86_64-macos" "aarch64-macos")
           mkdir -p "artifacts/"
+          cd cli
           for target in "${targets[@]}"; do
-            mkdir -p artifacts/$target
+            mkdir -p ../artifacts/$target
             echo "Building target ${target}..."	    
-            zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix artifacts/${target}/ &
-            sed -e '1,5d' < README.md > artifacts/${target}/README.md
-            cp LICENSE artifacts/${target}/
+            zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix ../artifacts/${target}/ &
+            sed -e '1,5d' < ../README.md > ../artifacts/${target}/README.md
+            cp ../LICENSE artifacts/${target}/
           done
           wait
+          
       - name: Upload artifacts Target Windows
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
