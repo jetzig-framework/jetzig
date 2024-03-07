@@ -192,7 +192,7 @@ pub fn run(
         null,
     );
 
-    try runCommand(allocator, install_dir, &[_][]const u8{
+    try runCommand(allocator, real_path, &[_][]const u8{
         "zig",
         "fetch",
         "--save",
@@ -219,8 +219,8 @@ pub fn run(
     , .{real_path});
 }
 
-fn runCommand(allocator: std.mem.Allocator, install_dir: std.fs.Dir, argv: []const []const u8) !void {
-    const result = try std.process.Child.run(.{ .allocator = allocator, .argv = argv, .cwd_dir = install_dir });
+fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []const []const u8) !void {
+    const result = try std.process.Child.run(.{ .allocator = allocator, .argv = argv, .cwd = install_path });
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
@@ -381,10 +381,11 @@ fn promptInput(
         const input = try reader.readUntilDelimiterOrEofAlloc(allocator, '\n', max_read_bytes);
         if (input) |capture| {
             defer allocator.free(capture);
+            const stripped_input = strip(capture);
 
-            if (std.mem.eql(u8, capture, "")) {
+            if (std.mem.eql(u8, stripped_input, "")) {
                 if (options.default) |default| return try allocator.dupe(u8, strip(default));
-            } else return try allocator.dupe(u8, strip(capture));
+            } else return try allocator.dupe(u8, stripped_input);
         }
     }
 }
