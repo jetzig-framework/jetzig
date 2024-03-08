@@ -1,18 +1,10 @@
 const std = @import("std");
 const args = @import("args");
+const util = @import("../util.zig");
+
 const init_data = @import("init_data").init_data;
 
-fn base64Decode(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    const decoder = std.base64.Base64Decoder.init(
-        std.base64.url_safe_no_pad.alphabet_chars,
-        std.base64.url_safe_no_pad.pad_char,
-    );
-    const size = try decoder.calcSizeForSlice(input);
-    const ptr = try allocator.alloc(u8, size);
-    try decoder.decode(ptr, input);
-    return ptr;
-}
-
+/// Command line options for the `init` command.
 pub const Options = struct {
     path: ?[]const u8 = null,
 
@@ -50,7 +42,7 @@ pub fn run(
     for (positionals) |arg| {
         if (install_path != null) {
             std.debug.print("Unexpected positional argument: {s}\n", .{arg});
-            return error.JetzigUnexpectedPositionalArgumentsError;
+            return error.JetzigCommandError;
         }
         install_path = arg;
     }
@@ -230,7 +222,7 @@ fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []co
     std.debug.print("[exec] {s}", .{command});
 
     if (result.term.Exited != 0) {
-        printFailure();
+        util.printFailure();
         std.debug.print(
             \\
             \\Error running command: {s}
@@ -244,9 +236,9 @@ fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []co
             \\{s}
             \\
         , .{ command, result.stdout, result.stderr });
-        return error.JetzigRunCommandError;
+        return error.JetzigCommandError;
     } else {
-        printSuccess();
+        util.printSuccess();
     }
 }
 
@@ -267,7 +259,7 @@ fn copySourceFile(
     var content: []const u8 = undefined;
     if (replace) |capture| {
         const initial = readSourceFile(allocator, src) catch |err| {
-            printFailure();
+            util.printFailure();
             return err;
         };
         defer allocator.free(initial);
@@ -276,25 +268,25 @@ fn copySourceFile(
         }
     } else {
         content = readSourceFile(allocator, src) catch |err| {
-            printFailure();
+            util.printFailure();
             return err;
         };
     }
     defer allocator.free(content);
 
     writeSourceFile(install_dir, dest, content) catch |err| {
-        printFailure();
+        util.printFailure();
         return err;
     };
-    printSuccess();
+    util.printSuccess();
 }
 
 // Read a file from Jetzig source code.
 fn readSourceFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     inline for (init_data) |file| {
-        if (std.mem.eql(u8, path, file.path)) return try base64Decode(allocator, file.data);
+        if (std.mem.eql(u8, path, file.path)) return try util.base64Decode(allocator, file.data);
     }
-    return error.SourceFileNotFound;
+    return error.JetzigCommandError;
 }
 
 // Write a file to the new project's directory.
@@ -335,7 +327,7 @@ fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
 
     if (fetch_result.status != .ok) {
         std.debug.print("Error fetching from GitHub: {s}\n", .{url});
-        return error.JetzigGitHubFetchError;
+        return error.JetzigCommandError;
     }
 
     const parsed_response = try std.json.parseFromSlice(
@@ -381,18 +373,13 @@ fn promptInput(
         const input = try reader.readUntilDelimiterOrEofAlloc(allocator, '\n', max_read_bytes);
         if (input) |capture| {
             defer allocator.free(capture);
-            const stripped_input = strip(capture);
+            const stripped_input = util.strip(capture);
 
             if (std.mem.eql(u8, stripped_input, "")) {
-                if (options.default) |default| return try allocator.dupe(u8, strip(default));
+                if (options.default) |default| return try allocator.dupe(u8, util.strip(default));
             } else return try allocator.dupe(u8, stripped_input);
         }
     }
-}
-
-// Strip leading and trailing whitespace from a u8 slice.
-fn strip(input: []const u8) []const u8 {
-    return std.mem.trim(u8, input, &std.ascii.whitespace);
 }
 
 // Initialize a new Git repository when setting up a new project (optional).
@@ -415,14 +402,4 @@ fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
         "-m",
         "Initialize Jetzig project",
     });
-}
-
-/// Print a success confirmation.
-fn printSuccess() void {
-    std.debug.print(" ✅\n", .{});
-}
-
-/// Print a failure confirmation.
-fn printFailure() void {
-    std.debug.print(" ❌\n", .{});
 }
