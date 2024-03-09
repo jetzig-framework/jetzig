@@ -5,6 +5,8 @@ name: CI
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   schedule:
     - cron: '0 0 * * *' #Makes sense, we are testing against master
   workflow_dispatch:
