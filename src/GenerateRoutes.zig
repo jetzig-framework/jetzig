@@ -430,6 +430,11 @@ fn parseFunction(
         var args = std.ArrayList(Arg).init(self.allocator);
         defer args.deinit();
 
+        if (!isActionFunctionName(function_name)) {
+            self.allocator.free(function_name);
+            return null;
+        }
+
         while (it.next()) |arg| {
             if (arg.name_token) |arg_token| {
                 const arg_name = self.ast.tokenSlice(arg_token);
@@ -477,4 +482,12 @@ fn parseTypeExpr(self: *Self, node: std.zig.Ast.Node) ![]const u8 {
 
 fn asNodeIndex(index: usize) std.zig.Ast.Node.Index {
     return @as(std.zig.Ast.Node.Index, @intCast(index));
+}
+
+fn isActionFunctionName(name: []const u8) bool {
+    inline for (@typeInfo(jetzig.views.Route.Action).Enum.fields) |field| {
+        if (std.mem.eql(u8, field.name, name)) return true;
+    }
+
+    return false;
 }
