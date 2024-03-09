@@ -47,7 +47,7 @@ pub fn run(
         install_path = arg;
     }
 
-    const github_url = try githubUrl(allocator);
+    const github_url = try util.githubUrl(allocator);
     defer allocator.free(github_url);
 
     if (other_options.help) {
@@ -87,10 +87,10 @@ pub fn run(
         install_dir = try std.fs.cwd().makeOpenPath(input_install_path, .{});
     }
 
-    const real_path = try install_dir.realpathAlloc(allocator, ".");
-    defer allocator.free(real_path);
+    const realpath = try install_dir.realpathAlloc(allocator, ".");
+    defer allocator.free(realpath);
 
-    const output = try std.fmt.allocPrint(allocator, "Creating new project in {s}\n\n", .{real_path});
+    const output = try std.fmt.allocPrint(allocator, "Creating new project in {s}\n\n", .{realpath});
     defer allocator.free(output);
     try writer.writeAll(output);
 
@@ -184,7 +184,7 @@ pub fn run(
         null,
     );
 
-    try runCommand(allocator, real_path, &[_][]const u8{
+    try util.runCommand(allocator, realpath, &[_][]const u8{
         "zig",
         "fetch",
         "--save",
@@ -208,38 +208,7 @@ pub fn run(
         \\And then browse to http://localhost:8080/
         \\
         \\
-    , .{real_path});
-}
-
-fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []const []const u8) !void {
-    const result = try std.process.Child.run(.{ .allocator = allocator, .argv = argv, .cwd = install_path });
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    const command = try std.mem.join(allocator, " ", argv);
-    defer allocator.free(command);
-
-    std.debug.print("[exec] {s}", .{command});
-
-    if (result.term.Exited != 0) {
-        util.printFailure();
-        std.debug.print(
-            \\
-            \\Error running command: {s}
-            \\
-            \\[stdout]:
-            \\
-            \\{s}
-            \\
-            \\[stderr]:
-            \\
-            \\{s}
-            \\
-        , .{ command, result.stdout, result.stderr });
-        return error.JetzigCommandError;
-    } else {
-        util.printSuccess();
-    }
+    , .{realpath});
 }
 
 const Replace = struct {
@@ -308,47 +277,6 @@ fn writeSourceFile(install_dir: std.fs.Dir, path: []const u8, content: []const u
     }
 }
 
-// Generate a full GitHub URL for passing to `zig fetch`.
-fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
-    var client = std.http.Client{ .allocator = allocator };
-    defer client.deinit();
-
-    const url = "https://api.github.com/repos/jetzig-framework/jetzig/branches/main";
-    const extra_headers = &[_]std.http.Header{.{ .name = "X-GitHub-Api-Version", .value = "2022-11-28" }};
-
-    var response_storage = std.ArrayList(u8).init(allocator);
-    defer response_storage.deinit();
-
-    const fetch_result = try client.fetch(.{
-        .location = .{ .url = url },
-        .extra_headers = extra_headers,
-        .response_storage = .{ .dynamic = &response_storage },
-    });
-
-    if (fetch_result.status != .ok) {
-        std.debug.print("Error fetching from GitHub: {s}\n", .{url});
-        return error.JetzigCommandError;
-    }
-
-    const parsed_response = try std.json.parseFromSlice(
-        struct { commit: struct { sha: []const u8 } },
-        allocator,
-        response_storage.items,
-        .{ .ignore_unknown_fields = true },
-    );
-    defer parsed_response.deinit();
-
-    return try std.mem.concat(
-        allocator,
-        u8,
-        &[_][]const u8{
-            "https://github.com/jetzig-framework/jetzig/archive/",
-            parsed_response.value.commit.sha,
-            ".tar.gz",
-        },
-    );
-}
-
 // Prompt a user for input and return the result. Accepts an optional default value.
 fn promptInput(
     allocator: std.mem.Allocator,
@@ -384,19 +312,19 @@ fn promptInput(
 
 // Initialize a new Git repository when setting up a new project (optional).
 fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
-    try runCommand(allocator, install_dir, &[_][]const u8{
+    try util.runCommand(allocator, install_dir, &[_][]const u8{
         "git",
         "init",
         ".",
     });
 
-    try runCommand(allocator, install_dir, &[_][]const u8{
+    try util.runCommand(allocator, install_dir, &[_][]const u8{
         "git",
         "add",
         ".",
     });
 
-    try runCommand(allocator, install_dir, &[_][]const u8{
+    try util.runCommand(allocator, install_dir, &[_][]const u8{
         "git",
         "commit",
         "-m",

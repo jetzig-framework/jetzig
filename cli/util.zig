@@ -94,3 +94,76 @@ pub fn isCamelCase(input: []const u8) bool {
 
     return true;
 }
+
+/// Runs a command as a child process and verifies successful exit code.
+pub fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []const []const u8) !void {
+    const result = try std.process.Child.run(.{ .allocator = allocator, .argv = argv, .cwd = install_path });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    const command = try std.mem.join(allocator, " ", argv);
+    defer allocator.free(command);
+
+    std.debug.print("[exec] {s}", .{command});
+
+    if (result.term.Exited != 0) {
+        printFailure();
+        std.debug.print(
+            \\
+            \\Error running command: {s}
+            \\
+            \\[stdout]:
+            \\
+            \\{s}
+            \\
+            \\[stderr]:
+            \\
+            \\{s}
+            \\
+        , .{ command, result.stdout, result.stderr });
+        return error.JetzigCommandError;
+    } else {
+        printSuccess();
+    }
+}
+
+/// Generate a full GitHub URL for passing to `zig fetch`.
+pub fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
+    var client = std.http.Client{ .allocator = allocator };
+    defer client.deinit();
+
+    const url = "https://api.github.com/repos/jetzig-framework/jetzig/branches/main";
+    const extra_headers = &[_]std.http.Header{.{ .name = "X-GitHub-Api-Version", .value = "2022-11-28" }};
+
+    var response_storage = std.ArrayList(u8).init(allocator);
+    defer response_storage.deinit();
+
+    const fetch_result = try client.fetch(.{
+        .location = .{ .url = url },
+        .extra_headers = extra_headers,
+        .response_storage = .{ .dynamic = &response_storage },
+    });
+
+    if (fetch_result.status != .ok) {
+        std.debug.print("Error fetching from GitHub: {s}\n", .{url});
+        return error.JetzigCommandError;
+    }
+
+    const parsed_response = try std.json.parseFromSlice(
+        struct { commit: struct { sha: []const u8 } },
+        allocator,
+        response_storage.items,
+        .{ .ignore_unknown_fields = true },
+    );
+    defer parsed_response.deinit();
+
+    return try std.mem.concat(
+        allocator,
+        u8,
+        &[_][]const u8{
+            "https://github.com/jetzig-framework/jetzig/archive/",
+            parsed_response.value.commit.sha,
+            ".tar.gz",
+        },
+    );
+}
