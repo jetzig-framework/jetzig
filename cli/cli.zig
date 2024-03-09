@@ -1,6 +1,7 @@
 const std = @import("std");
 const args = @import("args");
-const init = @import("init.zig");
+const init = @import("commands/init.zig");
+const generate = @import("commands/generate.zig");
 
 const Options = struct {
     help: bool = false,
@@ -10,8 +11,10 @@ const Options = struct {
     };
 
     pub const meta = .{
+        .usage_summary = "[COMMAND]",
         .option_docs = .{
             .init = "Initialize a new project",
+            .generate = "Generate scaffolding",
             .help = "Print help and exit",
         },
     };
@@ -19,6 +22,8 @@ const Options = struct {
 
 const Verb = union(enum) {
     init: init.Options,
+    generate: generate.Options,
+    g: generate.Options,
 };
 
 /// Main entrypoint for `jetzig` executable. Parses command line args and generates a new
@@ -33,28 +38,45 @@ pub fn main() !void {
 
     const writer = std.io.getStdErr().writer();
 
-    if (options.verb) |verb| {
-        switch (verb) {
-            .init => |opts| return init.run(
-                allocator,
-                opts,
-                writer,
-                options.positionals,
-                .{ .help = options.options.help },
-            ),
+    run(allocator, options, writer) catch |err| {
+        switch (err) {
+            error.JetzigCommandError => std.os.exit(1),
+            else => return err,
         }
-    }
+    };
 
-    if (options.options.help) {
+    if (options.options.help or options.verb == null) {
         try args.printHelp(Options, "jetzig", writer);
         try writer.writeAll(
             \\
             \\Commands:
             \\
             \\  init         Initialize a new project.
+            \\  generate     Generate scaffolding.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
             \\
         );
+    }
+}
+
+fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb), writer: anytype) !void {
+    if (options.verb) |verb| {
+        return switch (verb) {
+            .init => |opts| init.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+            .g, .generate => |opts| generate.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+        };
     }
 }

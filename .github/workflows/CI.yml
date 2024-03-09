@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
-      
+
       - name: Setup Zig
       # You may pin to the exact commit or the version.
       # uses: goto-bus-stop/setup-zig@41ae19e72e21b9a1380e86ff9f058db709fc8fc6
@@ -32,10 +32,10 @@ jobs:
         with:
           version: master
           cache: true # Let's see how this behaves
-          
+
       - run: zig version
       - run: zig env
-      
+
       - name: Build
         run: zig build --verbose
 
@@ -51,13 +51,13 @@ jobs:
           cd cli
           for target in "${targets[@]}"; do
             mkdir -p $root/artifacts/$target
-            echo "Building target ${target}..."	    
+            echo "Building target ${target}..."
             zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix $root/artifacts/${target}/ &
             sed -e '1,5d' < $root/README.md > $root/artifacts/${target}/README.md
             cp $root/LICENSE $root/artifacts/${target}/
           done
           wait
-          
+
       - name: Upload artifacts Target Windows
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
@@ -74,7 +74,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v2
         with:
-          name: builds-macos-x86
+          name: build-macos-x86
           path: artifacts/x86_64-macos
       - name: Upload artifacts Target MacOS 2
         if: ${{ matrix.os == 'ubuntu-latest' }}
