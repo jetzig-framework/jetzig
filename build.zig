@@ -67,3 +67,47 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_main_tests.step);
 }
+
+/// Placeholder for potential options we may add in future without breaking
+/// backward-compatibility.
+pub const JetzigInitOptions = struct {};
+
+pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigInitOptions) !void {
+    _ = options;
+    const target = b.host;
+    const optimize = exe.root_module.optimize orelse .Debug;
+    const jetzig_dep = b.dependency(
+        "jetzig",
+        .{ .optimize = optimize, .target = b.host },
+    );
+    const jetzig_module = jetzig_dep.module("jetzig");
+    const zmpl_module = jetzig_dep.module("zmpl");
+
+    exe.root_module.addImport("jetzig", jetzig_module);
+    exe.root_module.addImport("zmpl", zmpl_module);
+
+    var generate_routes = try GenerateRoutes.init(b.allocator, "src/app/views");
+    try generate_routes.generateRoutes();
+    const write_files = b.addWriteFiles();
+    const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);
+    for (generate_routes.static_routes.items) |route| _ = write_files.add(route.path, route.source);
+    for (generate_routes.dynamic_routes.items) |route| _ = write_files.add(route.path, route.source);
+    const routes_module = b.createModule(.{ .root_source_file = routes_file });
+
+    const exe_static_routes = b.addExecutable(.{
+        .name = "static",
+        .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.root_module.addImport("routes", routes_module);
+    routes_module.addImport("jetzig", jetzig_module);
+
+    exe_static_routes.root_module.addImport("routes", routes_module);
+    exe_static_routes.root_module.addImport("jetzig", jetzig_module);
+    exe_static_routes.root_module.addImport("zmpl", zmpl_module);
+
+    const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
+    exe.step.dependOn(&run_static_routes_cmd.step);
+}
