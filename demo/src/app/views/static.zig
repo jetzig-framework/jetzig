@@ -48,6 +48,7 @@ pub fn index(request: *jetzig.StaticRequest, data: *jetzig.Data) !jetzig.View {
     const params = try request.params();
 
     if (params.get("foo")) |foo| try root.put("foo", foo);
+    if (params.get("bar")) |foo| try root.put("bar", foo);
 
     return request.render(.ok);
 }

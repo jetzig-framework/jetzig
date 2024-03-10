@@ -90,9 +90,27 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     try generate_routes.generateRoutes();
     const write_files = b.addWriteFiles();
     const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);
-    for (generate_routes.static_routes.items) |route| _ = write_files.add(route.path, route.source);
-    for (generate_routes.dynamic_routes.items) |route| _ = write_files.add(route.path, route.source);
     const routes_module = b.createModule(.{ .root_source_file = routes_file });
+
+    var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
+    defer src_dir.close();
+    var walker = try src_dir.walk(b.allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file) {
+            if (!std.mem.eql(u8, ".zig", std.fs.path.extension(entry.path))) continue;
+
+            const stat = try src_dir.statFile(entry.path);
+            const src_data = try src_dir.readFileAlloc(b.allocator, entry.path, stat.size);
+            defer b.allocator.free(src_data);
+
+            const relpath = try std.fs.path.join(b.allocator, &[_][]const u8{ "src", entry.path });
+            defer b.allocator.free(relpath);
+
+            _ = write_files.add(relpath, src_data);
+        }
+    }
 
     const exe_static_routes = b.addExecutable(.{
         .name = "static",
