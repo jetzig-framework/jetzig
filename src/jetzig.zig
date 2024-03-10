@@ -185,7 +185,3 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]const u
     try decoder.decode(ptr, string);
     return ptr;
 }
-
-test {
-    @import("std").testing.refAllDecls(@This());
-}

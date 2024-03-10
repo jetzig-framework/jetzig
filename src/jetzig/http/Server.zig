@@ -331,6 +331,8 @@ fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?*jetzi
 const StaticResource = struct { content: []const u8, mime_type: []const u8 = "application/octet-stream" };
 
 fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
+    // TODO: Map public and static routes at launch to avoid accessing the file system when
+    // matching any route - currently every request causes file system traversal.
     const public_resource = try self.matchPublicContent(request);
     if (public_resource) |resource| return resource;
 
@@ -458,7 +460,7 @@ fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]cons
         .index, .post => return try std.mem.concat(
             request.allocator,
             u8,
-            &[_][]const u8{ route.name, "_", extension },
+            &[_][]const u8{ route.name, extension },
         ),
         else => return null,
     }

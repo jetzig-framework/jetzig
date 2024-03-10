@@ -18,30 +18,27 @@ const Function = struct {
     source: []const u8,
     params: std.ArrayList([]const u8),
 
+    /// The full name of a route. This **must** match the naming convention used by static route
+    /// compilation.
+    /// path: `src/app/views/iguanas.zig`, action: `index` => `iguanas_index`
     pub fn fullName(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        var path = try allocator.dupe(u8, self.path);
-        const extension = std.fs.path.extension(path);
-        defer allocator.free(path);
-        std.mem.replaceScalar(u8, path, std.fs.path.sep, '_');
-        return std.mem.concat(
-            allocator,
-            u8,
-            &[_][]const u8{ path[0 .. path.len - extension.len], "_", self.name },
-        );
+        // XXX: Currently we do not support nested routes, so we will need to adjust this if we
+        // add nested routes in future.
+        const extension = std.fs.path.extension(self.path);
+        const basename = std.fs.path.basename(self.path);
+        const name = basename[0 .. basename.len - extension.len];
+
+        return std.mem.concat(allocator, u8, &[_][]const u8{ name, "_", self.name });
     }
 
+    /// The path used to match the route. Resource ID and extension is not included here and is
+    /// appended as needed during matching logic at run time.
     pub fn uriPath(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        if (std.mem.eql(u8, self.path, "root.zig")) return try allocator.dupe(u8, "/");
+        const basename = std.fs.path.basename(self.path);
+        const name = basename[0 .. basename.len - std.fs.path.extension(basename).len];
+        if (std.mem.eql(u8, name, "root")) return try allocator.dupe(u8, "/");
 
-        var path = try allocator.dupe(u8, self.path);
-        const extension = std.fs.path.extension(path);
-        defer allocator.free(path);
-        std.mem.replaceScalar(u8, path, std.fs.path.sep, '/');
-        return std.mem.concat(
-            allocator,
-            u8,
-            &[_][]const u8{ "/", path[0 .. path.len - extension.len] },
-        );
+        return try std.mem.concat(allocator, u8, &[_][]const u8{ "/", name });
     }
 
     pub fn lessThanFn(context: void, lhs: @This(), rhs: @This()) bool {
@@ -108,11 +105,7 @@ pub fn generateRoutes(self: *Self) !void {
         if (entry.kind != .file) continue;
 
         const extension = std.fs.path.extension(entry.path);
-        const basename = std.fs.path.basename(entry.path);
 
-        if (std.mem.eql(u8, basename, "routes.zig")) continue;
-        if (std.mem.eql(u8, basename, "zmpl.manifest.zig")) continue;
-        if (std.mem.startsWith(u8, basename, ".")) continue;
         if (!std.mem.eql(u8, extension, ".zig")) continue;
 
         const view_routes = try self.generateRoutesForView(views_dir, entry.path);
@@ -446,7 +439,7 @@ fn parseFunction(
 
         return .{
             .name = function_name,
-            .path = try self.allocator.dupe(u8, path),
+            .path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path }),
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),
             .params = std.ArrayList([]const u8).init(self.allocator),
