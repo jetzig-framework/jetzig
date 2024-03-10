@@ -186,12 +186,16 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         try params_writer.writeAll(".{}");
     }
 
+    const module_path = try self.allocator.dupe(u8, route.path);
+    defer self.allocator.free(module_path);
+    std.mem.replaceScalar(u8, module_path, '\\', '/');
+
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
         full_name,
         route.name,
         uri_path,
         full_name,
-        route.path,
+        module_path,
         route.name,
         params_buf.items,
     });
@@ -437,12 +441,9 @@ fn parseFunction(
             }
         }
 
-        const full_path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path });
-        defer self.allocator.free(full_path);
-
         return .{
             .name = function_name,
-            .path = try escapeString(self.allocator, full_path),
+            .path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path }),
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),
             .params = std.ArrayList([]const u8).init(self.allocator),
@@ -486,14 +487,4 @@ fn isActionFunctionName(name: []const u8) bool {
     }
 
     return false;
-}
-
-fn escapeString(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
-    const writer = buf.writer();
-
-    try std.zig.stringEscape(input, "", .{}, writer);
-
-    return try allocator.dupe(u8, buf.items);
 }
