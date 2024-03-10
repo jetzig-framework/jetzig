@@ -151,7 +151,10 @@ pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jet
 }
 
 pub fn requestFormat(self: *Self) jetzig.http.Request.Format {
-    return self.extensionFormat() orelse self.acceptHeaderFormat() orelse .UNKNOWN;
+    return self.extensionFormat() orelse
+        self.acceptHeaderFormat() orelse
+        self.contentTypeHeaderFormat() orelse
+        .UNKNOWN;
 }
 
 pub fn getHeader(self: *Self, key: []const u8) ?[]const u8 {
@@ -224,6 +227,17 @@ fn extensionFormat(self: *Self) ?jetzig.http.Request.Format {
 
 pub fn acceptHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
     const acceptHeader = self.getHeader("Accept");
+
+    if (acceptHeader) |item| {
+        if (std.mem.eql(u8, item, "text/html")) return .HTML;
+        if (std.mem.eql(u8, item, "application/json")) return .JSON;
+    }
+
+    return null;
+}
+
+pub fn contentTypeHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
+    const acceptHeader = self.getHeader("content-type");
 
     if (acceptHeader) |item| {
         if (std.mem.eql(u8, item, "text/html")) return .HTML;
