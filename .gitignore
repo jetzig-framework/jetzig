@@ -2,3 +2,4 @@ zig-out/
 zig-cache/
 *.core
 static/
+.jetzig

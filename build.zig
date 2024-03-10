@@ -86,6 +86,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
 
+    if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
+        if (jetzig_runner) {
+            const file = try std.fs.cwd().createFile(".jetzig", .{ .truncate = true });
+            defer file.close();
+            try file.writeAll(exe.name);
+        }
+    }
+
     var generate_routes = try GenerateRoutes.init(b.allocator, "src/app/views");
     try generate_routes.generateRoutes();
     const write_files = b.addWriteFiles();
