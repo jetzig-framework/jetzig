@@ -437,9 +437,12 @@ fn parseFunction(
             }
         }
 
+        const full_path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path });
+        defer self.allocator.free(full_path);
+
         return .{
             .name = function_name,
-            .path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path }),
+            .path = try escapeString(self.allocator, full_path),
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),
             .params = std.ArrayList([]const u8).init(self.allocator),
@@ -483,4 +486,14 @@ fn isActionFunctionName(name: []const u8) bool {
     }
 
     return false;
+}
+
+fn escapeString(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
+    var buf = std.ArrayList(u8).init(allocator);
+    defer buf.deinit();
+    const writer = buf.writer();
+
+    try std.zig.stringEscape(input, "", .{}, writer);
+
+    return try allocator.dupe(u8, buf.items);
 }
