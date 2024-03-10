@@ -18,10 +18,14 @@ pub fn deinit(self: *Self) void {
     self.headers.deinit(self.allocator);
 }
 
-// Gets the first value for a given header identified by `name`.
+// Gets the first value for a given header identified by `name`. Case-insensitive string comparison.
 pub fn getFirstValue(self: *Self, name: []const u8) ?[]const u8 {
     for (self.headers.items) |header| {
-        if (std.mem.eql(u8, header.name, name)) return header.value;
+        if (name.len != header.name.len) continue;
+        for (name, header.name) |expected, actual| {
+            if (std.ascii.toLower(expected) != std.ascii.toLower(actual)) continue;
+        }
+        return header.value;
     }
     return null;
 }
@@ -76,6 +80,14 @@ test "append" {
     defer headers.deinit();
     try headers.append("foo", "bar");
     try std.testing.expectEqualStrings(headers.getFirstValue("foo").?, "bar");
+}
+
+test "case-insensitive matching" {
+    const allocator = std.testing.allocator;
+    var headers = Self.init(allocator);
+    defer headers.deinit();
+    try headers.append("Content-Type", "bar");
+    try std.testing.expectEqualStrings(headers.getFirstValue("content-type").?, "bar");
 }
 
 test "iterator" {
