@@ -3,6 +3,7 @@ const args = @import("args");
 const init = @import("commands/init.zig");
 const update = @import("commands/update.zig");
 const generate = @import("commands/generate.zig");
+const server = @import("commands/server.zig");
 
 const Options = struct {
     help: bool = false,
@@ -17,6 +18,7 @@ const Options = struct {
             .init = "Initialize a new project",
             .update = "Update current project to latest version of Jetzig",
             .generate = "Generate scaffolding",
+            .server = "Run a development server",
             .help = "Print help and exit",
         },
     };
@@ -26,7 +28,9 @@ const Verb = union(enum) {
     init: init.Options,
     update: update.Options,
     generate: generate.Options,
+    server: server.Options,
     g: generate.Options,
+    s: server.Options,
 };
 
 /// Main entrypoint for `jetzig` executable. Parses command line args and generates a new
@@ -57,6 +61,7 @@ pub fn main() !void {
             \\  init         Initialize a new project.
             \\  update       Update current project to latest version of Jetzig.
             \\  generate     Generate scaffolding.
+            \\  server       Run a development server.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
             \\
@@ -82,6 +87,13 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
                 .{ .help = options.options.help },
             ),
             .update => |opts| update.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+            .s, .server => |opts| server.run(
                 allocator,
                 opts,
                 writer,
