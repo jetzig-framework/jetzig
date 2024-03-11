@@ -210,9 +210,35 @@ fn renderView(
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
-    const content = if (template) |capture| try capture.render(view.data) else "";
+    if (template) |capture| {
+        return .{
+            .view = view,
+            .content = try self.renderTemplateWithLayout(capture, view, route),
+        };
+    } else {
+        // We are rendering JSON, content is ignored.
+        return .{ .view = view, .content = "" };
+    }
+}
 
-    return .{ .view = view, .content = content };
+fn renderTemplateWithLayout(
+    self: *Self,
+    template: zmpl.manifest.Template,
+    view: jetzig.views.View,
+    route: *jetzig.views.Route,
+) ![]const u8 {
+    if (route.layout) |layout_name| {
+        // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
+        const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts_", layout_name });
+        defer self.allocator.free(prefixed_name);
+
+        if (zmpl.manifest.find(prefixed_name)) |layout| {
+            return try template.renderWithLayout(layout, view.data);
+        } else {
+            self.logger.debug("Unknown layout: {s}", .{layout_name});
+            return try template.render(view.data);
+        }
+    } else return try template.render(view.data);
 }
 
 fn isBadRequest(err: anyerror) bool {
