@@ -32,12 +32,18 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
         comptime var params: [static_params_len][]const u8 = undefined;
         inline for (static_route.params, 0..) |json, index| params[index] = json;
 
+        const layout: ?[]const u8 = if (@hasDecl(static_route.module, "layout"))
+            static_route.module.layout
+        else
+            null;
+
         const route = jetzig.views.Route{
             .name = static_route.name,
             .action = @field(jetzig.views.Route.Action, static_route.action),
             .view = static_view,
             .static = true,
             .uri_path = static_route.uri_path,
+            .layout = layout,
             .template = static_route.template,
             .json_params = &params,
         };
@@ -95,6 +101,24 @@ fn writeContent(
     std.debug.print("[jetzig] Compiled static route: {s}\n", .{json_path});
 
     if (zmpl.find(route.template)) |template| {
+        var content: []const u8 = undefined;
+        defer allocator.free(content);
+
+        if (route.layout) |layout_name| {
+            // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
+            const prefixed_name = try std.mem.concat(allocator, u8, &[_][]const u8{ "layouts_", layout_name });
+            defer allocator.free(prefixed_name);
+
+            if (zmpl.find(prefixed_name)) |layout| {
+                content = try template.renderWithLayout(layout, view.data);
+            } else {
+                std.debug.print("Unknown layout: {s}\n", .{layout_name});
+                content = try allocator.dupe(u8, "");
+            }
+        } else {
+            content = try template.render(view.data);
+        }
+
         const html_path = try std.mem.concat(
             allocator,
             u8,
@@ -102,7 +126,7 @@ fn writeContent(
         );
         defer allocator.free(html_path);
         const html_file = try dir.createFile(html_path, .{ .truncate = true });
-        try html_file.writeAll(try template.render(view.data));
+        try html_file.writeAll(content);
         defer html_file.close();
         std.debug.print("[jetzig] Compiled static route: {s}\n", .{html_path});
     }

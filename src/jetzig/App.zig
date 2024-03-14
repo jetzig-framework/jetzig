@@ -36,6 +36,7 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
             .static = comptime_route.static,
             .render = comptime_route.render,
             .renderStatic = comptime_route.renderStatic,
+            .layout = comptime_route.layout,
             .template = comptime_route.template,
             .json_params = comptime_route.json_params,
         };

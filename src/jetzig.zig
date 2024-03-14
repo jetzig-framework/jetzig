@@ -112,12 +112,18 @@ pub fn route(comptime routes: anytype) []views.Route {
             ),
         };
 
+        const layout: ?[]const u8 = if (@hasDecl(dynamic_route.module, "layout"))
+            dynamic_route.module.layout
+        else
+            null;
+
         detected[index] = .{
             .name = dynamic_route.name,
             .action = @field(views.Route.Action, dynamic_route.action),
             .view = view,
             .static = false,
             .uri_path = dynamic_route.uri_path,
+            .layout = layout,
             .template = dynamic_route.template,
             .json_params = &.{},
         };
@@ -138,12 +144,18 @@ pub fn route(comptime routes: anytype) []views.Route {
         comptime var static_params: [params_size][]const u8 = undefined;
         inline for (static_route.params, 0..) |json, params_index| static_params[params_index] = json;
 
+        const layout: ?[]const u8 = if (@hasDecl(static_route.module, "layout"))
+            static_route.module.layout
+        else
+            null;
+
         detected[index] = .{
             .name = static_route.name,
             .action = @field(views.Route.Action, static_route.action),
             .view = view,
             .static = true,
             .uri_path = static_route.uri_path,
+            .layout = layout,
             .template = static_route.template,
             .json_params = &static_params,
         };
