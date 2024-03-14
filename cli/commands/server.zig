@@ -1,6 +1,7 @@
 const std = @import("std");
 const args = @import("args");
 const util = @import("../util.zig");
+const builtin = @import("builtin");
 
 pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
 
@@ -148,6 +149,9 @@ fn locateExecutable(allocator: std.mem.Allocator, dir: std.fs.Dir) !?[]const u8 
     defer allocator.free(content);
 
     const exe_name = util.strip(content);
+    const suffix = if (builtin.os.tag == .windows) ".exe" else "";
+    const full_name = try std.mem.concat(allocator, u8, &[_][]const u8{ exe_name, suffix });
+    defer allocator.free(full_name);
 
     // XXX: Will fail if user sets a custom install path.
     var bin_dir = try dir.openDir("zig-out/bin", .{ .iterate = true });
@@ -157,7 +161,7 @@ fn locateExecutable(allocator: std.mem.Allocator, dir: std.fs.Dir) !?[]const u8 
     defer walker.deinit();
 
     while (try walker.next()) |entry| {
-        if (entry.kind == .file and std.mem.eql(u8, entry.path, exe_name)) {
+        if (entry.kind == .file and std.mem.eql(u8, entry.path, full_name)) {
             return try bin_dir.realpathAlloc(allocator, entry.path);
         }
     }
