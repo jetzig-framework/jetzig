@@ -25,6 +25,11 @@ cookies: *jetzig.http.Cookies = undefined,
 session: *jetzig.http.Session = undefined,
 body: []const u8 = undefined,
 processed: bool = false,
+layout: ?[]const u8 = null,
+layout_disabled: bool = false,
+rendered: bool = false,
+rendered_multiple: bool = false,
+rendered_view: ?jetzig.views.View = null,
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -146,10 +151,48 @@ pub fn respond(self: *Self) !void {
     );
 }
 
+/// Render a response. This function can only be called once per request (repeat calls will
+/// trigger an error).
 pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    return .{ .data = self.response_data, .status_code = status_code };
+    if (self.rendered) self.rendered_multiple = true;
+
+    self.rendered = true;
+    self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
+    return self.rendered_view.?;
 }
 
+/// Issue a redirect to a new location.
+/// ```zig
+/// return request.redirect("https://www.example.com/", .moved_permanently);
+/// ```
+/// ```zig
+/// return request.redirect("https://www.example.com/", .found);
+/// ```
+/// The second argument must be `moved_permanently` or `found`.
+pub fn redirect(self: *Self, location: []const u8, redirect_status: enum { moved_permanently, found }) jetzig.views.View {
+    if (self.rendered) self.rendered_multiple = true;
+
+    self.rendered = true;
+
+    const status_code = switch (redirect_status) {
+        .moved_permanently => jetzig.http.status_codes.StatusCode.moved_permanently,
+        .found => jetzig.http.status_codes.StatusCode.found,
+    };
+
+    self.response_data.reset();
+
+    self.response.headers.remove("Location");
+    self.response.headers.append("Location", location) catch @panic("OOM");
+
+    self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
+    return self.rendered_view.?;
+}
+
+/// Infer the current format (JSON or HTML) from the request in this order:
+/// * Extension (path ends in `.json` or `.html`)
+/// * `Accept` header (`application/json` or `text/html`)
+/// * `Content-Type` header (`application/json` or `text/html`)
+/// * Fall back to default: HTML
 pub fn requestFormat(self: *Self) jetzig.http.Request.Format {
     return self.extensionFormat() orelse
         self.acceptHeaderFormat() orelse
@@ -157,11 +200,34 @@ pub fn requestFormat(self: *Self) jetzig.http.Request.Format {
         .UNKNOWN;
 }
 
+/// Set the layout for the current request/response. Use this to override a `pub const layout`
+/// declaration in a view, either in middleware or in a view function itself.
+pub fn setLayout(self: *Self, layout: ?[]const u8) void {
+    if (layout) |layout_name| {
+        self.layout = layout_name;
+        self.layout_disabled = false;
+    } else {
+        self.layout_disabled = true;
+    }
+}
+
+/// Derive a layout name from the current request if defined, otherwise from the route (if
+/// defined).
+pub fn getLayout(self: *Self, route: *jetzig.views.Route) ?[]const u8 {
+    if (self.layout_disabled) return null;
+    if (self.layout) |capture| return capture;
+    if (route.layout) |capture| return capture;
+
+    return null;
+}
+
+/// Shortcut for `request.headers.getFirstValue`. Returns the first matching value for a given
+/// header name or `null` if not found. Header names are case-insensitive.
 pub fn getHeader(self: *Self, key: []const u8) ?[]const u8 {
     return self.headers.getFirstValue(key);
 }
 
-/// Provides a `Value` representing request parameters. Parameters are normalized, meaning that
+/// Return a `Value` representing request parameters. Parameters are normalized, meaning that
 /// both the JSON request body and query parameters are accessed via the same interface.
 /// Note that query parameters are supported for JSON requests if no request body is present,
 /// otherwise the parsed JSON request body will take precedence and query parameters will be

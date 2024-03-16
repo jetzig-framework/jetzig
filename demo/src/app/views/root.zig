@@ -2,6 +2,8 @@ const jetzig = @import("jetzig");
 
 const importedFunction = @import("../lib/example.zig").exampleFunction;
 
+pub const layout = "application";
+
 pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var root = try data.object();
     try root.put("message", data.string("Welcome to Jetzig!"));

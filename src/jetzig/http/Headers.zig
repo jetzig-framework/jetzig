@@ -1,4 +1,5 @@
 const std = @import("std");
+const jetzig = @import("../../jetzig.zig");
 
 allocator: std.mem.Allocator,
 headers: HeadersArray,
@@ -18,14 +19,10 @@ pub fn deinit(self: *Self) void {
     self.headers.deinit(self.allocator);
 }
 
-// Gets the first value for a given header identified by `name`. Case-insensitive string comparison.
+// Gets the first value for a given header identified by `name`. Names are case insensitive.
 pub fn getFirstValue(self: *Self, name: []const u8) ?[]const u8 {
-    headers: for (self.headers.items) |header| {
-        if (name.len != header.name.len) continue;
-        for (name, header.name) |expected, actual| {
-            if (std.ascii.toLower(expected) != std.ascii.toLower(actual)) continue :headers;
-        }
-        return header.value;
+    for (self.headers.items) |header| {
+        if (jetzig.util.equalStringsCaseInsensitive(name, header.name)) return header.value;
     }
     return null;
 }
@@ -33,6 +30,20 @@ pub fn getFirstValue(self: *Self, name: []const u8) ?[]const u8 {
 /// Appends `name` and `value` to headers.
 pub fn append(self: *Self, name: []const u8, value: []const u8) !void {
     self.headers.appendAssumeCapacity(.{ .name = name, .value = value });
+}
+
+/// Removes **all** header entries matching `name`. Names are case-insensitive.
+pub fn remove(self: *Self, name: []const u8) void {
+    if (self.headers.items.len == 0) return;
+
+    var index: usize = self.headers.items.len;
+
+    while (index > 0) {
+        index -= 1;
+        if (jetzig.util.equalStringsCaseInsensitive(name, self.headers.items[index].name)) {
+            _ = self.headers.orderedRemove(index);
+        }
+    }
 }
 
 /// Returns an iterator which implements `next()` returning each name/value of the stored headers.
@@ -114,6 +125,18 @@ test "iterator" {
     } else {
         try std.testing.expect(false);
     }
+}
+
+test "remove" {
+    const allocator = std.testing.allocator;
+    var headers = Self.init(allocator);
+    defer headers.deinit();
+    try headers.append("foo", "baz");
+    try headers.append("foo", "qux");
+    try headers.append("bar", "quux");
+    headers.remove("Foo"); // Headers are case-insensitive.
+    try std.testing.expect(headers.getFirstValue("foo") == null);
+    try std.testing.expectEqualStrings(headers.getFirstValue("bar").?, "quux");
 }
 
 test "stdHeaders" {

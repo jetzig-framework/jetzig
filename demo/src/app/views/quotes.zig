@@ -1,6 +1,8 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
+pub const layout = "application";
+
 pub fn get(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var body = try data.object();
 

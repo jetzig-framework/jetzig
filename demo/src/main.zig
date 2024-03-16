@@ -4,7 +4,12 @@ pub const jetzig = @import("jetzig");
 pub const routes = @import("routes").routes;
 
 pub const jetzig_options = struct {
-    pub const middleware: []const type = &.{@import("app/middleware/DemoMiddleware.zig")};
+    pub const middleware: []const type = &.{
+        // htmx middleware skips layouts when `HX-Target` header is present and issues
+        // `HX-Redirect` instead of a regular HTTP redirect when `request.redirect` is called.
+        jetzig.middleware.HtmxMiddleware,
+        @import("app/middleware/DemoMiddleware.zig"),
+    };
 };
 
 pub fn main() !void {

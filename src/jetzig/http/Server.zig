@@ -203,30 +203,46 @@ fn renderView(
     request: *jetzig.http.Request,
     template: ?zmpl.manifest.Template,
 ) !RenderedView {
-    const view = route.render(route.*, request) catch |err| {
+    // View functions return a `View` to help encourage users to return from a view function with
+    // `return request.render(.ok)`, but the actual rendered view is stored in
+    // `request.rendered_view`.
+    _ = route.render(route.*, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
-    if (template) |capture| {
-        return .{
-            .view = view,
-            .content = try self.renderTemplateWithLayout(capture, view, route),
-        };
+
+    if (request.rendered_multiple) return error.JetzigMultipleRenderError;
+
+    if (request.rendered_view) |rendered_view| {
+        if (template) |capture| {
+            return .{
+                .view = rendered_view,
+                .content = try self.renderTemplateWithLayout(request, capture, rendered_view, route),
+            };
+        } else {
+            // We are rendering JSON, content is the result of `toJson` on view data.
+            return .{ .view = rendered_view, .content = "" };
+        }
     } else {
-        // We are rendering JSON, content is ignored.
-        return .{ .view = view, .content = "" };
+        self.logger.debug("`request.render` was not invoked. Rendering empty content.", .{});
+        request.response_data.reset();
+        return .{
+            .view = .{ .data = request.response_data, .status_code = .no_content },
+            .content = "",
+        };
     }
 }
 
 fn renderTemplateWithLayout(
     self: *Self,
+    request: *jetzig.http.Request,
     template: zmpl.manifest.Template,
     view: jetzig.views.View,
     route: *jetzig.views.Route,
 ) ![]const u8 {
-    if (route.layout) |layout_name| {
+    if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
         const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts_", layout_name });
         defer self.allocator.free(prefixed_name);
