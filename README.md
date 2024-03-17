@@ -18,6 +18,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * [zig-router](https://github.com/Cloudef/zig-router)
 * [zig-webui](https://github.com/webui-dev/zig-webui/)
 * [ZTS](https://github.com/zigster64/zts)
+* [Zine](https://github.com/kristoff-it/zine)
 
 ## Checklist
 
