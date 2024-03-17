@@ -8,6 +8,8 @@ pub const data = @import("jetzig/data.zig");
 pub const caches = @import("jetzig/caches.zig");
 pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
+pub const middleware = @import("jetzig/middleware.zig");
+pub const util = @import("jetzig/util.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.

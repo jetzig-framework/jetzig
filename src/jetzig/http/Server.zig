@@ -99,13 +99,16 @@ fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server
 
     try request.process();
 
-    var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
+    var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
     try self.renderResponse(&request);
     try request.response.headers.append("content-type", response.content_type);
+
+    try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+
     try request.respond();
 
-    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request);
+    try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);
 
     const log_message = try self.requestLogMessage(&request);
@@ -203,30 +206,47 @@ fn renderView(
     request: *jetzig.http.Request,
     template: ?zmpl.manifest.Template,
 ) !RenderedView {
-    const view = route.render(route.*, request) catch |err| {
+    // View functions return a `View` to help encourage users to return from a view function with
+    // `return request.render(.ok)`, but the actual rendered view is stored in
+    // `request.rendered_view`.
+    _ = route.render(route.*, request) catch |err| {
         self.logger.debug("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
-    if (template) |capture| {
-        return .{
-            .view = view,
-            .content = try self.renderTemplateWithLayout(capture, view, route),
-        };
+
+    if (request.rendered_multiple) return error.JetzigMultipleRenderError;
+    if (request.rendered_view) |rendered_view| {
+        if (request.redirected) return .{ .view = rendered_view, .content = "" };
+
+        if (template) |capture| {
+            return .{
+                .view = rendered_view,
+                .content = try self.renderTemplateWithLayout(request, capture, rendered_view, route),
+            };
+        } else {
+            // We are rendering JSON, content is the result of `toJson` on view data.
+            return .{ .view = rendered_view, .content = "" };
+        }
     } else {
-        // We are rendering JSON, content is ignored.
-        return .{ .view = view, .content = "" };
+        self.logger.debug("`request.render` was not invoked. Rendering empty content.", .{});
+        request.response_data.reset();
+        return .{
+            .view = .{ .data = request.response_data, .status_code = .no_content },
+            .content = "",
+        };
     }
 }
 
 fn renderTemplateWithLayout(
     self: *Self,
+    request: *jetzig.http.Request,
     template: zmpl.manifest.Template,
     view: jetzig.views.View,
     route: *jetzig.views.Route,
 ) ![]const u8 {
-    if (route.layout) |layout_name| {
+    if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
         const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts_", layout_name });
         defer self.allocator.free(prefixed_name);
@@ -332,7 +352,7 @@ fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
         formatted_duration,
         request.fmtMethod(),
         status.format(),
-        request.path,
+        request.path.path,
     });
 }
 
@@ -374,7 +394,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
 }
 
 fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResource {
-    if (request.path.len < 2) return null;
+    if (request.path.file_path.len <= 1) return null;
     if (request.method != .GET) return null;
 
     var iterable_dir = std.fs.cwd().openDir(
@@ -394,7 +414,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
 
-        if (std.mem.eql(u8, file.path, request.path[1..])) {
+        if (std.mem.eql(u8, file.path, request.path.file_path[1..])) {
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
@@ -460,7 +480,7 @@ fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]cons
                     if (try static_params.getValue("id")) |id| {
                         switch (id.*) {
                             .string => |capture| {
-                                if (!std.mem.eql(u8, capture.value, request.resourceId())) continue;
+                                if (!std.mem.eql(u8, capture.value, request.path.resource_id)) continue;
                             },
                             // Should be unreachable - this means generated `routes.zig` is incoherent:
                             inline else => return error.JetzigRouteError,
