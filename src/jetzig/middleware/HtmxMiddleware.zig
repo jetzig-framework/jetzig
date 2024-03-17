@@ -13,7 +13,7 @@ pub fn init(request: *jetzig.http.Request) !*Self {
 /// request. This allows a view to specify a layout that will render the full page when the
 /// request doesn't come via htmx and, when the request does come from htmx, only return the
 /// content rendered directly by the view function.
-pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
+pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
     _ = self;
     if (request.getHeader("HX-Target")) |target| {
         request.server.logger.debug(
@@ -26,9 +26,10 @@ pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
 
 /// If a redirect was issued during request processing, reset any response data, set response
 /// status to `200 OK` and replace the `Location` header with a `HX-Redirect` header.
-pub fn afterRequest(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
+pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     _ = self;
     if (response.status_code != .moved_permanently and response.status_code != .found) return;
+    if (request.headers.getFirstValue("HX-Request") == null) return;
 
     if (response.headers.getFirstValue("Location")) |location| {
         response.headers.remove("Location");

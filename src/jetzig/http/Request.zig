@@ -27,6 +27,7 @@ processed: bool = false,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
 rendered: bool = false,
+redirected: bool = false,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 
@@ -127,7 +128,13 @@ pub fn respond(self: *Self) !void {
 
     try self.std_http_request.respond(
         self.response.content,
-        .{ .keep_alive = false, .extra_headers = std_response_headers.items },
+        .{
+            .keep_alive = false,
+            .status = switch (self.response.status_code) {
+                inline else => |tag| @field(std.http.Status, @tagName(tag)),
+            },
+            .extra_headers = std_response_headers.items,
+        },
     );
 }
 
@@ -149,10 +156,15 @@ pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jet
 /// return request.redirect("https://www.example.com/", .found);
 /// ```
 /// The second argument must be `moved_permanently` or `found`.
-pub fn redirect(self: *Self, location: []const u8, redirect_status: enum { moved_permanently, found }) jetzig.views.View {
+pub fn redirect(
+    self: *Self,
+    location: []const u8,
+    redirect_status: enum { moved_permanently, found },
+) jetzig.views.View {
     if (self.rendered) self.rendered_multiple = true;
 
     self.rendered = true;
+    self.redirected = true;
 
     const status_code = switch (redirect_status) {
         .moved_permanently => jetzig.http.status_codes.StatusCode.moved_permanently,

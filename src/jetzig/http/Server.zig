@@ -99,13 +99,16 @@ fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server
 
     try request.process();
 
-    var middleware_data = try jetzig.http.middleware.beforeMiddleware(&request);
+    var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
     try self.renderResponse(&request);
     try request.response.headers.append("content-type", response.content_type);
+
+    try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+
     try request.respond();
 
-    try jetzig.http.middleware.afterMiddleware(&middleware_data, &request);
+    try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);
 
     const log_message = try self.requestLogMessage(&request);
@@ -214,8 +217,9 @@ fn renderView(
     };
 
     if (request.rendered_multiple) return error.JetzigMultipleRenderError;
-
     if (request.rendered_view) |rendered_view| {
+        if (request.redirected) return .{ .view = rendered_view, .content = "" };
+
         if (template) |capture| {
             return .{
                 .view = rendered_view,

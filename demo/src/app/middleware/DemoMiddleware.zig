@@ -16,8 +16,8 @@ const std = @import("std");
 const jetzig = @import("jetzig");
 
 /// Define any custom data fields you want to store here. Assigning to these fields in the `init`
-/// function allows you to access them in the `beforeRequest` and `afterRequest` functions, where
-/// they can also be modified.
+/// function allows you to access them in various middleware callbacks defined below, where they
+/// can also be modified.
 my_custom_value: []const u8,
 
 const Self = @This();
@@ -29,25 +29,34 @@ pub fn init(request: *jetzig.http.Request) !*Self {
     return middleware;
 }
 
-/// Invoked immediately after the request head has been processed, before relevant view function
-/// is processed. This gives you access to request headers but not the request body.
-pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
-    request.server.logger.debug("[DemoMiddleware] my_custom_value: {s}", .{self.my_custom_value});
+/// Invoked immediately after the request is received but before it has started processing.
+/// Any calls to `request.render` or `request.redirect` will prevent further processing of the
+/// request, including any other middleware in the chain.
+pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
+    request.server.logger.debug("[DemoMiddleware:afterRequest] my_custom_value: {s}", .{self.my_custom_value});
     self.my_custom_value = @tagName(request.method);
 }
 
-/// Invoked immediately after the request has finished responding. Provides full access to the
-/// response as well as the request.
-pub fn afterRequest(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
+/// Invoked immediately before the response renders to the client.
+/// The response can be modified here if needed.
+pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     request.server.logger.debug(
-        "[DemoMiddleware] my_custom_value: {s}, response status: {s}",
+        "[DemoMiddleware:beforeResponse] my_custom_value: {s}, response status: {s}",
         .{ self.my_custom_value, @tagName(response.status_code) },
     );
 }
 
-/// Invoked after `afterRequest` is called, use this function to do any clean-up.
+/// Invoked immediately after the response has been finalized and sent to the client.
+/// Response data can be accessed for logging, but any modifications will have no impact.
+pub fn afterResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
+    _ = self;
+    _ = response;
+    request.server.logger.debug("[DemoMiddleware:afterResponse] response completed", .{});
+}
+
+/// Invoked after `afterResponse` is called. Use this function to do any clean-up.
 /// Note that `request.allocator` is an arena allocator, so any allocations are automatically
-/// done before the next request starts processing.
+/// freed before the next request starts processing.
 pub fn deinit(self: *Self, request: *jetzig.http.Request) void {
     request.allocator.destroy(self);
 }

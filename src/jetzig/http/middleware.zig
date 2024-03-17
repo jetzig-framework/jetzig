@@ -10,7 +10,7 @@ else
 
 const MiddlewareData = std.BoundedArray(*anyopaque, middlewares.len);
 
-pub fn beforeMiddleware(request: *jetzig.http.Request) !MiddlewareData {
+pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
     var middleware_data = MiddlewareData.init(0) catch unreachable;
 
     inline for (middlewares, 0..) |middleware, index| {
@@ -21,37 +21,56 @@ pub fn beforeMiddleware(request: *jetzig.http.Request) !MiddlewareData {
     }
 
     inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, "beforeRequest")) continue;
-        if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(index);
-            try @call(
-                .always_inline,
-                middleware.beforeRequest,
-                .{ @as(*middleware, @ptrCast(@alignCast(data))), request },
-            );
-        } else {
-            try @call(.always_inline, middleware.beforeRequest, .{request});
-        }
-    }
-
-    return middleware_data;
-}
-
-pub fn afterMiddleware(
-    middleware_data: *MiddlewareData,
-    request: *jetzig.http.Request,
-) !void {
-    inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "afterRequest")) continue;
         if (comptime @hasDecl(middleware, "init")) {
             const data = middleware_data.get(index);
             try @call(
                 .always_inline,
                 middleware.afterRequest,
+                .{ @as(*middleware, @ptrCast(@alignCast(data))), request },
+            );
+        } else {
+            try @call(.always_inline, middleware.afterRequest, .{request});
+        }
+    }
+
+    return middleware_data;
+}
+
+pub fn beforeResponse(
+    middleware_data: *MiddlewareData,
+    request: *jetzig.http.Request,
+) !void {
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "beforeResponse")) continue;
+        if (comptime @hasDecl(middleware, "init")) {
+            const data = middleware_data.get(index);
+            try @call(
+                .always_inline,
+                middleware.beforeResponse,
                 .{ @as(*middleware, @ptrCast(@alignCast(data))), request, request.response },
             );
         } else {
-            try @call(.always_inline, middleware.afterRequest, .{ request, request.response });
+            try @call(.always_inline, middleware.beforeResponse, .{ request, request.response });
+        }
+    }
+}
+
+pub fn afterResponse(
+    middleware_data: *MiddlewareData,
+    request: *jetzig.http.Request,
+) !void {
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "afterResponse")) continue;
+        if (comptime @hasDecl(middleware, "init")) {
+            const data = middleware_data.get(index);
+            try @call(
+                .always_inline,
+                middleware.afterResponse,
+                .{ @as(*middleware, @ptrCast(@alignCast(data))), request, request.response },
+            );
+        } else {
+            try @call(.always_inline, middleware.afterResponse, .{ request, request.response });
         }
     }
 }
