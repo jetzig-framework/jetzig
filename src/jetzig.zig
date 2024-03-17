@@ -53,16 +53,6 @@ pub fn init(allocator: std.mem.Allocator) !App {
         true => caches.Cache{ .memory_cache = caches.MemoryCache.init(allocator) },
         false => caches.Cache{ .null_cache = caches.NullCache.init(allocator) },
     };
-    const root_path = std.fs.cwd().realpathAlloc(allocator, "src/app") catch |err| {
-        switch (err) {
-            error.FileNotFound => {
-                std.debug.print("Unable to find base directory: ./app\nExiting.\n", .{});
-                std.os.exit(1);
-            },
-            else => return err,
-        }
-    };
-
     var logger = loggers.Logger{ .development_logger = loggers.DevelopmentLogger.init(allocator) };
     const secret = try generateSecret(allocator);
     logger.debug(
@@ -73,7 +63,6 @@ pub fn init(allocator: std.mem.Allocator) !App {
     const server_options = http.Server.ServerOptions{
         .cache = server_cache,
         .logger = logger,
-        .root_path = root_path,
         .secret = secret,
     };
 
@@ -82,7 +71,6 @@ pub fn init(allocator: std.mem.Allocator) !App {
         .allocator = allocator,
         .host = host,
         .port = port,
-        .root_path = root_path,
     };
 }
 

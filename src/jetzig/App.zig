@@ -9,7 +9,6 @@ server_options: jetzig.http.Server.ServerOptions,
 allocator: std.mem.Allocator,
 host: []const u8,
 port: u16,
-root_path: []const u8,
 
 pub fn deinit(self: Self) void {
     _ = self;
@@ -59,7 +58,6 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
     );
 
     defer server.deinit();
-    defer self.allocator.free(self.root_path);
     defer self.allocator.free(self.host);
     defer self.allocator.free(server.options.secret);
 

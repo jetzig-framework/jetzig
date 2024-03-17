@@ -13,7 +13,6 @@ else
 pub const ServerOptions = struct {
     cache: jetzig.caches.Cache,
     logger: jetzig.loggers.Logger,
-    root_path: []const u8,
     secret: []const u8,
 };
 
