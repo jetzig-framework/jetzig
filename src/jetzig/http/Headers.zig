@@ -20,10 +20,10 @@ pub fn deinit(self: *Self) void {
 
 // Gets the first value for a given header identified by `name`. Case-insensitive string comparison.
 pub fn getFirstValue(self: *Self, name: []const u8) ?[]const u8 {
-    for (self.headers.items) |header| {
+    headers: for (self.headers.items) |header| {
         if (name.len != header.name.len) continue;
         for (name, header.name) |expected, actual| {
-            if (std.ascii.toLower(expected) != std.ascii.toLower(actual)) continue;
+            if (std.ascii.toLower(expected) != std.ascii.toLower(actual)) continue :headers;
         }
         return header.value;
     }
@@ -80,6 +80,15 @@ test "append" {
     defer headers.deinit();
     try headers.append("foo", "bar");
     try std.testing.expectEqualStrings(headers.getFirstValue("foo").?, "bar");
+}
+
+test "getFirstValue with multiple headers (bugfix regression test)" {
+    const allocator = std.testing.allocator;
+    var headers = Self.init(allocator);
+    defer headers.deinit();
+    try headers.append("foo", "bar");
+    try headers.append("bar", "baz");
+    try std.testing.expectEqualStrings(headers.getFirstValue("bar").?, "baz");
 }
 
 test "case-insensitive matching" {
