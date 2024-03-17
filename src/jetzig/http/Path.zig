@@ -1,7 +1,17 @@
+/// Abstraction of the path component of a URI.
+/// Provides access to:
+/// * Unaltered original path
+/// * Base path (without extension and query string)
+/// * Directory (parent path from base path)
+/// * Resource ID (final component of base path)
+/// * Extension (".json", ".html", etc.)
+/// * Query (everything after first "?" character)
 const std = @import("std");
 
 path: []const u8,
 base_path: []const u8,
+directory: []const u8,
+file_path: []const u8,
 resource_id: []const u8,
 extension: ?[]const u8,
 query: ?[]const u8,
@@ -10,10 +20,14 @@ const Self = @This();
 
 /// Initialize a new HTTP Path.
 pub fn init(path: []const u8) Self {
+    const base_path = getBasePath(path);
+
     return .{
         .path = path,
-        .base_path = getBasePath(path),
-        .resource_id = getResourceId(path),
+        .base_path = base_path,
+        .directory = getDirectory(base_path),
+        .file_path = getFilePath(path),
+        .resource_id = getResourceId(base_path),
         .extension = getExtension(path),
         .query = getQuery(path),
     };
@@ -42,13 +56,37 @@ fn getBasePath(path: []const u8) []const u8 {
     }
 }
 
-// Extract `"baz"` from:
+// Extract `"/foo/bar"` from:
 // * `"/foo/bar/baz"`
+// Special case:
+// * `"/"` returns `"/"`
+pub fn getDirectory(base_path: []const u8) []const u8 {
+    if (std.mem.eql(u8, base_path, "/")) return "/";
+
+    if (std.mem.lastIndexOfScalar(u8, base_path, '/')) |index| {
+        return base_path[0..index];
+    } else {
+        return "/";
+    }
+}
+
+// Extract `"/foo/bar/baz.html"` from:
 // * `"/foo/bar/baz.html"`
 // * `"/foo/bar/baz.html?qux=quux&corge=grault"`
+// Special case:
+// * `"/foo/bar/baz"` returns `"/foo/bar/baz"`
+fn getFilePath(path: []const u8) []const u8 {
+    if (std.mem.indexOfScalar(u8, path, '?')) |query_index| {
+        return path[0..query_index];
+    } else {
+        return path;
+    }
+}
+
+// Extract `"baz"` from:
+// * `"/foo/bar/baz"`
 // * `"/baz"`
-fn getResourceId(path: []const u8) []const u8 {
-    const base_path = getBasePath(path);
+fn getResourceId(base_path: []const u8) []const u8 {
     var it = std.mem.splitBackwardsScalar(u8, base_path, '/');
     while (it.next()) |segment| return segment;
     return base_path;
@@ -99,6 +137,30 @@ test ".base_path (without extension, without query)" {
     const path = Self.init("/foo/bar/baz");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.base_path);
+}
+
+test ".directory (with extension, with query)" {
+    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+
+    try std.testing.expectEqualStrings("/foo/bar", path.directory);
+}
+
+test ".directory (with extension, without query)" {
+    const path = Self.init("/foo/bar/baz.html");
+
+    try std.testing.expectEqualStrings("/foo/bar", path.directory);
+}
+
+test ".directory (without extension, without query)" {
+    const path = Self.init("/foo/bar/baz");
+
+    try std.testing.expectEqualStrings("/foo/bar", path.directory);
+}
+
+test ".directory (without extension, without query, root path)" {
+    const path = Self.init("/");
+
+    try std.testing.expectEqualStrings("/", path.directory);
 }
 
 test ".resource_id (with extension, with query)" {
@@ -171,4 +233,28 @@ test ".query (with empty query)" {
     const path = Self.init("/foo/bar/baz?");
 
     try std.testing.expect(path.query == null);
+}
+
+test ".file_path (with extension, with query)" {
+    const path = Self.init("/foo/bar/baz.json?qux=quux&corge=grault");
+
+    try std.testing.expectEqualStrings("/foo/bar/baz.json", path.file_path);
+}
+
+test ".file_path (with extension, without query)" {
+    const path = Self.init("/foo/bar/baz.json");
+
+    try std.testing.expectEqualStrings("/foo/bar/baz.json", path.file_path);
+}
+
+test ".file_path (without extension, without query)" {
+    const path = Self.init("/foo/bar/baz");
+
+    try std.testing.expectEqualStrings("/foo/bar/baz", path.file_path);
+}
+
+test ".file_path (without extension, with query)" {
+    const path = Self.init("/foo/bar/baz?qux=quux&corge=grault");
+
+    try std.testing.expectEqualStrings("/foo/bar/baz", path.file_path);
 }

@@ -80,11 +80,11 @@ fn renderFn(self: Self, request: *jetzig.http.Request) anyerror!jetzig.views.Vie
 
     switch (self.view.?.dynamic) {
         .index => |view| return try view(request, request.response_data),
-        .get => |view| return try view(request.resourceId(), request, request.response_data),
+        .get => |view| return try view(request.path.resource_id, request, request.response_data),
         .post => |view| return try view(request, request.response_data),
-        .patch => |view| return try view(request.resourceId(), request, request.response_data),
-        .put => |view| return try view(request.resourceId(), request, request.response_data),
-        .delete => |view| return try view(request.resourceId(), request, request.response_data),
+        .patch => |view| return try view(request.path.resource_id, request, request.response_data),
+        .put => |view| return try view(request.path.resource_id, request, request.response_data),
+        .delete => |view| return try view(request.path.resource_id, request, request.response_data),
     }
 }
 

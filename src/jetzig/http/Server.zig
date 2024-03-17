@@ -348,7 +348,7 @@ fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
         formatted_duration,
         request.fmtMethod(),
         status.format(),
-        request.path,
+        request.path.path,
     });
 }
 
@@ -390,7 +390,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
 }
 
 fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResource {
-    if (request.path.len < 2) return null;
+    if (request.path.file_path.len <= 1) return null;
     if (request.method != .GET) return null;
 
     var iterable_dir = std.fs.cwd().openDir(
@@ -410,7 +410,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
 
-        if (std.mem.eql(u8, file.path, request.path[1..])) {
+        if (std.mem.eql(u8, file.path, request.path.file_path[1..])) {
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
@@ -476,7 +476,7 @@ fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]cons
                     if (try static_params.getValue("id")) |id| {
                         switch (id.*) {
                             .string => |capture| {
-                                if (!std.mem.eql(u8, capture.value, request.resourceId())) continue;
+                                if (!std.mem.eql(u8, capture.value, request.path.resource_id)) continue;
                             },
                             // Should be unreachable - this means generated `routes.zig` is incoherent:
                             inline else => return error.JetzigRouteError,
