@@ -33,14 +33,17 @@ pub fn init(request: *jetzig.http.Request) !*Self {
 /// Any calls to `request.render` or `request.redirect` will prevent further processing of the
 /// request, including any other middleware in the chain.
 pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
-    request.server.logger.debug("[DemoMiddleware:afterRequest] my_custom_value: {s}", .{self.my_custom_value});
+    try request.server.logger.DEBUG(
+        "[DemoMiddleware:afterRequest] my_custom_value: {s}",
+        .{self.my_custom_value},
+    );
     self.my_custom_value = @tagName(request.method);
 }
 
 /// Invoked immediately before the response renders to the client.
 /// The response can be modified here if needed.
 pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
-    request.server.logger.debug(
+    try request.server.logger.DEBUG(
         "[DemoMiddleware:beforeResponse] my_custom_value: {s}, response status: {s}",
         .{ self.my_custom_value, @tagName(response.status_code) },
     );
@@ -51,7 +54,7 @@ pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jet
 pub fn afterResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     _ = self;
     _ = response;
-    request.server.logger.debug("[DemoMiddleware:afterResponse] response completed", .{});
+    try request.server.logger.DEBUG("[DemoMiddleware:afterResponse] response completed", .{});
 }
 
 /// Invoked after `afterResponse` is called. Use this function to do any clean-up.

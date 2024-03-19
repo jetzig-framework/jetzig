@@ -3,7 +3,7 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
 pub const cookie_name = "_jetzig-session";
-const Cipher = std.crypto.aead.aes_gcm.Aes256Gcm;
+pub const Cipher = std.crypto.aead.aes_gcm.Aes256Gcm;
 
 allocator: std.mem.Allocator,
 encryption_key: ?[]const u8,
@@ -99,7 +99,7 @@ fn save(self: *Self) !void {
     }
     self.encrypted = try self.encrypt(json);
 
-    const encoded = try jetzig.base64Encode(self.allocator, self.encrypted.?);
+    const encoded = try jetzig.util.base64Encode(self.allocator, self.encrypted.?);
     defer self.allocator.free(encoded);
 
     if (self.cookie) |*ptr| self.allocator.free(ptr.*.value);
@@ -113,7 +113,7 @@ fn save(self: *Self) !void {
 
 fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
     self.data = jetzig.data.Data.init(self.allocator);
-    const decoded = try jetzig.base64Decode(self.allocator, cookie_value);
+    const decoded = try jetzig.util.base64Decode(self.allocator, cookie_value);
     defer self.allocator.free(decoded);
 
     const buf = self.decrypt(decoded) catch |err| {

@@ -4,12 +4,13 @@ const view = @import("generate/view.zig");
 const partial = @import("generate/partial.zig");
 const layout = @import("generate/layout.zig");
 const middleware = @import("generate/middleware.zig");
+const secret = @import("generate/secret.zig");
 const util = @import("../util.zig");
 
 /// Command line options for the `generate` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[view|partial|layout|middleware] [options]",
+        .usage_summary = "[view|partial|layout|middleware|secret] [options]",
         .full_text =
         \\Generates scaffolding for views, middleware, and other objects in future.
         \\
@@ -44,7 +45,7 @@ pub fn run(
         try args.printHelp(Options, "jetzig generate", writer);
         return;
     }
-    var generate_type: ?enum { view, partial, layout, middleware } = null;
+    var generate_type: ?enum { view, partial, layout, middleware, secret } = null;
     var sub_args = std.ArrayList([]const u8).init(allocator);
     defer sub_args.deinit();
 
@@ -57,6 +58,8 @@ pub fn run(
             generate_type = .layout;
         } else if (generate_type == null and std.mem.eql(u8, arg, "middleware")) {
             generate_type = .middleware;
+        } else if (generate_type == null and std.mem.eql(u8, arg, "secret")) {
+            generate_type = .secret;
         } else if (generate_type == null) {
             std.debug.print("Unknown generator command: {s}\n", .{arg});
             return error.JetzigCommandError;
@@ -71,6 +74,7 @@ pub fn run(
             .partial => partial.run(allocator, cwd, sub_args.items),
             .layout => layout.run(allocator, cwd, sub_args.items),
             .middleware => middleware.run(allocator, cwd, sub_args.items),
+            .secret => secret.run(allocator, cwd, sub_args.items),
         };
     } else {
         std.debug.print("Missing sub-command. Expected: [view|partial|layout|middleware]\n", .{});

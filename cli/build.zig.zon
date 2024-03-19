@@ -5,8 +5,8 @@
 
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/MasterQ32/zig-args/archive/89f18a104d9c13763b90e97d6b4ce133da8a3e2b.tar.gz",
-            .hash = "12203ded54c85878eea7f12744066dcb4397177395ac49a7b2aa365bf6047b623829",
+            .url = "https://github.com/bobf/zig-args/archive/e827c93f00e8bd95bd4b970c59593f393a6b08d5.tar.gz",
+            .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
         },
     },
     .paths = .{

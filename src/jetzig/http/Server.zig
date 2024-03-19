@@ -11,37 +11,32 @@ else
     struct {};
 
 pub const ServerOptions = struct {
-    cache: jetzig.caches.Cache,
     logger: jetzig.loggers.Logger,
+    bind: []const u8,
+    port: u16,
     secret: []const u8,
+    detach: bool,
 };
 
 allocator: std.mem.Allocator,
-port: u16,
-host: []const u8,
-cache: jetzig.caches.Cache,
 logger: jetzig.loggers.Logger,
 options: ServerOptions,
 start_time: i128 = undefined,
 routes: []*jetzig.views.Route,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
+initialized: bool = false,
 
 const Self = @This();
 
 pub fn init(
     allocator: std.mem.Allocator,
-    host: []const u8,
-    port: u16,
     options: ServerOptions,
     routes: []*jetzig.views.Route,
     mime_map: *jetzig.http.mime.MimeMap,
 ) Self {
     return .{
         .allocator = allocator,
-        .host = host,
-        .port = port,
-        .cache = options.cache,
         .logger = options.logger,
         .options = options,
         .routes = routes,
@@ -50,15 +45,18 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
-    self.std_net_server.deinit();
+    if (self.initialized) self.std_net_server.deinit();
+    self.allocator.free(self.options.secret);
+    self.allocator.free(self.options.bind);
 }
 
 pub fn listen(self: *Self) !void {
-    const address = try std.net.Address.parseIp("127.0.0.1", 8080);
+    const address = try std.net.Address.parseIp(self.options.bind, self.options.port);
     self.std_net_server = try address.listen(.{ .reuse_port = true });
 
-    const cache_status = if (self.options.cache == .null_cache) "disabled" else "enabled";
-    self.logger.debug("Listening on http://{s}:{} [cache:{s}]", .{ self.host, self.port, cache_status });
+    self.initialized = true;
+
+    try self.logger.INFO("Listening on http://{s}:{}", .{ self.options.bind, self.options.port });
     try self.processRequests();
 }
 
@@ -77,7 +75,6 @@ fn processRequests(self: *Self) !void {
 
         self.processNextRequest(allocator, &std_http_server) catch |err| {
             if (isBadHttpError(err)) {
-                std.debug.print("Encountered HTTP error: {s}\n", .{@errorName(err)});
                 std_http_server.connection.stream.close();
                 continue;
             } else return err;
@@ -113,7 +110,7 @@ fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server
 
     const log_message = try self.requestLogMessage(&request);
     defer self.allocator.free(log_message);
-    self.logger.debug("{s}", .{log_message});
+    try self.logger.INFO("{s}", .{log_message});
 }
 
 fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
@@ -210,7 +207,7 @@ fn renderView(
     // `return request.render(.ok)`, but the actual rendered view is stored in
     // `request.rendered_view`.
     _ = route.render(route.*, request) catch |err| {
-        self.logger.debug("Encountered error: {s}", .{@errorName(err)});
+        try self.logger.ERROR("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
@@ -230,7 +227,7 @@ fn renderView(
             return .{ .view = rendered_view, .content = "" };
         }
     } else {
-        self.logger.debug("`request.render` was not invoked. Rendering empty content.", .{});
+        try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
         request.response_data.reset();
         return .{
             .view = .{ .data = request.response_data, .status_code = .no_content },
@@ -254,7 +251,7 @@ fn renderTemplateWithLayout(
         if (zmpl.manifest.find(prefixed_name)) |layout| {
             return try template.renderWithLayout(layout, view.data);
         } else {
-            self.logger.debug("Unknown layout: {s}", .{layout_name});
+            try self.logger.WARN("Unknown layout: {s}", .{layout_name});
             return try template.render(view.data);
         }
     } else return try template.render(view.data);
@@ -299,7 +296,7 @@ fn renderInternalServerError(self: *Self, request: *jetzig.http.Request, err: an
     try object.put("error", request.response_data.string(@errorName(err)));
 
     const stack = @errorReturnTrace();
-    if (stack) |capture| try self.logStackTrace(capture, request, object);
+    if (stack) |capture| try self.logStackTrace(capture, request);
 
     return .{
         .view = jetzig.views.View{ .data = request.response_data, .status_code = .internal_server_error },
@@ -324,16 +321,13 @@ fn logStackTrace(
     self: *Self,
     stack: *std.builtin.StackTrace,
     request: *jetzig.http.Request,
-    object: *jetzig.data.Value,
 ) !void {
-    _ = self;
-    std.debug.print("\nStack Trace:\n{}", .{stack});
-    var array = std.ArrayList(u8).init(request.allocator);
-    const writer = array.writer();
+    try self.logger.ERROR("\nStack Trace:\n{}", .{stack});
+    var buf = std.ArrayList(u8).init(request.allocator);
+    defer buf.deinit();
+    const writer = buf.writer();
     try stack.format("", .{}, writer);
-    // TODO: Generate an array of objects with stack trace in useful data structure instead of
-    // dumping the whole formatted backtrace as a JSON string:
-    try object.put("backtrace", request.response_data.string(array.items));
+    try self.logger.ERROR("{s}", .{buf.items});
 }
 
 fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
@@ -345,13 +339,16 @@ fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
         ),
     };
 
-    const formatted_duration = try jetzig.colors.duration(self.allocator, self.duration());
+    const formatted_duration = if (self.logger.isColorized())
+        try jetzig.colors.duration(self.allocator, self.duration())
+    else
+        try std.fmt.allocPrint(self.allocator, "{}", .{self.duration()});
     defer self.allocator.free(formatted_duration);
 
     return try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
         formatted_duration,
-        request.fmtMethod(),
-        status.format(),
+        request.fmtMethod(self.logger.isColorized()),
+        status.format(self.logger.isColorized()),
         request.path.path,
     });
 }

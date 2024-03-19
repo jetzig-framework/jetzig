@@ -101,7 +101,7 @@ pub fn process(self: *Self) !void {
     self.session.parse() catch |err| {
         switch (err) {
             error.JetzigInvalidSessionCookie => {
-                self.server.logger.debug("Invalid session cookie detected. Resetting session.", .{});
+                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
                 try self.session.reset();
             },
             else => return err,
@@ -310,7 +310,9 @@ pub fn hash(self: *Self) ![]const u8 {
     );
 }
 
-pub fn fmtMethod(self: *Self) []const u8 {
+pub fn fmtMethod(self: *Self, colorized: bool) []const u8 {
+    if (!colorized) return @tagName(self.method);
+
     return switch (self.method) {
         .GET => jetzig.colors.cyan("GET"),
         .PUT => jetzig.colors.yellow("PUT"),
