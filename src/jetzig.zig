@@ -49,7 +49,10 @@ pub const config = struct {
     pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
 
     /// Maximum filesize for `public/` content.
-    pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
+    pub const max_bytes_public_content: usize = std.math.pow(usize, 2, 20);
+
+    /// Maximum filesize for `static/` content (applies only to apps using `jetzig.http.StaticRequest`).
+    pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 18);
 
     /// Path relative to cwd() to serve public content from. Symlinks are not followed.
     pub const public_content_path = "public";

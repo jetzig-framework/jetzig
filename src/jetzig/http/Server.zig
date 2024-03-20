@@ -378,7 +378,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
-                jetzig.config.get(usize, "max_bytes_static_content"),
+                jetzig.config.get(usize, "max_bytes_public_content"),
             );
             const extension = std.fs.path.extension(file.path);
             const mime_type = if (self.mime_map.get(extension)) |mime| mime else "application/octet-stream";
