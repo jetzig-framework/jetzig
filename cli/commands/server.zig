@@ -1,11 +1,12 @@
 const std = @import("std");
+
 const args = @import("args");
+
 const util = @import("../util.zig");
-const builtin = @import("builtin");
 
 pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
 
-/// Command line options for the `update` command.
+/// Command line options for the `server` command.
 pub const Options = struct {
     reload: bool = true,
 
@@ -68,7 +69,7 @@ pub fn run(
             &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install" },
         );
 
-        const exe_path = try locateExecutable(allocator, cwd);
+        const exe_path = try util.locateExecutable(allocator, cwd, .{});
         if (exe_path == null) {
             std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
             std.os.exit(1);
@@ -136,35 +137,4 @@ fn totalMtime(allocator: std.mem.Allocator, cwd: std.fs.Dir, sub_path: []const u
     }
 
     return sum;
-}
-
-fn locateExecutable(allocator: std.mem.Allocator, dir: std.fs.Dir) !?[]const u8 {
-    const file = dir.openFile(".jetzig", .{}) catch |err| {
-        switch (err) {
-            error.FileNotFound => return null,
-            else => return err,
-        }
-    };
-    const content = try file.readToEndAlloc(allocator, 1024);
-    defer allocator.free(content);
-
-    const exe_name = util.strip(content);
-    const suffix = if (builtin.os.tag == .windows) ".exe" else "";
-    const full_name = try std.mem.concat(allocator, u8, &[_][]const u8{ exe_name, suffix });
-    defer allocator.free(full_name);
-
-    // XXX: Will fail if user sets a custom install path.
-    var bin_dir = try dir.openDir("zig-out/bin", .{ .iterate = true });
-    defer bin_dir.close();
-
-    var walker = try bin_dir.walk(allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |entry| {
-        if (entry.kind == .file and std.mem.eql(u8, entry.path, full_name)) {
-            return try bin_dir.realpathAlloc(allocator, entry.path);
-        }
-    }
-
-    return null;
 }
