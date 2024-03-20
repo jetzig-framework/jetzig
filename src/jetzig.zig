@@ -35,13 +35,48 @@ pub const Data = data.Data;
 /// generate a `View`.
 pub const View = views.View;
 
+const root = @import("root");
+
+/// Global configuration. Override these values by defining in `src/main.zig` with:
+/// ```zig
+/// pub const jetzig_options = struct {
+///    // ...
+/// }
+/// ```
+/// All constants defined below can be overridden.
 pub const config = struct {
+    /// Maximum bytes to allow in request body.
     pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
+
+    /// Maximum filesize for `public/` content.
     pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
+
+    /// Path relative to cwd() to serve public content from. Symlinks are not followed.
+    pub const public_content_path = "public";
+
+    /// Middleware chain. Add any custom middleware here, or use middleware provided in
+    /// `jetzig.middleware` (e.g. `jetzig.middleware.HtmxMiddleware`).
+    pub const middleware = &.{};
+
+    /// HTTP buffer. Must be large enough to store all headers. This should typically not be
+    /// modified.
     pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
-    pub const public_content = .{ .path = "public" };
+
+    /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
+    pub fn get(T: type, comptime key: []const u8) T {
+        const self = @This();
+        if (!@hasDecl(self, key)) @panic("Unknown config option: " ++ key);
+
+        if (@hasDecl(root, "jetzig_options") and @hasDecl(root.jetzig_options, key)) {
+            return @field(root.jetzig_options, key);
+        } else {
+            return @field(self, key);
+        }
+    }
 };
 
+/// Initialize a new Jetzig app. Call this from `src/main.zig` and then call
+/// `start(@import("routes").routes)` on the returned value.
 pub fn init(allocator: std.mem.Allocator) !App {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);

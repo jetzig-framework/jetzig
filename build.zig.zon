@@ -7,7 +7,7 @@
             .hash = "1220e5ede084ca6b94defd466a8f8779aab151d37bf688fefb928fded6f02cde4135",
         },
         .args = .{
-            .url = "https://github.com/bobf/zig-args/archive/e827c93f00e8bd95bd4b970c59593f393a6b08d5.tar.gz",
+            .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
             .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
         },
     },

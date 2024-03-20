@@ -164,4 +164,10 @@ pub const TaggedStatusCode = union(StatusCode) {
             inline else => |capture| capture.format(colorized),
         };
     }
+
+    pub fn getCode(self: Self) []const u8 {
+        return switch (self) {
+            inline else => |capture| capture.code,
+        };
+    }
 };

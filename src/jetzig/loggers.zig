@@ -1,59 +1,64 @@
 const std = @import("std");
 
+const jetzig = @import("../jetzig.zig");
+
 const Self = @This();
 
 pub const DevelopmentLogger = @import("loggers/DevelopmentLogger.zig");
+pub const JsonLogger = @import("loggers/JsonLogger.zig");
 
-pub const LogLevel = enum { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
+pub const LogLevel = enum(u4) { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
+pub const LogFormat = enum { development, json };
 
 pub const Logger = union(enum) {
     development_logger: DevelopmentLogger,
-
-    pub fn isColorized(self: Logger) bool {
-        switch (self) {
-            inline else => |logger| return logger.isColorized(),
-        }
-    }
+    json_logger: JsonLogger,
 
     /// Log a TRACE level message to the configured logger.
     pub fn TRACE(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.TRACE(message, args),
+            inline else => |*logger| try logger.log(.TRACE, message, args),
         }
     }
 
     /// Log a DEBUG level message to the configured logger.
     pub fn DEBUG(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.DEBUG(message, args),
+            inline else => |*logger| try logger.log(.DEBUG, message, args),
         }
     }
 
     /// Log an INFO level message to the configured logger.
     pub fn INFO(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.INFO(message, args),
+            inline else => |*logger| try logger.log(.INFO, message, args),
         }
     }
 
     /// Log a WARN level message to the configured logger.
     pub fn WARN(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.WARN(message, args),
+            inline else => |*logger| try logger.log(.WARN, message, args),
         }
     }
 
     /// Log an ERROR level message to the configured logger.
     pub fn ERROR(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.ERROR(message, args),
+            inline else => |*logger| try logger.log(.ERROR, message, args),
         }
     }
 
     /// Log a FATAL level message to the configured logger.
     pub fn FATAL(self: *const Logger, comptime message: []const u8, args: anytype) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.FATAL(message, args),
+            inline else => |*logger| try logger.log(.FATAL, message, args),
+        }
+    }
+
+    pub fn logRequest(self: *const Logger, request: *const jetzig.http.Request) !void {
+        switch (self.*) {
+            inline else => |*logger| try logger.logRequest(request),
         }
     }
 };

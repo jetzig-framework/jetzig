@@ -30,10 +30,12 @@ rendered: bool = false,
 redirected: bool = false,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
+start_time: i128,
 
 pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
+    start_time: i128,
     std_http_request: std.http.Server.Request,
     response: *jetzig.http.Response,
 ) !Self {
@@ -69,6 +71,7 @@ pub fn init(
         .query_data = query_data,
         .query = query,
         .std_http_request = std_http_request,
+        .start_time = start_time,
     };
 }
 
@@ -109,7 +112,7 @@ pub fn process(self: *Self) !void {
     };
 
     const reader = try self.std_http_request.reader();
-    self.body = try reader.readAllAlloc(self.allocator, jetzig.config.max_bytes_request_body);
+    self.body = try reader.readAllAlloc(self.allocator, jetzig.config.get(usize, "max_bytes_request_body"));
     self.processed = true;
 }
 
@@ -310,7 +313,7 @@ pub fn hash(self: *Self) ![]const u8 {
     );
 }
 
-pub fn fmtMethod(self: *Self, colorized: bool) []const u8 {
+pub fn fmtMethod(self: *const Self, colorized: bool) []const u8 {
     if (!colorized) return @tagName(self.method);
 
     return switch (self.method) {

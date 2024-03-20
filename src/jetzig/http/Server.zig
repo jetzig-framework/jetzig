@@ -3,13 +3,6 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 const zmpl = @import("zmpl");
 
-const root_file = @import("root");
-
-pub const jetzig_server_options = if (@hasDecl(root_file, "jetzig_options"))
-    root_file.jetzig_options
-else
-    struct {};
-
 pub const ServerOptions = struct {
     logger: jetzig.loggers.Logger,
     bind: []const u8,
@@ -21,7 +14,6 @@ pub const ServerOptions = struct {
 allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
 options: ServerOptions,
-start_time: i128 = undefined,
 routes: []*jetzig.views.Route,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
@@ -69,7 +61,7 @@ fn processRequests(self: *Self) !void {
 
         const connection = try self.std_net_server.accept();
 
-        var buf: [jetzig.config.http_buffer_size]u8 = undefined;
+        var buf: [jetzig.config.get(usize, "http_buffer_size")]u8 = undefined;
         var std_http_server = std.http.Server.init(connection, &buf);
         errdefer std_http_server.connection.stream.close();
 
@@ -86,13 +78,13 @@ fn processRequests(self: *Self) !void {
 }
 
 fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
-    self.start_time = std.time.nanoTimestamp();
+    const start_time = std.time.nanoTimestamp();
 
     const std_http_request = try std_http_server.receiveHead();
     if (std_http_server.state == .receiving_head) return error.JetzigParseHeadError;
 
     var response = try jetzig.http.Response.init(allocator);
-    var request = try jetzig.http.Request.init(allocator, self, std_http_request, &response);
+    var request = try jetzig.http.Request.init(allocator, self, start_time, std_http_request, &response);
 
     try request.process();
 
@@ -108,9 +100,7 @@ fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server
     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);
 
-    const log_message = try self.requestLogMessage(&request);
-    defer self.allocator.free(log_message);
-    try self.logger.INFO("{s}", .{log_message});
+    try self.logger.logRequest(&request);
 }
 
 fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
@@ -327,34 +317,7 @@ fn logStackTrace(
     defer buf.deinit();
     const writer = buf.writer();
     try stack.format("", .{}, writer);
-    try self.logger.ERROR("{s}", .{buf.items});
-}
-
-fn requestLogMessage(self: *Self, request: *jetzig.http.Request) ![]const u8 {
-    const status: jetzig.http.status_codes.TaggedStatusCode = switch (request.response.status_code) {
-        inline else => |status_code| @unionInit(
-            jetzig.http.status_codes.TaggedStatusCode,
-            @tagName(status_code),
-            .{},
-        ),
-    };
-
-    const formatted_duration = if (self.logger.isColorized())
-        try jetzig.colors.duration(self.allocator, self.duration())
-    else
-        try std.fmt.allocPrint(self.allocator, "{}", .{self.duration()});
-    defer self.allocator.free(formatted_duration);
-
-    return try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
-        formatted_duration,
-        request.fmtMethod(self.logger.isColorized()),
-        status.format(self.logger.isColorized()),
-        request.path.path,
-    });
-}
-
-fn duration(self: *Self) i64 {
-    return @intCast(std.time.nanoTimestamp() - self.start_time);
+    try self.logger.ERROR("{s}\n", .{buf.items});
 }
 
 fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?*jetzig.views.Route {
@@ -395,7 +358,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
     if (request.method != .GET) return null;
 
     var iterable_dir = std.fs.cwd().openDir(
-        jetzig.config.public_content.path,
+        jetzig.config.get([]const u8, "public_content_path"),
         .{ .iterate = true, .no_follow = true },
     ) catch |err| {
         switch (err) {
@@ -415,7 +378,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
-                jetzig.config.max_bytes_static_content,
+                jetzig.config.get(usize, "max_bytes_static_content"),
             );
             const extension = std.fs.path.extension(file.path);
             const mime_type = if (self.mime_map.get(extension)) |mime| mime else "application/octet-stream";
@@ -447,7 +410,7 @@ fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
             return static_dir.readFileAlloc(
                 request.allocator,
                 capture,
-                jetzig.config.max_bytes_static_content,
+                jetzig.config.get(usize, "max_bytes_static_content"),
             ) catch |err| {
                 switch (err) {
                     error.FileNotFound => return null,

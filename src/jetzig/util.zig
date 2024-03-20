@@ -44,3 +44,8 @@ pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const 
 
     return try allocator.dupe(u8, &secret);
 }
+
+/// Calculate a duration from a given start time (in nanoseconds) to the current time.
+pub fn duration(start_time: i128) i64 {
+    return @intCast(std.time.nanoTimestamp() - start_time);
+}

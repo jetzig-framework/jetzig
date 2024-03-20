@@ -1,12 +1,7 @@
 const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
-const server_options = jetzig.http.Server.jetzig_server_options;
-
-const middlewares: []const type = if (@hasDecl(server_options, "middleware"))
-    server_options.middleware
-else
-    &.{};
+const middlewares: []const type = jetzig.config.get([]const type, "middleware");
 
 const MiddlewareData = std.BoundedArray(*anyopaque, middlewares.len);
 

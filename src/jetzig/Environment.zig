@@ -12,17 +12,20 @@ const Options = struct {
     help: bool = false,
     bind: []const u8 = "127.0.0.1",
     port: u16 = 8080,
-    environment: []const u8 = "development",
+    // TODO:
+    // environment: []const u8 = "development",
     log: []const u8 = "-",
     @"log-error": []const u8 = "-",
-    @"log-level": jetzig.loggers.LogLevel = .DEBUG,
+    @"log-level": jetzig.loggers.LogLevel = .INFO,
+    @"log-format": jetzig.loggers.LogFormat = .development,
     detach: bool = false,
 
     pub const shorthands = .{
         .h = "help",
         .b = "bind",
         .p = "port",
-        .e = "environment",
+        // TODO:
+        // .e = "environment",
         .d = "detach",
     };
 
@@ -32,13 +35,17 @@ const Options = struct {
         .option_docs = .{
             .bind = "IP address/hostname to bind to (default: 127.0.0.1)",
             .port = "Port to listen on (default: 8080)",
-            .environment = "Load an environment configuration from src/app/environments/<environment>.zig",
-            .log = "Path to log file. Use '-' for stdout (default: -)",
+            // TODO:
+            // .environment = "Load an environment configuration from src/app/environments/<environment>.zig",
+            .log = "Path to log file. Use '-' for stdout (default: '-')",
             .@"log-error" =
-            \\Optional path to separate error log file. Use '-' for stdout. If omitted, errors are logged to the location specified by the `log` option.
+            \\Optional path to separate error log file. Use '-' for stderr. If omitted, errors are logged to the location specified by the `log` option (or stderr if `log` is '-').
             ,
             .@"log-level" =
-            \\Specify the minimum log level. Log events below the given level are ignored. Must be one of: TRACE, DEBUG, INFO, WARN, ERROR, FATAL (default: DEBUG)
+            \\Minimum log level. Log events below the given level are ignored. Must be one of: { TRACE, DEBUG, INFO, WARN, ERROR, FATAL } (default: DEBUG)
+            ,
+            .@"log-format" =
+            \\Output logs in the given format. Must be one of: { development, json } (default: development)
             ,
             .detach =
             \\Run the server in the background. Must be used in conjunction with --log (default: false)
@@ -62,11 +69,23 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         std.process.exit(0);
     }
 
-    var logger = jetzig.loggers.Logger{
-        .development_logger = jetzig.loggers.DevelopmentLogger.init(
-            self.allocator,
-            try getLogFile(options.options.log),
-        ),
+    var logger = switch (options.options.@"log-format") {
+        .development => jetzig.loggers.Logger{
+            .development_logger = jetzig.loggers.DevelopmentLogger.init(
+                self.allocator,
+                options.options.@"log-level",
+                try getLogFile(.stdout, options.options),
+                try getLogFile(.stderr, options.options),
+            ),
+        },
+        .json => jetzig.loggers.Logger{
+            .json_logger = jetzig.loggers.JsonLogger.init(
+                self.allocator,
+                options.options.@"log-level",
+                try getLogFile(.stdout, options.options),
+                try getLogFile(.stderr, options.options),
+            ),
+        },
     };
 
     if (options.options.detach and std.mem.eql(u8, options.options.log, "-")) {
@@ -93,8 +112,16 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     };
 }
 
-fn getLogFile(path: []const u8) !std.fs.File {
-    if (std.mem.eql(u8, path, "-")) return std.io.getStdOut();
+fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
+    const path = switch (stream) {
+        .stdout => options.log,
+        .stderr => options.@"log-error",
+    };
+
+    if (std.mem.eql(u8, path, "-")) return switch (stream) {
+        .stdout => std.io.getStdOut(),
+        .stderr => std.io.getStdErr(),
+    };
 
     const file = try std.fs.createFileAbsolute(path, .{ .truncate = false });
     try file.seekFromEnd(0);

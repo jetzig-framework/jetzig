@@ -3,6 +3,7 @@ const std = @import("std");
 pub const jetzig = @import("jetzig");
 pub const routes = @import("routes").routes;
 
+// Override default settings in jetzig.config here:
 pub const jetzig_options = struct {
     pub const middleware: []const type = &.{
         // htmx middleware skips layouts when `HX-Target` header is present and issues
@@ -10,6 +11,11 @@ pub const jetzig_options = struct {
         jetzig.middleware.HtmxMiddleware,
         @import("app/middleware/DemoMiddleware.zig"),
     };
+
+    pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
+    pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 16);
+    pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
+    pub const public_content_path = "public";
 };
 
 pub fn main() !void {
