@@ -120,7 +120,10 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
 
     if (std.mem.eql(u8, path, "-")) return switch (stream) {
         .stdout => std.io.getStdOut(),
-        .stderr => std.io.getStdErr(),
+        .stderr => if (std.mem.eql(u8, options.log, "-"))
+            std.io.getStdErr()
+        else
+            try std.fs.createFileAbsolute(options.log, .{ .truncate = false }),
     };
 
     const file = try std.fs.createFileAbsolute(path, .{ .truncate = false });

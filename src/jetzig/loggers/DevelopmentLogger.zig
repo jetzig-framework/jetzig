@@ -68,7 +68,11 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     const formatted_duration = if (self.stdout_colorized)
         try jetzig.colors.duration(self.allocator, jetzig.util.duration(request.start_time))
     else
-        try std.fmt.allocPrint(self.allocator, "{}", .{jetzig.util.duration(request.start_time)});
+        try std.fmt.allocPrint(
+            self.allocator,
+            "{}",
+            .{std.fmt.fmtDurationSigned(jetzig.util.duration(request.start_time))},
+        );
     defer self.allocator.free(formatted_duration);
 
     const status: jetzig.http.status_codes.TaggedStatusCode = switch (request.response.status_code) {
