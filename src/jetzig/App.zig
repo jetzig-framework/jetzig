@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const args = @import("args");
+
 const jetzig = @import("../jetzig.zig");
 const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
@@ -7,8 +9,6 @@ const Self = @This();
 
 server_options: jetzig.http.Server.ServerOptions,
 allocator: std.mem.Allocator,
-host: []const u8,
-port: u16,
 
 pub fn deinit(self: Self) void {
     _ = self;
@@ -48,30 +48,40 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
         self.allocator.destroy(route);
     };
 
+    if (self.server_options.detach) {
+        const argv = try std.process.argsAlloc(self.allocator);
+        defer std.process.argsFree(self.allocator, argv);
+        var child_argv = std.ArrayList([]const u8).init(self.allocator);
+        for (argv) |arg| {
+            if (!std.mem.eql(u8, "-d", arg) and !std.mem.eql(u8, "--detach", arg)) {
+                try child_argv.append(arg);
+            }
+        }
+        var child = std.process.Child.init(child_argv.items, self.allocator);
+        try child.spawn();
+        std.debug.print("Spawned child process. PID: {}. Exiting.\n", .{child.id});
+        std.process.exit(0);
+    }
+
     var server = jetzig.http.Server.init(
         self.allocator,
-        self.host,
-        self.port,
         self.server_options,
         routes.items,
         &mime_map,
     );
-
     defer server.deinit();
-    defer self.allocator.free(self.host);
-    defer self.allocator.free(server.options.secret);
 
     server.listen() catch |err| {
         switch (err) {
             error.AddressInUse => {
-                server.logger.debug(
+                try server.logger.ERROR(
                     "Socket unavailable: {s}:{} - unable to start server.\n",
-                    .{ self.host, self.port },
+                    .{ self.server_options.bind, self.server_options.port },
                 );
                 return;
             },
             else => {
-                server.logger.debug("Encountered error: {}\nExiting.\n", .{err});
+                try server.logger.ERROR("Encountered error: {}\nExiting.\n", .{err});
                 return err;
             },
         }

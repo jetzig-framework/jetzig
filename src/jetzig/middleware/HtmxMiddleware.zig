@@ -16,7 +16,7 @@ pub fn init(request: *jetzig.http.Request) !*Self {
 pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
     _ = self;
     if (request.getHeader("HX-Target")) |target| {
-        request.server.logger.debug(
+        try request.server.logger.DEBUG(
             "[middleware-htmx] htmx request detected, disabling layout. (#{s})",
             .{target},
         );

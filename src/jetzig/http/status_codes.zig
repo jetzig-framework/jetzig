@@ -73,10 +73,11 @@ pub fn StatusCodeType(comptime code: []const u8, comptime message: []const u8) t
 
         const Self = @This();
 
-        pub fn format(self: Self) []const u8 {
+        pub fn format(self: Self, colorized: bool) []const u8 {
             _ = self;
-
             const full_message = code ++ " " ++ message;
+
+            if (!colorized) return full_message;
 
             if (std.mem.startsWith(u8, code, "2")) {
                 return jetzig.colors.green(full_message);
@@ -158,9 +159,15 @@ pub const TaggedStatusCode = union(StatusCode) {
 
     const Self = @This();
 
-    pub fn format(self: Self) []const u8 {
+    pub fn format(self: Self, colorized: bool) []const u8 {
         return switch (self) {
-            inline else => |capture| capture.format(),
+            inline else => |capture| capture.format(colorized),
+        };
+    }
+
+    pub fn getCode(self: Self) []const u8 {
+        return switch (self) {
+            inline else => |capture| capture.code,
         };
     }
 };
