@@ -40,6 +40,7 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
         const route = jetzig.views.Route{
             .name = static_route.name,
             .action = @field(jetzig.views.Route.Action, static_route.action),
+            .view_name = static_route.view_name,
             .view = static_view,
             .static = true,
             .uri_path = static_route.uri_path,
@@ -103,6 +104,9 @@ fn writeContent(
     if (zmpl.find(route.template)) |template| {
         var content: []const u8 = undefined;
         defer allocator.free(content);
+
+        try view.data.addConst("jetzig_view", view.data.string(route.name));
+        try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
 
         if (route.layout) |layout_name| {
             // TODO: Allow user to configure layouts directory other than src/app/views/layouts/

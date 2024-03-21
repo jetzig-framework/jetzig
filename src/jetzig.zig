@@ -126,6 +126,7 @@ pub fn route(comptime routes: anytype) []views.Route {
         detected[index] = .{
             .name = dynamic_route.name,
             .action = @field(views.Route.Action, dynamic_route.action),
+            .view_name = dynamic_route.view_name,
             .view = view,
             .static = false,
             .uri_path = dynamic_route.uri_path,
@@ -158,6 +159,7 @@ pub fn route(comptime routes: anytype) []views.Route {
         detected[index] = .{
             .name = static_route.name,
             .action = @field(views.Route.Action, static_route.action),
+            .view_name = static_route.view_name,
             .view = view,
             .static = true,
             .uri_path = static_route.uri_path,

@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/04df14930ea484a9c900c53da9fa4fed3c831111.tar.gz",
-            .hash = "1220e5ede084ca6b94defd466a8f8779aab151d37bf688fefb928fded6f02cde4135",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/9e2df115c9f17e92fb60a4d09bf55ea48d0388b0.tar.gz",
+            .hash = "1220820b7f5f3e01b7dc976d32cf9ff65d44dee2642533f4b8104e19a824e802d7e1",
         },
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
