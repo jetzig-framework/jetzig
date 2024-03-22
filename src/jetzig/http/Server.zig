@@ -204,6 +204,7 @@ fn renderView(
     };
 
     if (request.rendered_multiple) return error.JetzigMultipleRenderError;
+
     if (request.rendered_view) |rendered_view| {
         if (request.redirected) return .{ .view = rendered_view, .content = "" };
 
@@ -233,6 +234,9 @@ fn renderTemplateWithLayout(
     view: jetzig.views.View,
     route: *jetzig.views.Route,
 ) ![]const u8 {
+    try view.data.addConst("jetzig_view", view.data.string(route.view_name));
+    try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
+
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
         const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts_", layout_name });

@@ -13,6 +13,7 @@ const Self = @This();
 
 const Function = struct {
     name: []const u8,
+    view_name: []const u8,
     args: []Arg,
     path: []const u8,
     source: []const u8,
@@ -163,6 +164,7 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         \\        .{{
         \\            .name = "{s}",
         \\            .action = "{s}",
+        \\            .view_name = "{s}",
         \\            .uri_path = "{s}",
         \\            .template = "{s}",
         \\            .module = @import("{s}"),
@@ -189,11 +191,16 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
 
     const module_path = try self.allocator.dupe(u8, route.path);
     defer self.allocator.free(module_path);
+
+    const view_name = try self.allocator.dupe(u8, route.view_name);
+    defer self.allocator.free(view_name);
+
     std.mem.replaceScalar(u8, module_path, '\\', '/');
 
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
         full_name,
         route.name,
+        route.view_name,
         uri_path,
         full_name,
         module_path,
@@ -443,8 +450,11 @@ fn parseFunction(
             }
         }
 
+        const view_name = path[0 .. path.len - std.fs.path.extension(path).len];
+
         return .{
             .name = function_name,
+            .view_name = try self.allocator.dupe(u8, view_name),
             .path = try std.fs.path.join(self.allocator, &[_][]const u8{ "src", "app", "views", path }),
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),

@@ -29,6 +29,7 @@ pub fn start(self: Self, comptime_routes: []jetzig.views.Route) !void {
         route.* = jetzig.views.Route{
             .name = comptime_route.name,
             .action = comptime_route.action,
+            .view_name = comptime_route.view_name,
             .uri_path = comptime_route.uri_path,
             .view = comptime_route.view,
             .static_view = comptime_route.static_view,

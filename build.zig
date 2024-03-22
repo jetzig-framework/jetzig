@@ -34,17 +34,32 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .zmpl_templates_path = template_path,
+            .zmpl_auto_build = false,
         },
     );
 
-    lib.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
-    jetzig_module.addImport("zmpl", zmpl_dep.module("zmpl"));
-    jetzig_module.addImport("args", zig_args_dep.module("args"));
-
+    const zmpl_module = zmpl_dep.module("zmpl");
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
+
+    const ZmplBuild = @import("zmpl").ZmplBuild;
+    const ZmplTemplate = @import("zmpl").Template;
+    var zmpl_build = ZmplBuild.init(b, lib, template_path);
+    const TemplateConstants = struct {
+        jetzig_view: []const u8,
+        jetzig_action: []const u8,
+    };
+    const ZmplOptions = struct {
+        pub const template_constants = TemplateConstants;
+    };
+    const manifest_module = try zmpl_build.compile(ZmplTemplate, ZmplOptions);
+    zmpl_module.addImport("zmpl.manifest", manifest_module);
+
+    lib.root_module.addImport("zmpl", zmpl_module);
+    jetzig_module.addImport("zmpl", zmpl_module);
+    jetzig_module.addImport("args", zig_args_dep.module("args"));
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },

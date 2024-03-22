@@ -38,6 +38,7 @@ pub const ViewType = union(enum) {
 
 name: []const u8,
 action: Action,
+view_name: []const u8,
 uri_path: []const u8,
 view: ?ViewType = null,
 static_view: ?StaticViewType = null,
