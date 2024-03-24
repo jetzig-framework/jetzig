@@ -2,6 +2,7 @@ const std = @import("std");
 const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
+const jetzig_options = @import("jetzig_app").jetzig_options;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -101,10 +102,60 @@ fn writeContent(
 
     std.debug.print("[jetzig] Compiled static route: {s}\n", .{json_path});
 
-    if (zmpl.find(route.template)) |template| {
-        var content: []const u8 = undefined;
-        defer allocator.free(content);
+    const html_content = try renderZmplTemplate(allocator, route, view) orelse
+        try renderMarkdown(allocator, route, view) orelse
+        null;
+    const html_path = try std.mem.concat(
+        allocator,
+        u8,
+        &[_][]const u8{ route.name, index_suffix, ".html" },
+    );
+    if (html_content) |content| {
+        defer allocator.free(html_path);
+        const html_file = try dir.createFile(html_path, .{ .truncate = true });
+        try html_file.writeAll(content);
+        defer html_file.close();
+        allocator.free(content);
+        std.debug.print("[jetzig] Compiled static route: {s}\n", .{html_path});
+    }
+}
 
+fn renderMarkdown(
+    allocator: std.mem.Allocator,
+    route: jetzig.views.Route,
+    view: jetzig.views.View,
+) !?[]const u8 {
+    const fragments = if (@hasDecl(jetzig_options, "markdown_fragments"))
+        jetzig_options.markdown_fragments
+    else
+        null;
+    const content = try jetzig.markdown.render(allocator, &route, fragments) orelse return null;
+
+    if (route.layout) |layout_name| {
+        try view.data.addConst("jetzig_view", view.data.string(route.name));
+        try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
+
+        // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
+        const prefixed_name = try std.mem.concat(allocator, u8, &[_][]const u8{ "layouts_", layout_name });
+        defer allocator.free(prefixed_name);
+        defer allocator.free(prefixed_name);
+
+        if (zmpl.find(prefixed_name)) |layout| {
+            view.data.content = .{ .data = content };
+            return try layout.render(view.data);
+        } else {
+            std.debug.print("Unknown layout: {s}\n", .{layout_name});
+            return content;
+        }
+    } else return null;
+}
+
+fn renderZmplTemplate(
+    allocator: std.mem.Allocator,
+    route: jetzig.views.Route,
+    view: jetzig.views.View,
+) !?[]const u8 {
+    if (zmpl.find(route.template)) |template| {
         try view.data.addConst("jetzig_view", view.data.string(route.name));
         try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
 
@@ -114,24 +165,13 @@ fn writeContent(
             defer allocator.free(prefixed_name);
 
             if (zmpl.find(prefixed_name)) |layout| {
-                content = try template.renderWithLayout(layout, view.data);
+                return try template.renderWithLayout(layout, view.data);
             } else {
                 std.debug.print("Unknown layout: {s}\n", .{layout_name});
-                content = try allocator.dupe(u8, "");
+                return try allocator.dupe(u8, "");
             }
         } else {
-            content = try template.render(view.data);
+            return try template.render(view.data);
         }
-
-        const html_path = try std.mem.concat(
-            allocator,
-            u8,
-            &[_][]const u8{ route.name, index_suffix, ".html" },
-        );
-        defer allocator.free(html_path);
-        const html_file = try dir.createFile(html_path, .{ .truncate = true });
-        try html_file.writeAll(content);
-        defer html_file.close();
-        std.debug.print("[jetzig] Compiled static route: {s}\n", .{html_path});
-    }
+    } else return null;
 }

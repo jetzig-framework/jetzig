@@ -108,11 +108,7 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
         if (isUnhandledError(err)) return err;
 
         const rendered = try self.renderInternalServerError(request, err);
-
-        request.response.content = rendered.content;
-        request.response.status_code = rendered.view.status_code;
-        request.response.content_type = "text/html";
-
+        setResponse(request, rendered, .{});
         return;
     };
 
@@ -128,6 +124,16 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
         .JSON => try self.renderJSON(request, route),
         .UNKNOWN => try self.renderHTML(request, route),
     }
+}
+
+fn setResponse(
+    request: *jetzig.http.Request,
+    rendered_view: RenderedView,
+    options: struct { content_type: []const u8 = "text/html" },
+) void {
+    request.response.content = rendered_view.content;
+    request.response.status_code = rendered_view.view.status_code;
+    request.response.content_type = options.content_type;
 }
 
 fn renderStatic(resource: StaticResource, response: *jetzig.http.Response) !void {
@@ -146,12 +152,38 @@ fn renderHTML(
             const rendered = self.renderView(matched_route, request, template) catch |err| {
                 if (isUnhandledError(err)) return err;
                 const rendered_error = try self.renderInternalServerError(request, err);
-                request.response.content = rendered_error.content;
-                request.response.status_code = rendered_error.view.status_code;
-                request.response.content_type = "text/html";
+                setResponse(request, rendered_error, .{});
                 return;
             };
-            request.response.content = rendered.content;
+            setResponse(request, rendered, .{});
+            return;
+        } else if (try jetzig.markdown.render(request.allocator, matched_route, null)) |markdown_content| {
+            const rendered = self.renderView(matched_route, request, null) catch |err| {
+                if (isUnhandledError(err)) return err;
+                const rendered_error = try self.renderInternalServerError(request, err);
+                setResponse(request, rendered_error, .{});
+                return;
+            };
+
+            try addTemplateConstants(rendered.view, matched_route);
+
+            if (request.getLayout(matched_route)) |layout_name| {
+                // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
+                const prefixed_name = try std.mem.concat(
+                    self.allocator,
+                    u8,
+                    &[_][]const u8{ "layouts_", layout_name },
+                );
+                defer self.allocator.free(prefixed_name);
+
+                if (zmpl.manifest.find(prefixed_name)) |layout| {
+                    rendered.view.data.content = .{ .data = markdown_content };
+                    request.response.content = try layout.render(rendered.view.data);
+                } else {
+                    try self.logger.WARN("Unknown layout: {s}", .{layout_name});
+                    request.response.content = markdown_content;
+                }
+            }
             request.response.status_code = rendered.view.status_code;
             request.response.content_type = "text/html";
             return;
@@ -234,8 +266,7 @@ fn renderTemplateWithLayout(
     view: jetzig.views.View,
     route: *jetzig.views.Route,
 ) ![]const u8 {
-    try view.data.addConst("jetzig_view", view.data.string(route.view_name));
-    try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
+    try addTemplateConstants(view, route);
 
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
@@ -249,6 +280,11 @@ fn renderTemplateWithLayout(
             return try template.render(view.data);
         }
     } else return try template.render(view.data);
+}
+
+fn addTemplateConstants(view: jetzig.views.View, route: *const jetzig.views.Route) !void {
+    try view.data.addConst("jetzig_view", view.data.string(route.view_name));
+    try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
 }
 
 fn isBadRequest(err: anyerror) bool {

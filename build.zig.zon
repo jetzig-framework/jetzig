@@ -2,6 +2,10 @@
     .name = "jetzig",
     .version = "0.0.0",
     .dependencies = .{
+        .zmd = .{
+            .url = "https://github.com/jetzig-framework/zmd/archive/1a526ca1cf577789ca15ca1b71d3e943b81fb801.tar.gz",
+            .hash = "1220bfc5c29bc930b5a524c210712ef65c6cde6770450899bef01164a3089e6707fa",
+        },
         .zmpl = .{
             .url = "https://github.com/jetzig-framework/zmpl/archive/9e2df115c9f17e92fb60a4d09bf55ea48d0388b0.tar.gz",
             .hash = "1220820b7f5f3e01b7dc976d32cf9ff65d44dee2642533f4b8104e19a824e802d7e1",
