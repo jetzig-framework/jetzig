@@ -72,7 +72,7 @@ pub fn run(
         const exe_path = try util.locateExecutable(allocator, cwd, .{});
         if (exe_path == null) {
             std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
-            std.os.exit(1);
+            std.process.exit(1);
         }
 
         const argv = &[_][]const u8{exe_path.?};
@@ -94,7 +94,7 @@ pub fn run(
 
         if (!options.reload) {
             const term = try process.wait();
-            std.os.exit(term.Exited);
+            std.process.exit(term.Exited);
         }
 
         while (true) {

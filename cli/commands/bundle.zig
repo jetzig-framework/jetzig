@@ -134,6 +134,6 @@ pub fn run(
     } else {
         std.debug.print("Unable to locate compiled executable. Exiting.", .{});
         util.printFailure();
-        std.os.exit(1);
+        std.process.exit(1);
     }
 }
