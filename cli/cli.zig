@@ -44,10 +44,15 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer std.debug.assert(gpa.deinit() == .ok);
 
-    const options = try args.parseWithVerbForCurrentProcess(Options, Verb, allocator, .print);
-    defer options.deinit();
-
     const writer = std.io.getStdErr().writer();
+
+    const options = args.parseWithVerbForCurrentProcess(Options, Verb, allocator, .print) catch |err| {
+        switch (err) {
+            error.InvalidArguments => return try printHelp(writer),
+            else => return err,
+        }
+    };
+    defer options.deinit();
 
     run(allocator, options, writer) catch |err| {
         switch (err) {
@@ -57,20 +62,7 @@ pub fn main() !void {
     };
 
     if ((!options.options.help and options.verb == null) or (options.options.help and options.verb == null)) {
-        try args.printHelp(Options, "jetzig", writer);
-        try writer.writeAll(
-            \\
-            \\Commands:
-            \\
-            \\  init         Initialize a new project.
-            \\  update       Update current project to latest version of Jetzig.
-            \\  generate     Generate scaffolding.
-            \\  server       Run a development server.
-            \\  bundle       Create a deployment bundle.
-            \\
-            \\ Pass --help to any command for more information, e.g. `jetzig init --help`
-            \\
-        );
+        try printHelp(writer);
     }
 }
 
@@ -114,4 +106,21 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
             ),
         };
     }
+}
+
+fn printHelp(writer: anytype) !void {
+    try args.printHelp(Options, "jetzig", writer);
+    try writer.writeAll(
+        \\
+        \\Commands:
+        \\
+        \\  init         Initialize a new project.
+        \\  update       Update current project to latest version of Jetzig.
+        \\  generate     Generate scaffolding.
+        \\  server       Run a development server.
+        \\  bundle       Create a deployment bundle.
+        \\
+        \\ Pass --help to any command for more information, e.g. `jetzig init --help`
+        \\
+    );
 }
