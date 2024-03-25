@@ -62,7 +62,7 @@ pub fn run(
         var install_argv = std.ArrayList([]const u8).init(allocator);
         defer install_argv.deinit();
 
-        try install_argv.appendSlice(&[_][]const u8{ "zig", "build" });
+        try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "--color", "on" });
 
         switch (builtin.os.tag) {
             .windows => try tar_argv.appendSlice(&[_][]const u8{
@@ -134,6 +134,6 @@ pub fn run(
     } else {
         std.debug.print("Unable to locate compiled executable. Exiting.", .{});
         util.printFailure();
-        std.os.exit(1);
+        std.process.exit(1);
     }
 }

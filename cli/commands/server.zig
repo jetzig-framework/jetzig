@@ -63,16 +63,20 @@ pub fn run(
     );
 
     while (true) {
-        try util.runCommand(
+        util.runCommand(
             allocator,
             realpath,
-            &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install" },
-        );
+            &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install", "--color", "on" },
+        ) catch {
+            std.debug.print("Build failed, waiting for file change...\n", .{});
+            try awaitFileChange(allocator, cwd, &mtime);
+            continue;
+        };
 
         const exe_path = try util.locateExecutable(allocator, cwd, .{});
         if (exe_path == null) {
             std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
-            std.os.exit(1);
+            std.process.exit(1);
         }
 
         const argv = &[_][]const u8{exe_path.?};
@@ -94,25 +98,25 @@ pub fn run(
 
         if (!options.reload) {
             const term = try process.wait();
-            std.os.exit(term.Exited);
+            std.process.exit(term.Exited);
         }
 
-        while (true) {
-            if (process.term) |_| {
-                _ = try process.wait();
-                std.debug.print("Server exited, restarting...\n", .{});
-            }
+        // HACK: This currenly doesn't restart the server when it exits, maybe that
+        // could be implemented in the future.
 
-            std.time.sleep(watch_changes_pause_duration);
+        awaitFileChange(allocator, cwd, mtime);
+        std.debug.print("Changes detected, restarting server...\n", .{});
+        _ = try process.kill();
+    }
+}
 
-            const new_mtime = try totalMtime(allocator, cwd, "src");
-
-            if (new_mtime > mtime) {
-                std.debug.print("Changes detected, restarting server...\n", .{});
-                _ = try process.kill();
-                mtime = new_mtime;
-                break;
-            }
+fn awaitFileChange(allocator: std.mem.Allocator, cwd: std.fs.Dir, mtime: *i128) !void {
+    while (true) {
+        std.time.sleep(watch_changes_pause_duration);
+        const new_mtime = try totalMtime(allocator, cwd, "src");
+        if (new_mtime > mtime.*) {
+            mtime.* = new_mtime;
+            return;
         }
     }
 }

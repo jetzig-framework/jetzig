@@ -51,7 +51,7 @@ pub fn main() !void {
 
     run(allocator, options, writer) catch |err| {
         switch (err) {
-            error.JetzigCommandError => std.os.exit(1),
+            error.JetzigCommandError => std.process.exit(1),
             else => return err,
         }
     };
