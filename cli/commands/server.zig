@@ -63,10 +63,11 @@ pub fn run(
     );
 
     while (true) {
+        // TODO: Catch this error instead of propagating
         try util.runCommand(
             allocator,
             realpath,
-            &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install" },
+            &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install", "--color", "on" },
         );
 
         const exe_path = try util.locateExecutable(allocator, cwd, .{});

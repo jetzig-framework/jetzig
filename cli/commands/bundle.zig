@@ -62,7 +62,7 @@ pub fn run(
         var install_argv = std.ArrayList([]const u8).init(allocator);
         defer install_argv.deinit();
 
-        try install_argv.appendSlice(&[_][]const u8{ "zig", "build" });
+        try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "--color", "on" });
 
         switch (builtin.os.tag) {
             .windows => try tar_argv.appendSlice(&[_][]const u8{
