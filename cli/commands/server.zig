@@ -63,55 +63,72 @@ pub fn run(
     );
 
     while (true) {
-        try util.runCommand(
+        var has_cmd_failed: bool = false;
+        util.runCommand(
             allocator,
             realpath,
             &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install" },
-        );
+        ) catch {
+            has_cmd_failed = true;
+        };
 
-        const exe_path = try util.locateExecutable(allocator, cwd, .{});
-        if (exe_path == null) {
-            std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
-            std.os.exit(1);
-        }
+        if (has_cmd_failed) {
+            while (true) {
+                std.time.sleep(watch_changes_pause_duration);
 
-        const argv = &[_][]const u8{exe_path.?};
-        defer allocator.free(exe_path.?);
+                const new_mtime = try totalMtime(allocator, cwd, "src");
 
-        var process = std.process.Child.init(argv, allocator);
-        process.stdin_behavior = .Inherit;
-        process.stdout_behavior = .Inherit;
-        process.stderr_behavior = .Inherit;
-        process.cwd = realpath;
-
-        var stdout_buf = std.ArrayList(u8).init(allocator);
-        defer stdout_buf.deinit();
-
-        var stderr_buf = std.ArrayList(u8).init(allocator);
-        defer stderr_buf.deinit();
-
-        try process.spawn();
-
-        if (!options.reload) {
-            const term = try process.wait();
-            std.os.exit(term.Exited);
-        }
-
-        while (true) {
-            if (process.term) |_| {
-                _ = try process.wait();
-                std.debug.print("Server exited, restarting...\n", .{});
+                if (new_mtime > mtime) {
+                    std.debug.print("Changes detected, restarting server...\n", .{});
+                    mtime = new_mtime;
+                    break;
+                }
+            }
+        } else {
+            const exe_path = try util.locateExecutable(allocator, cwd, .{});
+            if (exe_path == null) {
+                std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
+                std.os.exit(1);
             }
 
-            std.time.sleep(watch_changes_pause_duration);
+            const argv = &[_][]const u8{exe_path.?};
+            defer allocator.free(exe_path.?);
 
-            const new_mtime = try totalMtime(allocator, cwd, "src");
+            var process = std.process.Child.init(argv, allocator);
+            process.stdin_behavior = .Inherit;
+            process.stdout_behavior = .Inherit;
+            process.stderr_behavior = .Inherit;
+            process.cwd = realpath;
 
-            if (new_mtime > mtime) {
-                std.debug.print("Changes detected, restarting server...\n", .{});
-                _ = try process.kill();
-                mtime = new_mtime;
-                break;
+            var stdout_buf = std.ArrayList(u8).init(allocator);
+            defer stdout_buf.deinit();
+
+            var stderr_buf = std.ArrayList(u8).init(allocator);
+            defer stderr_buf.deinit();
+
+            try process.spawn();
+
+            if (!options.reload) {
+                const term = try process.wait();
+                std.os.exit(term.Exited);
+            }
+
+            while (true) {
+                if (process.term) |_| {
+                    _ = try process.wait();
+                    std.debug.print("Server exited, restarting...\n", .{});
+                }
+
+                std.time.sleep(watch_changes_pause_duration);
+
+                const new_mtime = try totalMtime(allocator, cwd, "src");
+
+                if (new_mtime > mtime) {
+                    std.debug.print("Changes detected, restarting server...\n", .{});
+                    _ = try process.kill();
+                    mtime = new_mtime;
+                    break;
+                }
             }
         }
     }
