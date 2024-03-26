@@ -104,7 +104,7 @@ pub fn run(
         // HACK: This currenly doesn't restart the server when it exits, maybe that
         // could be implemented in the future.
 
-        awaitFileChange(allocator, cwd, mtime);
+        try awaitFileChange(allocator, cwd, &mtime);
         std.debug.print("Changes detected, restarting server...\n", .{});
         _ = try process.kill();
     }
