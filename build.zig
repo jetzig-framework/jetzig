@@ -44,6 +44,8 @@ pub fn build(b: *std.Build) !void {
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
 
+    const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
+
     const ZmplBuild = @import("zmpl").ZmplBuild;
     const ZmplTemplate = @import("zmpl").Template;
     var zmpl_build = ZmplBuild.init(b, lib, template_path);
@@ -60,6 +62,7 @@ pub fn build(b: *std.Build) !void {
     lib.root_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("args", zig_args_dep.module("args"));
+    jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },
@@ -148,6 +151,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
+    exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     exe.step.dependOn(&run_static_routes_cmd.step);

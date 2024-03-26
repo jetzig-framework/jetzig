@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const zmpl = @import("zmpl").zmpl;
+pub const zmd = @import("zmd").zmd;
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
@@ -10,6 +11,7 @@ pub const colors = @import("jetzig/colors.zig");
 pub const middleware = @import("jetzig/middleware.zig");
 pub const util = @import("jetzig/util.zig");
 pub const types = @import("jetzig/types.zig");
+pub const markdown = @import("jetzig/markdown.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -64,6 +66,9 @@ pub const config = struct {
     /// HTTP buffer. Must be large enough to store all headers. This should typically not be
     /// modified.
     pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
+
+    /// A struct of fragments to use when rendering Markdown templates.
+    pub const markdown_fragments = zmd.html.DefaultFragments;
 
     /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
     pub fn get(T: type, comptime key: []const u8) T {
