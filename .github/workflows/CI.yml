@@ -52,7 +52,9 @@ jobs:
           for target in "${targets[@]}"; do
             mkdir -p $root/artifacts/$target
             echo "Building target ${target}..."
-            zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix $root/artifacts/${target}/ &
+            if ! zig build -Dtarget=${target} -Doptimize=ReleaseSafe --prefix $root/artifacts/${target}/; then
+              exit 1
+            fi
             sed -e '1,5d' < $root/README.md > $root/artifacts/${target}/README.md
             cp $root/LICENSE $root/artifacts/${target}/
           done
