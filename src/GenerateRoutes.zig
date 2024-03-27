@@ -23,23 +23,27 @@ const Function = struct {
     /// compilation.
     /// path: `src/app/views/iguanas.zig`, action: `index` => `iguanas_index`
     pub fn fullName(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        // XXX: Currently we do not support nested routes, so we will need to adjust this if we
-        // add nested routes in future.
-        const extension = std.fs.path.extension(self.path);
-        const basename = std.fs.path.basename(self.path);
-        const name = basename[0 .. basename.len - extension.len];
+        const relative_path = try std.fs.path.relative(allocator, "src/app/views/", self.path);
+        defer allocator.free(relative_path);
 
-        return std.mem.concat(allocator, u8, &[_][]const u8{ name, "_", self.name });
+        const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
+        std.mem.replaceScalar(u8, path, '\\', '/');
+        std.mem.replaceScalar(u8, path, '/', '_');
+
+        return std.mem.concat(allocator, u8, &[_][]const u8{ path, "_", self.name });
     }
 
     /// The path used to match the route. Resource ID and extension is not included here and is
     /// appended as needed during matching logic at run time.
     pub fn uriPath(self: @This(), allocator: std.mem.Allocator) ![]const u8 {
-        const basename = std.fs.path.basename(self.path);
-        const name = basename[0 .. basename.len - std.fs.path.extension(basename).len];
-        if (std.mem.eql(u8, name, "root")) return try allocator.dupe(u8, "/");
+        const relative_path = try std.fs.path.relative(allocator, "src/app/views/", self.path);
+        defer allocator.free(relative_path);
 
-        return try std.mem.concat(allocator, u8, &[_][]const u8{ "/", name });
+        const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
+        std.mem.replaceScalar(u8, path, '\\', '/');
+        if (std.mem.eql(u8, path, "root")) return try allocator.dupe(u8, "/");
+
+        return try std.mem.concat(allocator, u8, &[_][]const u8{ "/", path });
     }
 
     pub fn lessThanFn(context: void, lhs: @This(), rhs: @This()) bool {
@@ -247,6 +251,7 @@ fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !
             .simple_var_decl => {
                 const decl = self.ast.simpleVarDecl(asNodeIndex(index));
                 if (self.isStaticParamsDecl(decl)) {
+                    self.data.reset();
                     const params = try self.data.object();
                     try self.parseStaticParamsDecl(decl, params);
                     static_params = self.data.value;

@@ -473,32 +473,31 @@ fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]cons
     };
 
     for (route.params.items, 0..) |static_params, index| {
-        if (try static_params.getValue("params")) |expected_params| {
-            switch (route.action) {
-                .index, .post => {},
-                inline else => {
-                    if (try static_params.getValue("id")) |id| {
-                        switch (id.*) {
-                            .string => |capture| {
-                                if (!std.mem.eql(u8, capture.value, request.path.resource_id)) continue;
-                            },
-                            // Should be unreachable - this means generated `routes.zig` is incoherent:
-                            inline else => return error.JetzigRouteError,
-                        }
-                    }
-                },
-            }
-            if (!expected_params.eql(params)) continue;
-
-            const index_fmt = try std.fmt.allocPrint(request.allocator, "{}", .{index});
-            defer request.allocator.free(index_fmt);
-
-            return try std.mem.concat(
-                request.allocator,
-                u8,
-                &[_][]const u8{ route.name, "_", index_fmt, extension },
-            );
+        const expected_params = try static_params.getValue("params");
+        switch (route.action) {
+            .index, .post => {},
+            inline else => {
+                const id = try static_params.getValue("id");
+                if (id == null) return error.JetzigRouteError; // `routes.zig` is incoherent.
+                switch (id.?.*) {
+                    .string => |capture| {
+                        if (!std.mem.eql(u8, capture.value, request.path.resource_id)) continue;
+                    },
+                    // `routes.zig` is incoherent.
+                    inline else => return error.JetzigRouteError,
+                }
+            },
         }
+        if (expected_params != null and !expected_params.?.eql(params)) continue;
+
+        const index_fmt = try std.fmt.allocPrint(request.allocator, "{}", .{index});
+        defer request.allocator.free(index_fmt);
+
+        return try std.mem.concat(
+            request.allocator,
+            u8,
+            &[_][]const u8{ route.name, "_", index_fmt, extension },
+        );
     }
 
     switch (route.action) {

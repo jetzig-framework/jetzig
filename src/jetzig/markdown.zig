@@ -27,7 +27,12 @@ pub fn render(
     const full_path = try std.mem.concat(allocator, u8, &[_][]const u8{ base_path, ".md" });
     defer allocator.free(full_path);
 
-    const stat = try std.fs.cwd().statFile(full_path);
+    const stat = std.fs.cwd().statFile(full_path) catch |err| {
+        return switch (err) {
+            error.FileNotFound => null,
+            else => err,
+        };
+    };
     const markdown_content = std.fs.cwd().readFileAlloc(allocator, full_path, stat.size) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
