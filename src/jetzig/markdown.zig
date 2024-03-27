@@ -5,7 +5,7 @@ const jetzig = @import("../jetzig.zig");
 const Zmd = @import("zmd").Zmd;
 pub fn render(
     allocator: std.mem.Allocator,
-    route: *const jetzig.views.Route,
+    path: []const u8,
     custom_fragments: ?type,
 ) !?[]const u8 {
     const fragments = custom_fragments orelse jetzig.config.get(type, "markdown_fragments");
@@ -15,11 +15,10 @@ pub fn render(
 
     try path_buf.appendSlice(&[_][]const u8{ "src", "app", "views" });
 
-    var it = std.mem.splitScalar(u8, route.uri_path, '/');
+    var it = std.mem.splitScalar(u8, path, '/');
     while (it.next()) |segment| {
         try path_buf.append(segment);
     }
-    try path_buf.append(@tagName(route.action));
 
     const base_path = try std.fs.path.join(allocator, path_buf.items);
     defer allocator.free(base_path);
