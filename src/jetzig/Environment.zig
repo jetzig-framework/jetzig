@@ -62,6 +62,7 @@ pub fn init(allocator: std.mem.Allocator) Environment {
 /// Generate server initialization options using command line args with defaults.
 pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     const options = try args.parseForCurrentProcess(Options, self.allocator, .print);
+    defer options.deinit();
 
     if (options.options.help) {
         const writer = std.io.getStdErr().writer();
