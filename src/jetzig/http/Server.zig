@@ -157,38 +157,10 @@ fn renderHTML(
             };
             setResponse(request, rendered, .{});
             return;
-        } else if (try jetzig.markdown.render(request.allocator, matched_route, null)) |markdown_content| {
-            const rendered = self.renderView(matched_route, request, null) catch |err| {
-                if (isUnhandledError(err)) return err;
-                const rendered_error = try self.renderInternalServerError(request, err);
-                setResponse(request, rendered_error, .{});
-                return;
-            };
-
-            try addTemplateConstants(rendered.view, matched_route);
-
-            if (request.getLayout(matched_route)) |layout_name| {
-                // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
-                const prefixed_name = try std.mem.concat(
-                    self.allocator,
-                    u8,
-                    &[_][]const u8{ "layouts_", layout_name },
-                );
-                defer self.allocator.free(prefixed_name);
-
-                if (zmpl.manifest.find(prefixed_name)) |layout| {
-                    rendered.view.data.content = .{ .data = markdown_content };
-                    request.response.content = try layout.render(rendered.view.data);
-                } else {
-                    try self.logger.WARN("Unknown layout: {s}", .{layout_name});
-                    request.response.content = markdown_content;
-                }
-            }
-            request.response.status_code = rendered.view.status_code;
-            request.response.content_type = "text/html";
-            return;
         }
     }
+
+    if (try self.renderMarkdown(request, route)) return;
 
     request.response.content = "";
     request.response.status_code = .not_found;
@@ -215,6 +187,59 @@ fn renderJSON(
         request.response.status_code = .not_found;
         request.response.content_type = "application/json";
     }
+}
+
+fn renderMarkdown(self: *Self, request: *jetzig.http.Request, maybe_route: ?*jetzig.views.Route) !bool {
+    const route = maybe_route orelse {
+        if (request.method != .GET) return false;
+        const content = try jetzig.markdown.render(request.allocator, request.path.base_path, null) orelse
+            return false;
+
+        const rendered: RenderedView = .{
+            .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
+            .content = content,
+        };
+        setResponse(request, rendered, .{});
+        return true;
+    };
+
+    const path = try std.mem.join(
+        request.allocator,
+        "/",
+        &[_][]const u8{ route.uri_path, @tagName(route.action) },
+    );
+    const markdown_content = try jetzig.markdown.render(request.allocator, path, null) orelse
+        return false;
+
+    const rendered = self.renderView(route, request, null) catch |err| {
+        if (isUnhandledError(err)) return err;
+        const rendered_error = try self.renderInternalServerError(request, err);
+        setResponse(request, rendered_error, .{});
+        return true;
+    };
+
+    try addTemplateConstants(rendered.view, route);
+
+    if (request.getLayout(route)) |layout_name| {
+        // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
+        const prefixed_name = try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{ "layouts_", layout_name },
+        );
+        defer self.allocator.free(prefixed_name);
+
+        if (zmpl.manifest.find(prefixed_name)) |layout| {
+            rendered.view.data.content = .{ .data = markdown_content };
+            request.response.content = try layout.render(rendered.view.data);
+        } else {
+            try self.logger.WARN("Unknown layout: {s}", .{layout_name});
+            request.response.content = markdown_content;
+        }
+    }
+    request.response.status_code = rendered.view.status_code;
+    request.response.content_type = "text/html";
+    return true;
 }
 
 const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
