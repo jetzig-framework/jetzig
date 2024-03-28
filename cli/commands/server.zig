@@ -70,6 +70,7 @@ pub fn run(
         ) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
             try awaitFileChange(allocator, cwd, &mtime);
+            std.debug.print("Changes detected, restarting server...\n", .{});
             continue;
         };
 
