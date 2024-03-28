@@ -12,6 +12,12 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    // Example dependency:
+    const iguanas_dep = b.dependency("iguanas", .{ .optimize = optimize, .target = target });
+    exe.root_module.addImport("iguanas", iguanas_dep.module("iguanas"));
+
+    // All dependencies **must** be added to imports above this line.
+
     try jetzig.jetzigInit(b, exe, .{});
 
     b.installArtifact(exe);
