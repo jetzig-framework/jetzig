@@ -9,6 +9,7 @@ pub const ServerOptions = struct {
     port: u16,
     secret: []const u8,
     detach: bool,
+    environment: jetzig.Environment.EnvironmentName,
 };
 
 allocator: std.mem.Allocator,
@@ -48,7 +49,11 @@ pub fn listen(self: *Self) !void {
 
     self.initialized = true;
 
-    try self.logger.INFO("Listening on http://{s}:{}", .{ self.options.bind, self.options.port });
+    try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
+        self.options.bind,
+        self.options.port,
+        @tagName(self.options.environment),
+    });
     try self.processRequests();
 }
 
@@ -167,7 +172,11 @@ fn renderJSON(
 
         if (data.value) |_| {} else _ = try data.object();
 
-        rendered.content = try data.toJson();
+        rendered.content = if (self.options.environment == .development)
+            try data.toPrettyJson()
+        else
+            try data.toJson();
+
         request.setResponse(rendered, .{});
     } else {
         request.setResponse(try renderNotFound(request), .{});

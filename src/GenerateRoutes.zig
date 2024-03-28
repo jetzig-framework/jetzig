@@ -271,7 +271,7 @@ fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !
                     var json_buf = std.ArrayList(u8).init(self.allocator);
                     defer json_buf.deinit();
                     const json_writer = json_buf.writer();
-                    try item.toJson(json_writer);
+                    try item.toJson(json_writer, false, 0);
                     var encoded_buf = std.ArrayList(u8).init(self.allocator);
                     defer encoded_buf.deinit();
                     const writer = encoded_buf.writer();
