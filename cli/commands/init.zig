@@ -191,6 +191,13 @@ pub fn run(
         github_url,
     });
 
+    try util.runCommand(allocator, realpath, &[_][]const u8{
+        "zig",
+        "fetch",
+        "--save",
+        "https://github.com/jetzig-framework/iguanas/archive/89c2abf29de0bc31054a9a6feac5a6a83bab0459.tar.gz",
+    });
+
     // TODO: Use arg or interactive prompt to do Git setup in net project, default to no.
     // const git_setup = false;
     // if (git_setup) try gitSetup(allocator, install_dir);

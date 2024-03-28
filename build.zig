@@ -146,7 +146,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     });
 
     exe.root_module.addImport("routes", routes_module);
-    routes_module.addImport("jetzig", jetzig_module);
 
     var it = exe.root_module.import_table.iterator();
     while (it.next()) |import| {
