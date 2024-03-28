@@ -10,5 +10,6 @@ pub const Headers = @import("http/Headers.zig");
 pub const Query = @import("http/Query.zig");
 pub const Path = @import("http/Path.zig");
 pub const status_codes = @import("http/status_codes.zig");
+pub const StatusCode = status_codes.StatusCode;
 pub const middleware = @import("http/middleware.zig");
 pub const mime = @import("http/mime.zig");

@@ -129,7 +129,9 @@ fn renderMarkdown(
         jetzig_options.markdown_fragments
     else
         null;
-    const content = try jetzig.markdown.render(allocator, &route, fragments) orelse return null;
+    const path = try std.mem.join(allocator, "/", &[_][]const u8{ route.uri_path, @tagName(route.action) });
+    defer allocator.free(path);
+    const content = try jetzig.markdown.render(allocator, path, fragments) orelse return null;
 
     if (route.layout) |layout_name| {
         try view.data.addConst("jetzig_view", view.data.string(route.name));

@@ -108,12 +108,12 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
         if (isUnhandledError(err)) return err;
 
         const rendered = try self.renderInternalServerError(request, err);
-        setResponse(request, rendered, .{});
+        request.setResponse(rendered, .{});
         return;
     };
 
     if (static_resource) |resource| {
-        try renderStatic(resource, request.response);
+        try renderStatic(resource, request);
         return;
     }
 
@@ -126,20 +126,11 @@ fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
     }
 }
 
-fn setResponse(
-    request: *jetzig.http.Request,
-    rendered_view: RenderedView,
-    options: struct { content_type: []const u8 = "text/html" },
-) void {
-    request.response.content = rendered_view.content;
-    request.response.status_code = rendered_view.view.status_code;
-    request.response.content_type = options.content_type;
-}
-
-fn renderStatic(resource: StaticResource, response: *jetzig.http.Response) !void {
-    response.status_code = .ok;
-    response.content = resource.content;
-    response.content_type = resource.mime_type;
+fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
+    request.setResponse(
+        .{ .view = .{ .data = request.response_data }, .content = resource.content },
+        .{ .content_type = resource.mime_type },
+    );
 }
 
 fn renderHTML(
@@ -152,19 +143,17 @@ fn renderHTML(
             const rendered = self.renderView(matched_route, request, template) catch |err| {
                 if (isUnhandledError(err)) return err;
                 const rendered_error = try self.renderInternalServerError(request, err);
-                setResponse(request, rendered_error, .{});
-                return;
+                return request.setResponse(rendered_error, .{});
             };
-            setResponse(request, rendered, .{});
-            return;
+            return request.setResponse(rendered, .{});
         }
     }
 
-    if (try self.renderMarkdown(request, route)) return;
-
-    request.response.content = "";
-    request.response.status_code = .not_found;
-    request.response.content_type = "text/html";
+    if (try self.renderMarkdown(request, route)) |rendered| {
+        return request.setResponse(rendered, .{});
+    } else {
+        return request.setResponse(try renderNotFound(request), .{});
+    }
 }
 
 fn renderJSON(
@@ -173,34 +162,34 @@ fn renderJSON(
     route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
-        const rendered = try self.renderView(matched_route, request, null);
+        var rendered = try self.renderView(matched_route, request, null);
         var data = rendered.view.data;
 
         if (data.value) |_| {} else _ = try data.object();
-        try request.headers.append("Content-Type", "application/json");
 
-        request.response.content = try data.toJson();
-        request.response.status_code = rendered.view.status_code;
-        request.response.content_type = "application/json";
+        rendered.content = try data.toJson();
+        request.setResponse(rendered, .{});
     } else {
-        request.response.content = "";
-        request.response.status_code = .not_found;
-        request.response.content_type = "application/json";
+        request.setResponse(try renderNotFound(request), .{});
     }
 }
 
-fn renderMarkdown(self: *Self, request: *jetzig.http.Request, maybe_route: ?*jetzig.views.Route) !bool {
+fn renderMarkdown(
+    self: *Self,
+    request: *jetzig.http.Request,
+    maybe_route: ?*jetzig.views.Route,
+) !?RenderedView {
     const route = maybe_route orelse {
-        if (request.method != .GET) return false;
-        const content = try jetzig.markdown.render(request.allocator, request.path.base_path, null) orelse
-            return false;
-
-        const rendered: RenderedView = .{
-            .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
-            .content = content,
-        };
-        setResponse(request, rendered, .{});
-        return true;
+        // No route recognized, but we can still render a static markdown file if it matches the URI:
+        if (request.method != .GET) return null;
+        if (try jetzig.markdown.render(request.allocator, request.path.base_path, null)) |content| {
+            return .{
+                .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
+                .content = content,
+            };
+        } else {
+            return null;
+        }
     };
 
     const path = try std.mem.join(
@@ -209,13 +198,11 @@ fn renderMarkdown(self: *Self, request: *jetzig.http.Request, maybe_route: ?*jet
         &[_][]const u8{ route.uri_path, @tagName(route.action) },
     );
     const markdown_content = try jetzig.markdown.render(request.allocator, path, null) orelse
-        return false;
+        return null;
 
-    const rendered = self.renderView(route, request, null) catch |err| {
+    var rendered = self.renderView(route, request, null) catch |err| {
         if (isUnhandledError(err)) return err;
-        const rendered_error = try self.renderInternalServerError(request, err);
-        setResponse(request, rendered_error, .{});
-        return true;
+        return try self.renderInternalServerError(request, err);
     };
 
     try addTemplateConstants(rendered.view, route);
@@ -231,18 +218,16 @@ fn renderMarkdown(self: *Self, request: *jetzig.http.Request, maybe_route: ?*jet
 
         if (zmpl.manifest.find(prefixed_name)) |layout| {
             rendered.view.data.content = .{ .data = markdown_content };
-            request.response.content = try layout.render(rendered.view.data);
+            rendered.content = try layout.render(rendered.view.data);
         } else {
             try self.logger.WARN("Unknown layout: {s}", .{layout_name});
-            request.response.content = markdown_content;
+            rendered.content = markdown_content;
         }
     }
-    request.response.status_code = rendered.view.status_code;
-    request.response.content_type = "text/html";
-    return true;
+    return rendered;
 }
 
-const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
+pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
 
 fn renderView(
     self: *Self,
@@ -256,7 +241,7 @@ fn renderView(
     _ = route.render(route.*, request) catch |err| {
         try self.logger.ERROR("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
-        if (isBadRequest(err)) return try self.renderBadRequest(request);
+        if (isBadRequest(err)) return try renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
 
@@ -347,28 +332,38 @@ fn isBadHttpError(err: anyerror) bool {
 fn renderInternalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
     request.response_data.reset();
 
-    var object = try request.response_data.object();
-    try object.put("error", request.response_data.string(@errorName(err)));
+    try self.logger.ERROR("Encountered Error: {s}", .{@errorName(err)});
 
     const stack = @errorReturnTrace();
     if (stack) |capture| try self.logStackTrace(capture, request);
 
+    const status = .internal_server_error;
+    const content = try request.formatStatus(status);
     return .{
-        .view = jetzig.views.View{ .data = request.response_data, .status_code = .internal_server_error },
-        .content = "Internal Server Error\n",
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = status },
+        .content = content,
     };
 }
 
-fn renderBadRequest(self: *Self, request: *jetzig.http.Request) !RenderedView {
-    _ = self;
+fn renderNotFound(request: *jetzig.http.Request) !RenderedView {
     request.response_data.reset();
 
-    var object = try request.response_data.object();
-    try object.put("error", request.response_data.string("Bad Request"));
-
+    const status: jetzig.http.StatusCode = .not_found;
+    const content = try request.formatStatus(status);
     return .{
-        .view = jetzig.views.View{ .data = request.response_data, .status_code = .bad_request },
-        .content = "Bad Request\n",
+        .view = .{ .data = request.response_data, .status_code = status },
+        .content = content,
+    };
+}
+
+fn renderBadRequest(request: *jetzig.http.Request) !RenderedView {
+    request.response_data.reset();
+
+    const status: jetzig.http.StatusCode = .not_found;
+    const content = try request.formatStatus(status);
+    return .{
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = status },
+        .content = content,
     };
 }
 

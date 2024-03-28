@@ -83,10 +83,15 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
         ),
     };
 
+    const formatted_status = if (self.stdout_colorized)
+        status.getFormatted(.{ .colorized = true })
+    else
+        status.getFormatted(.{});
+
     const message = try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
-        status.format(self.stdout_colorized),
+        formatted_status,
         request.path.path,
     });
     defer self.allocator.free(message);

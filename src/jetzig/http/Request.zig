@@ -327,6 +327,34 @@ pub fn fmtMethod(self: *const Self, colorized: bool) []const u8 {
     };
 }
 
+/// Format a status code appropriately for the current request format.
+/// e.g. `.HTML` => `404 Not Found`
+///      `.JSON` => `{ "message": "Not Found", "status": "404" }`
+pub fn formatStatus(self: *Self, status_code: jetzig.http.StatusCode) ![]const u8 {
+    const status = jetzig.http.status_codes.get(status_code);
+
+    return switch (self.requestFormat()) {
+        .JSON => try std.json.stringifyAlloc(self.allocator, .{
+            .message = status.getMessage(),
+            .status = status.getCode(),
+        }, .{}),
+        .HTML, .UNKNOWN => status.getFormatted(.{ .linebreak = true }),
+    };
+}
+
+pub fn setResponse(
+    self: *Self,
+    rendered_view: jetzig.http.Server.RenderedView,
+    options: struct { content_type: ?[]const u8 = null },
+) void {
+    self.response.content = rendered_view.content;
+    self.response.status_code = rendered_view.view.status_code;
+    self.response.content_type = options.content_type orelse switch (self.requestFormat()) {
+        .HTML, .UNKNOWN => "text/html",
+        .JSON => "application/json",
+    };
+}
+
 // Determine if a given route matches the current request.
 pub fn match(self: *Self, route: jetzig.views.Route) !bool {
     return switch (self.method) {
