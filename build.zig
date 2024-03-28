@@ -148,6 +148,12 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe.root_module.addImport("routes", routes_module);
     routes_module.addImport("jetzig", jetzig_module);
 
+    var it = exe.root_module.import_table.iterator();
+    while (it.next()) |import| {
+        routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
+        exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
+    }
+
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
