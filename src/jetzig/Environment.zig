@@ -8,12 +8,13 @@ const Environment = @This();
 
 allocator: std.mem.Allocator,
 
+pub const EnvironmentName = enum { development, production };
+
 const Options = struct {
     help: bool = false,
     bind: []const u8 = "127.0.0.1",
     port: u16 = 8080,
-    // TODO:
-    // environment: []const u8 = "development",
+    environment: EnvironmentName = .development,
     log: []const u8 = "-",
     @"log-error": []const u8 = "-",
     @"log-level": jetzig.loggers.LogLevel = .INFO,
@@ -24,8 +25,7 @@ const Options = struct {
         .h = "help",
         .b = "bind",
         .p = "port",
-        // TODO:
-        // .e = "environment",
+        .e = "environment",
         .d = "detach",
     };
 
@@ -35,8 +35,7 @@ const Options = struct {
         .option_docs = .{
             .bind = "IP address/hostname to bind to (default: 127.0.0.1)",
             .port = "Port to listen on (default: 8080)",
-            // TODO:
-            // .environment = "Load an environment configuration from src/app/environments/<environment>.zig",
+            .environment = "Set the server environment. Must be one of: { development, production } (default: development)",
             .log = "Path to log file. Use '-' for stdout (default: '-')",
             .@"log-error" =
             \\Optional path to separate error log file. Use '-' for stderr. If omitted, errors are logged to the location specified by the `log` option (or stderr if `log` is '-').
@@ -94,9 +93,11 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         std.process.exit(1);
     }
 
+    const environment = options.options.environment;
+
     // TODO: Generate nonce per session - do research to confirm correct best practice.
     const secret_len = jetzig.http.Session.Cipher.key_length + jetzig.http.Session.Cipher.nonce_length;
-    const secret = try self.getSecret(&logger, secret_len);
+    const secret = (try self.getSecret(&logger, secret_len, environment))[0..secret_len];
 
     if (secret.len != secret_len) {
         try logger.ERROR("Expected secret length: {}, found: {}.", .{ secret_len, secret.len });
@@ -110,6 +111,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         .bind = try self.allocator.dupe(u8, options.options.bind),
         .port = options.options.port,
         .detach = options.options.detach,
+        .environment = environment,
     };
 }
 
@@ -132,11 +134,18 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
     return file;
 }
 
-fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u10) ![]const u8 {
-    return std.process.getEnvVarOwned(self.allocator, "JETZIG_SECRET") catch |err| {
+fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u10, environment: EnvironmentName) ![]const u8 {
+    const env_var = "JETZIG_SECRET";
+
+    return std.process.getEnvVarOwned(self.allocator, env_var) catch |err| {
         switch (err) {
             error.EnvironmentVariableNotFound => {
-                // TODO: Make this a failure when running in non-development mode.
+                if (environment != .development) {
+                    try logger.ERROR("Environment variable `{s}` must be defined in production mode.", .{env_var});
+                    try logger.ERROR("Run `jetzig generate secret` to generate an appropriate value.", .{});
+                    std.process.exit(1);
+                }
+
                 const secret = try jetzig.util.generateSecret(self.allocator, len);
                 try logger.WARN(
                     "Running in development mode, using auto-generated cookie encryption key: {s}",

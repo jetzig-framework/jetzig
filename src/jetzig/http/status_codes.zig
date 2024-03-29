@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const jetzig = @import("../../jetzig.zig");
 
@@ -66,6 +67,8 @@ pub const StatusCode = enum {
     network_authentication_required,
 };
 
+const FormatOptions = struct { colorized: bool = false, linebreak: bool = false };
+
 pub fn StatusCodeType(comptime code: []const u8, comptime message: []const u8) type {
     return struct {
         code: []const u8 = code,
@@ -73,11 +76,15 @@ pub fn StatusCodeType(comptime code: []const u8, comptime message: []const u8) t
 
         const Self = @This();
 
-        pub fn format(self: Self, colorized: bool) []const u8 {
+        pub fn getFormatted(self: Self, comptime options: FormatOptions) []const u8 {
             _ = self;
-            const full_message = code ++ " " ++ message;
+            const linebreak = switch (builtin.os.tag) {
+                .windows => "\r\n",
+                inline else => "\n",
+            };
+            const full_message = code ++ " " ++ message ++ if (options.linebreak) linebreak else "";
 
-            if (!colorized) return full_message;
+            if (!options.colorized) return full_message;
 
             if (std.mem.startsWith(u8, code, "2")) {
                 return jetzig.colors.green(full_message);
@@ -159,9 +166,9 @@ pub const TaggedStatusCode = union(StatusCode) {
 
     const Self = @This();
 
-    pub fn format(self: Self, colorized: bool) []const u8 {
+    pub fn getFormatted(self: Self, comptime options: FormatOptions) []const u8 {
         return switch (self) {
-            inline else => |capture| capture.format(colorized),
+            inline else => |capture| capture.getFormatted(options),
         };
     }
 
@@ -170,4 +177,16 @@ pub const TaggedStatusCode = union(StatusCode) {
             inline else => |capture| capture.code,
         };
     }
+
+    pub fn getMessage(self: Self) []const u8 {
+        return switch (self) {
+            inline else => |capture| capture.message,
+        };
+    }
 };
+
+pub fn get(code: StatusCode) TaggedStatusCode {
+    switch (code) {
+        inline else => |capture| return @unionInit(TaggedStatusCode, @tagName(capture), .{}),
+    }
+}
