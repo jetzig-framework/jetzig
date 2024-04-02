@@ -178,6 +178,7 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
     defer self.allocator.free(module_path);
 
     const view_name = try self.allocator.dupe(u8, route.view_name);
+    std.mem.replaceScalar(u8, view_name, '\\', '/');
     defer self.allocator.free(view_name);
 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
