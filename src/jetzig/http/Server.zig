@@ -144,12 +144,18 @@ fn renderHTML(
     route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
-        if (zmpl.find(matched_route.template)) |template| {
-            const rendered = self.renderView(matched_route, request, template) catch |err| {
-                if (isUnhandledError(err)) return err;
-                const rendered_error = try self.renderInternalServerError(request, err);
-                return request.setResponse(rendered_error, .{});
-            };
+        const template = zmpl.find(matched_route.template);
+        if (template == null) {
+            if (try self.renderMarkdown(request, route)) |rendered_markdown| {
+                return request.setResponse(rendered_markdown, .{});
+            }
+        }
+        const rendered = self.renderView(matched_route, request, template) catch |err| {
+            if (isUnhandledError(err)) return err;
+            const rendered_error = try self.renderInternalServerError(request, err);
+            return request.setResponse(rendered_error, .{});
+        };
+        if (request.status_code != .not_found) {
             return request.setResponse(rendered, .{});
         }
     }
@@ -265,8 +271,10 @@ fn renderView(
                 .content = try self.renderTemplateWithLayout(request, capture, rendered_view, route),
             };
         } else {
-            // We are rendering JSON, content is the result of `toJson` on view data.
-            return .{ .view = rendered_view, .content = "" };
+            return switch (request.requestFormat()) {
+                .HTML, .UNKNOWN => try renderNotFound(request),
+                .JSON => .{ .view = rendered_view, .content = "" },
+            };
         }
     } else {
         try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});

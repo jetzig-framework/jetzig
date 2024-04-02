@@ -258,7 +258,8 @@ fn queryParams(self: *Self) !*jetzig.data.Value {
 }
 
 fn parseQueryString(self: *Self) !bool {
-    if (self.path.query) |query| {
+    const data: ?[]const u8 = if (self.body.len > 0) self.body else self.path.query;
+    if (data) |query| {
         self.query.* = jetzig.http.Query.init(
             self.allocator,
             query,
