@@ -186,7 +186,7 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
         full_name,
         route.name,
-        route.view_name,
+        view_name,
         if (route.static) "static" else "dynamic",
         if (route.static) "true" else "false",
         uri_path,
