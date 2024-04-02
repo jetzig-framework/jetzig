@@ -47,7 +47,7 @@ render: RenderFn = renderFn,
 renderStatic: RenderStaticFn = renderStaticFn,
 layout: ?[]const u8,
 template: []const u8,
-json_params: [][]const u8,
+json_params: []const []const u8,
 params: std.ArrayList(*jetzig.data.Data) = undefined,
 
 /// Initializes a route's static params on server launch. Converts static params (JSON strings)

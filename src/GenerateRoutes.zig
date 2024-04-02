@@ -18,6 +18,7 @@ const Function = struct {
     path: []const u8,
     source: []const u8,
     params: std.ArrayList([]const u8),
+    static: bool = false,
 
     /// The full name of a route. This **must** match the naming convention used by static route
     /// compilation.
@@ -128,8 +129,9 @@ pub fn generateRoutes(self: *Self) !void {
     std.sort.pdq(Function, self.dynamic_routes.items, {}, Function.lessThanFn);
 
     try writer.writeAll(
-        \\pub const routes = struct {
-        \\    pub const static = .{
+        \\const jetzig = @import("jetzig");
+        \\
+        \\pub const routes = [_]jetzig.views.Route{
         \\
     );
 
@@ -137,21 +139,14 @@ pub fn generateRoutes(self: *Self) !void {
         try self.writeRoute(writer, static_route);
     }
 
-    try writer.writeAll(
-        \\    };
-        \\
-        \\    pub const dynamic = .{
-        \\
-    );
-
     for (self.dynamic_routes.items) |dynamic_route| {
         try self.writeRoute(writer, dynamic_route);
         const name = try dynamic_route.fullName(self.allocator);
         defer self.allocator.free(name);
-        std.debug.print("[jetzig] Imported route: {s}\n", .{name});
     }
 
-    try writer.writeAll("    };\n");
+    std.debug.print("[jetzig] Imported {} route(s)\n", .{self.dynamic_routes.items.len});
+
     try writer.writeAll("};");
 
     // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
@@ -166,32 +161,18 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
 
     const output_template =
         \\        .{{
-        \\            .name = "{s}",
-        \\            .action = "{s}",
-        \\            .view_name = "{s}",
-        \\            .uri_path = "{s}",
-        \\            .template = "{s}",
-        \\            .module = @import("{s}"),
-        \\            .function = @import("{s}").{s},
-        \\            .params = {s},
+        \\            .name = "{0s}",
+        \\            .action = .{1s},
+        \\            .view_name = "{2s}",
+        \\            .view = jetzig.views.Route.ViewType{{ .{3s} = .{{ .{1s} = @import("{7s}").{1s} }} }},
+        \\            .static = {4s},
+        \\            .uri_path = "{5s}",
+        \\            .template = "{6s}",
+        \\            .layout = if (@hasDecl(@import("{7s}"), "layout")) @import("{7s}").layout else null,
+        \\            .json_params = &[_][]const u8 {{ {8s} }},
         \\        }},
         \\
     ;
-
-    var params_buf = std.ArrayList(u8).init(self.allocator);
-    const params_writer = params_buf.writer();
-    defer params_buf.deinit();
-    if (route.params.items.len > 0) {
-        try params_writer.writeAll(".{\n");
-        for (route.params.items) |item| {
-            try params_writer.writeAll("                ");
-            try params_writer.writeAll(item);
-            try params_writer.writeAll(",\n");
-        }
-        try params_writer.writeAll("            }");
-    } else {
-        try params_writer.writeAll(".{}");
-    }
 
     const module_path = try self.allocator.dupe(u8, route.path);
     defer self.allocator.free(module_path);
@@ -205,12 +186,12 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         full_name,
         route.name,
         route.view_name,
+        if (route.static) "static" else "dynamic",
+        if (route.static) "true" else "false",
         uri_path,
         full_name,
         module_path,
-        module_path,
-        route.name,
-        params_buf.items,
+        try std.mem.join(self.allocator, ", \n", route.params.items),
     });
 
     defer self.allocator.free(output);
@@ -237,13 +218,14 @@ fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !
         switch (tag) {
             .fn_proto_multi => {
                 const function = try self.parseFunction(index, path, source);
-                if (function) |capture| {
+                if (function) |*capture| {
                     for (capture.args) |arg| {
                         if (std.mem.eql(u8, try arg.typeBasename(), "StaticRequest")) {
-                            try static_routes.append(capture);
+                            @constCast(capture).static = true;
+                            try static_routes.append(capture.*);
                         }
                         if (std.mem.eql(u8, try arg.typeBasename(), "Request")) {
-                            try dynamic_routes.append(capture);
+                            try dynamic_routes.append(capture.*);
                         }
                     }
                 }
