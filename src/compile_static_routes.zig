@@ -19,42 +19,16 @@ pub fn main() !void {
 fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
     std.fs.cwd().deleteTree("static") catch {};
 
-    inline for (routes.static) |static_route| {
-        const static_view = jetzig.views.Route.ViewType{
-            .static = @unionInit(
-                jetzig.views.Route.StaticViewType,
-                static_route.action,
-                static_route.function,
-            ),
-        };
+    var count: usize = 0;
 
-        comptime var static_params_len = 0;
-        inline for (static_route.params) |_| static_params_len += 1;
-        comptime var params: [static_params_len][]const u8 = undefined;
-        inline for (static_route.params, 0..) |json, index| params[index] = json;
+    for (routes) |route| {
+        if (!route.static) continue;
 
-        const layout: ?[]const u8 = if (@hasDecl(static_route.module, "layout"))
-            static_route.module.layout
-        else
-            null;
-
-        const route = jetzig.views.Route{
-            .name = static_route.name,
-            .action = @field(jetzig.views.Route.Action, static_route.action),
-            .view_name = static_route.view_name,
-            .view = static_view,
-            .static = true,
-            .uri_path = static_route.uri_path,
-            .layout = layout,
-            .template = static_route.template,
-            .json_params = &params,
-        };
-
-        if (static_params_len > 0) {
-            inline for (static_route.params, 0..) |json, index| {
+        if (route.json_params.len > 0) {
+            for (route.json_params, 0..) |json, index| {
                 var request = try jetzig.http.StaticRequest.init(allocator, json);
                 defer request.deinit();
-                try writeContent(allocator, route, &request, index);
+                try writeContent(allocator, route, &request, index, &count);
             }
         }
 
@@ -64,18 +38,20 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
             .index, .post => {
                 var request = try jetzig.http.StaticRequest.init(allocator, "{}");
                 defer request.deinit();
-                try writeContent(allocator, route, &request, null);
+                try writeContent(allocator, route, &request, null, &count);
             },
             inline else => {},
         }
     }
+    std.debug.print("[jetzig] Compiled {} static output(s)\n", .{count});
 }
 
 fn writeContent(
     allocator: std.mem.Allocator,
-    comptime route: jetzig.views.Route,
+    route: jetzig.views.Route,
     request: *jetzig.http.StaticRequest,
     index: ?usize,
+    count: *usize,
 ) !void {
     const index_suffix = if (index) |capture|
         try std.fmt.allocPrint(allocator, "_{}", .{capture})
@@ -100,7 +76,7 @@ fn writeContent(
     try json_file.writeAll(try view.data.toJson());
     defer json_file.close();
 
-    std.debug.print("[jetzig] Compiled static route: {s}\n", .{json_path});
+    count.* += 1;
 
     const html_content = try renderZmplTemplate(allocator, route, view) orelse
         try renderMarkdown(allocator, route, view) orelse
@@ -116,7 +92,7 @@ fn writeContent(
         try html_file.writeAll(content);
         defer html_file.close();
         allocator.free(content);
-        std.debug.print("[jetzig] Compiled static route: {s}\n", .{html_path});
+        count.* += 1;
     }
 }
 

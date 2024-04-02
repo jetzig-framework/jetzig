@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const jetzig = @import("jetzig");
 
-pub const routes = @import("routes").routes;
+pub const routes = @import("routes");
 
 // Override default settings in `jetzig.config` here:
 pub const jetzig_options = struct {
@@ -92,5 +92,5 @@ pub fn main() !void {
     const app = try jetzig.init(allocator);
     defer app.deinit();
 
-    try app.start(comptime jetzig.route(routes));
+    try app.start(routes, .{});
 }
