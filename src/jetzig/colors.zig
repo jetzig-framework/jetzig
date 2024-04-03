@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const builtin = @import("builtin");
+
 const types = @import("types.zig");
 
 const codes = .{
@@ -16,15 +18,23 @@ const codes = .{
 };
 
 fn wrap(comptime attribute: []const u8, comptime message: []const u8) []const u8 {
-    return codes.escape ++ attribute ++ "m" ++ message ++ codes.escape ++ codes.reset ++ "m";
+    if (builtin.os.tag == .windows) {
+        return message;
+    } else {
+        return codes.escape ++ attribute ++ "m" ++ message ++ codes.escape ++ codes.reset ++ "m";
+    }
 }
 
 fn runtimeWrap(allocator: std.mem.Allocator, attribute: []const u8, message: []const u8) ![]const u8 {
-    return try std.mem.join(
-        allocator,
-        "",
-        &[_][]const u8{ codes.escape, attribute, "m", message, codes.escape, codes.reset, "m" },
-    );
+    if (builtin.os.tag == .windows) {
+        return try allocator.dupe(u8, message);
+    } else {
+        return try std.mem.join(
+            allocator,
+            "",
+            &[_][]const u8{ codes.escape, attribute, "m", message, codes.escape, codes.reset, "m" },
+        );
+    }
 }
 
 pub fn black(comptime message: []const u8) []const u8 {
