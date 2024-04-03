@@ -32,7 +32,7 @@ pub fn resourceId(self: *Self) ![]const u8 {
     // Routes generator rejects missing `.id` option so this should always be present.
     // Note that static requests are never rendered at runtime so we can be unsafe here and risk
     // failing a build (which would not be coherent if we allowed it to complete).
-    return data.value.?.get("id").?.string.value;
+    return try self.allocator.dupe(u8, data.value.?.get("id").?.string.value);
 }
 
 /// Returns the static params defined by `pub const static_params` in the relevant view.
