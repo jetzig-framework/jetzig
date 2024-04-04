@@ -232,7 +232,7 @@ fn renderMarkdown(
         );
         defer self.allocator.free(prefixed_name);
 
-        if (zmpl.manifest.find(prefixed_name)) |layout| {
+        if (zmpl.find(prefixed_name)) |layout| {
             rendered.view.data.content = .{ .data = markdown_content };
             rendered.content = try layout.render(rendered.view.data);
         } else {
@@ -249,7 +249,7 @@ fn renderView(
     self: *Self,
     route: *jetzig.views.Route,
     request: *jetzig.http.Request,
-    template: ?zmpl.manifest.Template,
+    template: ?zmpl.Template,
 ) !RenderedView {
     // View functions return a `View` to help encourage users to return from a view function with
     // `return request.render(.ok)`, but the actual rendered view is stored in
@@ -290,7 +290,7 @@ fn renderView(
 fn renderTemplateWithLayout(
     self: *Self,
     request: *jetzig.http.Request,
-    template: zmpl.manifest.Template,
+    template: zmpl.Template,
     view: jetzig.views.View,
     route: *jetzig.views.Route,
 ) ![]const u8 {
@@ -298,10 +298,10 @@ fn renderTemplateWithLayout(
 
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
-        const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts_", layout_name });
+        const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts", "/", layout_name });
         defer self.allocator.free(prefixed_name);
 
-        if (zmpl.manifest.find(prefixed_name)) |layout| {
+        if (zmpl.find(prefixed_name)) |layout| {
             return try template.renderWithLayout(layout, view.data);
         } else {
             try self.logger.WARN("Unknown layout: {s}", .{layout_name});

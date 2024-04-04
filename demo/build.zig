@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) !void {
 
     // All dependencies **must** be added to imports above this line.
 
-    try jetzig.jetzigInit(b, exe, .{});
+    try jetzig.jetzigInit(b, exe, .{ .zmpl_version = .v2 });
 
     b.installArtifact(exe);
 

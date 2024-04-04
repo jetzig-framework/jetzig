@@ -1,1 +1,1 @@
-<div>{.param}</div>
+<div>{{.param}}</div>

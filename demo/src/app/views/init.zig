@@ -1,3 +1,4 @@
+const std = @import("std");
 const jetzig = @import("jetzig");
 
 /// `src/app/views/root.zig` represents the root URL `/`
@@ -18,7 +19,7 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var root = try data.object();
 
     // Add a string to the root object.
-    try root.put("message", data.string("Welcome to Jetzig!"));
+    try root.put("welcome_message", data.string("Welcome to Jetzig!"));
 
     // Request params have the same type as a `data.object()` so they can be inserted them
     // directly into the response data. Fetch `http://localhost:8080/?message=hello` to set the
@@ -26,9 +27,7 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     // present.
     const params = try request.params();
 
-    if (params.get("message")) |value| {
-        try root.put("message_param", value);
-    }
+    try root.put("message_param", params.get("message"));
 
     // Set arbitrary response headers as required. `content-type` is automatically assigned for
     // HTML, JSON responses.

@@ -181,6 +181,8 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
     std.mem.replaceScalar(u8, view_name, '\\', '/');
     defer self.allocator.free(view_name);
 
+    const template = try std.mem.concat(self.allocator, u8, &[_][]const u8{ view_name, "/", route.name });
+
     std.mem.replaceScalar(u8, module_path, '\\', '/');
 
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
@@ -190,7 +192,7 @@ fn writeRoute(self: *Self, writer: std.ArrayList(u8).Writer, route: Function) !v
         if (route.static) "static" else "dynamic",
         if (route.static) "true" else "false",
         uri_path,
-        full_name,
+        template,
         module_path,
         try std.mem.join(self.allocator, ", \n", route.params.items),
     });

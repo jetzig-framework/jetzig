@@ -9,7 +9,7 @@
   </head>
 
   <body>
-    <main>{zmpl.content}</main>
+    <main>{{zmpl.content}}</main>
     <script src="/prism.js"></script>
   </body>
 </html>

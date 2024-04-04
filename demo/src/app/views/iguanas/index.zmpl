@@ -1,6 +1,7 @@
 <div>
-  var it = zmpl.value.?.array.iterator();
-  while (it.next()) |iguana| {
-    <div>{(iguana.string.value)}</div>
+@zig {
+  for (zmpl.items(.array)) |iguana| {
+    <div>{{iguana}}</div>
   }
+}
 </div>
