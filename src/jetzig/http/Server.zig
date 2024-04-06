@@ -146,6 +146,7 @@ fn renderHTML(
     if (route) |matched_route| {
         const template = zmpl.find(matched_route.template);
         if (template == null) {
+            request.response_data.noop(bool, false); // FIXME: Weird Zig bug ? Any call here fixes it.
             if (try self.renderMarkdown(request, route)) |rendered_markdown| {
                 return request.setResponse(rendered_markdown, .{});
             }
@@ -376,7 +377,7 @@ fn renderNotFound(request: *jetzig.http.Request) !RenderedView {
 fn renderBadRequest(request: *jetzig.http.Request) !RenderedView {
     request.response_data.reset();
 
-    const status: jetzig.http.StatusCode = .not_found;
+    const status: jetzig.http.StatusCode = .bad_request;
     const content = try request.formatStatus(status);
     return .{
         .view = jetzig.views.View{ .data = request.response_data, .status_code = status },
