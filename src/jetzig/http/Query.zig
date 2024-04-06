@@ -1,7 +1,7 @@
 const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
-const Self = @This();
+const Query = @This();
 
 allocator: std.mem.Allocator,
 query_string: []const u8,
@@ -10,10 +10,10 @@ data: *jetzig.data.Data,
 
 pub const QueryItem = struct {
     key: []const u8,
-    value: []const u8,
+    value: ?[]const u8,
 };
 
-pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzig.data.Data) Self {
+pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzig.data.Data) Query {
     return .{
         .allocator = allocator,
         .query_string = query_string,
@@ -22,19 +22,19 @@ pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzi
     };
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Query) void {
     self.query_items.deinit();
     self.data.deinit();
 }
 
-pub fn parse(self: *Self) !void {
+pub fn parse(self: *Query) !void {
     var pairs_it = std.mem.splitScalar(u8, self.query_string, '&');
 
     while (pairs_it.next()) |pair| {
         var key_value_it = std.mem.splitScalar(u8, pair, '=');
         var count: u2 = 0;
         var key: []const u8 = undefined;
-        var value: []const u8 = undefined;
+        var value: ?[]const u8 = null;
 
         while (key_value_it.next()) |key_or_value| {
             switch (count) {
@@ -53,27 +53,27 @@ pub fn parse(self: *Self) !void {
         if (arrayParam(item.key)) |key| {
             if (params.get(key)) |value| {
                 switch (value.*) {
-                    .array => try value.array.append(self.data.string(item.value)),
+                    .array => try value.array.append(self.dataValue(item.value)),
                     else => return error.JetzigQueryParseError,
                 }
             } else {
                 var array = try self.data.createArray();
-                try array.append(self.data.string(item.value));
+                try array.append(self.dataValue(item.value));
                 try params.put(key, array);
             }
         } else if (mappingParam(item.key)) |mapping| {
             if (params.get(mapping.key)) |value| {
                 switch (value.*) {
-                    .object => try value.object.put(mapping.field, self.data.string(item.value)),
+                    .object => try value.object.put(mapping.field, self.dataValue(item.value)),
                     else => return error.JetzigQueryParseError,
                 }
             } else {
                 var object = try self.data.createObject();
-                try object.put(mapping.field, self.data.string(item.value));
+                try object.put(mapping.field, self.dataValue(item.value));
                 try params.put(mapping.key, object);
             }
         } else {
-            try params.put(item.key, self.data.string(item.value));
+            try params.put(item.key, self.dataValue(item.value));
         }
     }
 }
@@ -101,6 +101,14 @@ fn mappingParam(input: []const u8) ?struct { key: []const u8, field: []const u8 
         .key = input[0..open_index],
         .field = input[open_index + 1 .. close_index],
     };
+}
+
+fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
+    if (value) |item_value| {
+        return self.data.string(item_value);
+    } else {
+        return self.data._null();
+    }
 }
 
 test "simple query string" {
@@ -154,4 +162,27 @@ test "query string with mapping values" {
         },
         else => unreachable,
     }
+}
+
+test "query string with param without value" {
+    const allocator = std.testing.allocator;
+    const query_string = "foo&bar";
+    var data = jetzig.data.Data.init(allocator);
+
+    var query = init(allocator, query_string, &data);
+    defer query.deinit();
+
+    try query.parse();
+
+    const foo = try data.get("foo");
+    try switch (foo.*) {
+        .Null => {},
+        else => std.testing.expect(false),
+    };
+
+    const bar = try data.get("bar");
+    try switch (bar.*) {
+        .Null => {},
+        else => std.testing.expect(false),
+    };
 }
