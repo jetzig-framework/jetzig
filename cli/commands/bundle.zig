@@ -40,6 +40,11 @@ pub fn run(
     positionals: [][]const u8,
     other_options: struct { help: bool },
 ) !void {
+    if (builtin.os.tag == .windows) {
+        std.debug.print("Bundling on Windows is currently not supported.\n", .{});
+        std.process.exit(1);
+    }
+
     _ = positionals;
     if (other_options.help) {
         try args.printHelp(Options, "jetzig bundle", writer);
@@ -51,89 +56,199 @@ pub fn run(
     defer cwd.close();
 
     const path = try cwd.realpathAlloc(allocator, ".");
+
+    cwd.deleteTree(".bundle") catch {};
+    var tmpdir = try cwd.makeOpenPath(".bundle", .{});
+    defer cwd.deleteTree(".bundle") catch {};
+    defer tmpdir.close();
+
     defer allocator.free(path);
 
-    if (try util.locateExecutable(allocator, cwd, .{ .relative = true })) |executable| {
-        defer allocator.free(executable);
+    const views_path = try std.fs.path.join(allocator, &[_][]const u8{ "src", "app", "views" });
+    defer allocator.free(views_path);
 
-        var tar_argv = std.ArrayList([]const u8).init(allocator);
-        defer tar_argv.deinit();
-
-        var install_argv = std.ArrayList([]const u8).init(allocator);
-        defer install_argv.deinit();
-
-        try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "--color", "on" });
-
-        switch (builtin.os.tag) {
-            .windows => try tar_argv.appendSlice(&[_][]const u8{
-                "tar.exe",
-                "-a",
-                "-c",
-                "-f",
-                "bundle.zip",
-                executable,
-            }),
-            else => try tar_argv.appendSlice(&[_][]const u8{
-                "tar",
-                "--transform=s,^,jetzig/,",
-                "--transform=s,^jetzig/zig-out/bin/,jetzig/,",
-                "-zcf",
-                "bundle.tar.gz",
-                executable,
-            }),
-        }
-
-        switch (options.optimize) {
-            .ReleaseFast => try install_argv.append("-Doptimize=ReleaseFast"),
-            .ReleaseSmall => try install_argv.append("-Doptimize=ReleaseSmall"),
-            .Debug => try install_argv.append("-Doptimize=Debug"),
-        }
-
-        var target_buf = std.ArrayList([]const u8).init(allocator);
-        defer target_buf.deinit();
-
-        try target_buf.append("-Dtarget=");
-        switch (options.arch) {
-            .x86_64 => try target_buf.append("x86_64"),
-            .aarch64 => try target_buf.append("aarch64"),
-            .default => try target_buf.append(@tagName(builtin.cpu.arch)),
-        }
-
-        try target_buf.append("-");
-
-        switch (options.os) {
-            .linux => try target_buf.append("linux"),
-            .macos => try target_buf.append("macos"),
-            .windows => try target_buf.append("windows"),
-            .default => try target_buf.append(@tagName(builtin.os.tag)),
-        }
-
-        const target = try std.mem.concat(allocator, u8, target_buf.items);
-        defer allocator.free(target);
-
-        try install_argv.append(target);
-        try install_argv.append("install");
-
-        var public_dir: ?std.fs.Dir = cwd.openDir("public", .{}) catch null;
-        defer if (public_dir) |*dir| dir.close();
-
-        var static_dir: ?std.fs.Dir = cwd.openDir("static", .{}) catch null;
-        defer if (static_dir) |*dir| dir.close();
-
-        if (public_dir != null) try tar_argv.append("public");
-        if (static_dir != null) try tar_argv.append("static");
-
-        try util.runCommand(allocator, path, install_argv.items);
-        try util.runCommand(allocator, path, tar_argv.items);
-
-        switch (builtin.os.tag) {
-            .windows => std.debug.print("Bundle `bundle.zip` generated successfully.", .{}),
-            else => std.debug.print("Bundle `bundle.tar.gz` generated successfully.", .{}),
-        }
-        util.printSuccess();
-    } else {
-        std.debug.print("Unable to locate compiled executable. Exiting.", .{});
+    const maybe_executable = try zig_build_install(allocator, path, options);
+    if (maybe_executable == null) {
+        std.debug.print("Unable to locate compiled executable in {s}", .{path});
         util.printFailure();
         std.process.exit(1);
+    }
+
+    const executable = maybe_executable.?;
+
+    // * Create .bundle/
+    // * Compile exe in .bundle/
+    // * Rename exe to `{bundle-name}/server`
+    // * Copy `public`, `static` and any markdown files into `{bundle-name}/`
+    // * Create tarball inside `.bundle/` from `{bundle-name}/`
+    defer allocator.free(executable);
+
+    const exe_basename = std.fs.path.basename(executable);
+
+    // We don't use `std.fs.path.extension` here because the project name may have a `.` in it
+    // which would be truncated when no `.exe` extension is present (e.g. on Linux).
+    const exe_name_len = if (std.mem.endsWith(u8, executable, ".exe"))
+        exe_basename.len - 4
+    else
+        exe_basename.len;
+    const bundle_name = exe_basename[0..exe_name_len];
+
+    var bundle_dir = try tmpdir.makeOpenPath(bundle_name, .{});
+    defer bundle_dir.close();
+
+    const bundle_real_path = try bundle_dir.realpathAlloc(allocator, ".");
+    defer allocator.free(bundle_real_path);
+
+    const exe_path = try std.fs.path.join(allocator, &[_][]const u8{ "bin", executable });
+    defer allocator.free(exe_path);
+    const renamed_exe_path = try std.fs.path.join(allocator, &[_][]const u8{ bundle_name, "server" });
+    defer allocator.free(renamed_exe_path);
+
+    try tmpdir.rename(exe_path, renamed_exe_path);
+
+    var tar_argv = std.ArrayList([]const u8).init(allocator);
+    defer tar_argv.deinit();
+    switch (builtin.os.tag) {
+        .windows => {}, // TODO
+        else => {
+            try tar_argv.appendSlice(&[_][]const u8{
+                "tar",
+                "-zcf",
+                "../bundle.tar.gz",
+                bundle_name,
+            });
+        },
+    }
+    var public_dir: ?std.fs.Dir = cwd.openDir("public", .{}) catch null;
+    defer if (public_dir) |*dir| dir.close();
+
+    var static_dir: ?std.fs.Dir = cwd.openDir("static", .{}) catch null;
+    defer if (static_dir) |*dir| dir.close();
+
+    if (public_dir != null) {
+        const dest_path = try std.fs.path.join(allocator, &[_][]const u8{ bundle_real_path, "public" });
+        defer allocator.free(dest_path);
+        try copyTree(allocator, cwd, "public", dest_path);
+    }
+
+    if (static_dir != null) {
+        const dest_path = try std.fs.path.join(allocator, &[_][]const u8{ bundle_real_path, "static" });
+        defer allocator.free(dest_path);
+        try copyTree(allocator, cwd, "static", dest_path);
+    }
+
+    var markdown_paths = std.ArrayList([]const u8).init(allocator);
+    try locateMarkdownFiles(allocator, cwd, views_path, &markdown_paths);
+
+    defer markdown_paths.deinit();
+    defer for (markdown_paths.items) |markdown_path| allocator.free(markdown_path);
+    for (markdown_paths.items) |markdown_path| {
+        if (std.fs.path.dirname(markdown_path)) |dirname| bundle_dir.makePath(dirname) catch {};
+        try cwd.copyFile(markdown_path, bundle_dir, markdown_path, .{});
+    }
+
+    const tmpdir_real_path = try tmpdir.realpathAlloc(allocator, ".");
+    defer allocator.free(tmpdir_real_path);
+
+    try util.runCommand(allocator, tmpdir_real_path, tar_argv.items);
+
+    switch (builtin.os.tag) {
+        .windows => {},
+        else => std.debug.print("Bundle `bundle.tar.gz` generated successfully.", .{}),
+    }
+    util.printSuccess();
+}
+
+fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.ArrayList([]const u8)) !void {
+    var views_dir = try dir.openDir(views_path, .{ .iterate = true });
+    defer views_dir.close();
+    var walker = try views_dir.walk(allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        if (std.mem.eql(u8, std.fs.path.extension(entry.path), ".md")) {
+            const path = try std.fs.path.join(allocator, &[_][]const u8{ views_path, entry.path });
+            try paths.append(path);
+        }
+    }
+}
+
+fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Options) !?[]const u8 {
+    var install_argv = std.ArrayList([]const u8).init(allocator);
+    defer install_argv.deinit();
+
+    try install_argv.appendSlice(&[_][]const u8{ "zig", "build" });
+
+    switch (options.optimize) {
+        .ReleaseFast => try install_argv.append("-Doptimize=ReleaseFast"),
+        .ReleaseSmall => try install_argv.append("-Doptimize=ReleaseSmall"),
+        .Debug => try install_argv.append("-Doptimize=Debug"),
+    }
+
+    var target_buf = std.ArrayList([]const u8).init(allocator);
+    defer target_buf.deinit();
+
+    try target_buf.append("-Dtarget=");
+    switch (options.arch) {
+        .x86_64 => try target_buf.append("x86_64"),
+        .aarch64 => try target_buf.append("aarch64"),
+        .default => try target_buf.append(@tagName(builtin.cpu.arch)),
+    }
+
+    try target_buf.append("-");
+
+    switch (options.os) {
+        .linux => try target_buf.append("linux"),
+        .macos => try target_buf.append("macos"),
+        .windows => try target_buf.append("windows"),
+        .default => try target_buf.append(@tagName(builtin.os.tag)),
+    }
+
+    const target = try std.mem.concat(allocator, u8, target_buf.items);
+    defer allocator.free(target);
+
+    try install_argv.appendSlice(&[_][]const u8{
+        target, "--prefix", ".bundle", "install",
+    });
+
+    var project_dir = try std.fs.openDirAbsolute(path, .{});
+    defer project_dir.close();
+    project_dir.makePath(".bundle") catch {};
+
+    try util.runCommand(allocator, path, install_argv.items);
+
+    const install_bin_path = try std.fs.path.join(allocator, &[_][]const u8{ ".bundle", "bin" });
+    defer allocator.free(install_bin_path);
+    var install_dir = try project_dir.openDir(install_bin_path, .{ .iterate = true });
+    defer install_dir.close();
+
+    var install_walker = try install_dir.walk(allocator);
+    defer install_walker.deinit();
+    while (try install_walker.next()) |entry| {
+        // TODO: Figure out what to do when multiple exe files are found.
+        return try allocator.dupe(u8, entry.path);
+    }
+    return null;
+}
+
+fn copyTree(
+    allocator: std.mem.Allocator,
+    src_dir: std.fs.Dir,
+    sub_path: []const u8,
+    dest_path: []const u8,
+) !void {
+    var dir = try src_dir.openDir(sub_path, .{ .iterate = true });
+    defer dir.close();
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+
+    std.fs.makeDirAbsolute(dest_path) catch {};
+    var dest_dir = try std.fs.openDirAbsolute(dest_path, .{});
+    defer dest_dir.close();
+
+    while (try walker.next()) |entry| {
+        if (std.fs.path.dirname(entry.path)) |dirname| dest_dir.makePath(dirname) catch {};
+        try dir.copyFile(entry.path, dest_dir, entry.path, .{});
     }
 }
