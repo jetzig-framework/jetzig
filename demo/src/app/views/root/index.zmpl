@@ -1,8 +1,11 @@
 <div class="text-center pt-10 m-auto">
+
   <div><img class="p-3 mx-auto" src="/jetzig.png" /></div>
 
-  // Renders `src/app/views/root/_quotes.zmpl`:
-  <div>{^root/quotes}</div>
+  <!-- Renders `src/app/views/root/_quotes.zmpl`: -->
+  <div>
+    @partial root/quotes(message: .message)
+  </div>
 
   <div>
     <a href="https://github.com/jetzig-framework/zmpl">

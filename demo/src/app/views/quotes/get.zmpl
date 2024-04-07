@@ -1,2 +1,2 @@
-<div>"{.quote}"</div>
-<div><b>--{.author}</b></div>
+<div>"{{.quote}}"</div>
+<div><b>--{{.author}}</b></div>

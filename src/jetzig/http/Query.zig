@@ -107,7 +107,7 @@ fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
     if (value) |item_value| {
         return self.data.string(item_value);
     } else {
-        return self.data._null();
+        return jetzig.zmpl.Data._null(self.data.getAllocator());
     }
 }
 

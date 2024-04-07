@@ -7,11 +7,20 @@ pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
 pub const http = @import("src/jetzig/http.zig");
 pub const data = @import("src/jetzig/data.zig");
 pub const views = @import("src/jetzig/views.zig");
+const zmpl_build = @import("zmpl");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const template_path = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse "src/app/views/";
+    const template_path_option = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse
+        "src/app/views/";
+    const template_path: []const u8 = if (std.fs.path.isAbsolute(template_path_option))
+        try b.allocator.dupe(u8, template_path_option)
+    else
+        std.fs.cwd().realpathAlloc(b.allocator, template_path_option) catch |err| switch (err) {
+            error.FileNotFound => "",
+            else => return err,
+        };
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
@@ -28,6 +37,24 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("mime_types", mime_module);
     lib.root_module.addImport("jetzig", jetzig_module);
 
+    const zmpl_version = b.option(
+        enum { v1, v2 },
+        "zmpl_version",
+        "Zmpl syntax version (default: v1)",
+    ) orelse .v2;
+
+    if (zmpl_version == .v1) {
+        std.debug.print(
+            \\[WARN] Zmpl v1 is deprecated and will soon be removed.
+            \\       Update to v2 by modifying `jetzigInit` in your `build.zig`:
+            \\
+            \\       try jetzig.jetzigInit(b, exe, .{{ .zmpl_version = .v2 }});
+            \\
+            \\       See https://jetzig.dev/documentation.html for information on migrating to Zmpl v2.
+            \\
+        , .{});
+    }
+
     const zmpl_dep = b.dependency(
         "zmpl",
         .{
@@ -35,29 +62,22 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .zmpl_templates_path = template_path,
             .zmpl_auto_build = false,
+            .zmpl_version = zmpl_version,
+            .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
+                jetzig_view: []const u8,
+                jetzig_action: []const u8,
+            }),
         },
     );
 
     const zmpl_module = zmpl_dep.module("zmpl");
+
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
 
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
-
-    const ZmplBuild = @import("zmpl").ZmplBuild;
-    const ZmplTemplate = @import("zmpl").Template;
-    var zmpl_build = ZmplBuild.init(b, lib, template_path);
-    const TemplateConstants = struct {
-        jetzig_view: []const u8,
-        jetzig_action: []const u8,
-    };
-    const ZmplOptions = struct {
-        pub const template_constants = TemplateConstants;
-    };
-    const manifest_module = try zmpl_build.compile(ZmplTemplate, ZmplOptions);
-    zmpl_module.addImport("zmpl.manifest", manifest_module);
 
     lib.root_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("zmpl", zmpl_module);
@@ -86,17 +106,17 @@ pub fn build(b: *std.Build) !void {
     test_step.dependOn(&run_main_tests.step);
 }
 
-/// Placeholder for potential options we may add in future without breaking
-/// backward-compatibility.
-pub const JetzigInitOptions = struct {};
+/// Build-time options for Jetzig.
+pub const JetzigInitOptions = struct {
+    zmpl_version: enum { v1, v2 } = .v1,
+};
 
 pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigInitOptions) !void {
-    _ = options;
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
     const jetzig_dep = b.dependency(
         "jetzig",
-        .{ .optimize = optimize, .target = b.host },
+        .{ .optimize = optimize, .target = target, .zmpl_version = options.zmpl_version },
     );
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
@@ -159,5 +179,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
+    run_static_routes_cmd.expectExitCode(0);
     exe.step.dependOn(&run_static_routes_cmd.step);
 }
