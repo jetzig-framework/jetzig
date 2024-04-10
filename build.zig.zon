@@ -7,8 +7,8 @@
             .hash = "12209aafe4687b193fa8073d9c8f425f8298f1c119c159ba7a5e3a4f87ac08f368c9",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/4105b5cc85697224c87fab203b7a8ab1776f7540.tar.gz",
-            .hash = "122063fe2356b1ac01af47700faef4dc87da5721b2c6cca7a7526d3c0176dabea5ae",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/299b03488a0ba87ef043bea1f79458fa5f889479.tar.gz",
+            .hash = "1220535ae6229de366450ec90010c6cdba2523c9b66f34a0002514677fa07abd6b82",
         },
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
