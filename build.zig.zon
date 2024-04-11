@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/3547c41ed5961f03d0604c3bc30e5793dbe343be.tar.gz",
-            .hash = "12209aafe4687b193fa8073d9c8f425f8298f1c119c159ba7a5e3a4f87ac08f368c9",
+            .url = "https://github.com/jetzig-framework/zmd/archive/23914d62d05c9e4a165101a414e19c990d1cfe15.tar.gz",
+            .hash = "1220d4c02944c3662fd03437eee315c5aef78ac935bc892fbcf496c9bed0fb568e1d",
         },
         .zmpl = .{
             .url = "https://github.com/jetzig-framework/zmpl/archive/299b03488a0ba87ef043bea1f79458fa5f889479.tar.gz",
