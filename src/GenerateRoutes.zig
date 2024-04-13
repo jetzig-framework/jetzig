@@ -253,14 +253,11 @@ fn generateRoutesForView(self: *Self, views_dir: std.fs.Dir, path: []const u8) !
         if (static_params) |capture| {
             if (capture.get(static_route.name)) |params| {
                 for (params.array.array.items) |item| { // XXX: Use public interface for Data.Array here ?
-                    var json_buf = std.ArrayList(u8).init(self.allocator);
-                    defer json_buf.deinit();
-                    const json_writer = json_buf.writer();
-                    try item.toJson(json_writer, false, 0);
+                    const json = try item.toJson();
                     var encoded_buf = std.ArrayList(u8).init(self.allocator);
                     defer encoded_buf.deinit();
                     const writer = encoded_buf.writer();
-                    try std.json.encodeJsonString(json_buf.items, .{}, writer);
+                    try std.json.encodeJsonString(json, .{}, writer);
                     try static_route.params.append(try self.allocator.dupe(u8, encoded_buf.items));
                 }
             }

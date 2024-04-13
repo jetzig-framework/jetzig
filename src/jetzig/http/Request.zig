@@ -2,7 +2,7 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 
-const Self = @This();
+const Request = @This();
 const default_content_type = "text/html";
 
 pub const Method = enum { DELETE, GET, PATCH, POST, HEAD, PUT, CONNECT, OPTIONS, TRACE };
@@ -18,8 +18,8 @@ std_http_request: std.http.Server.Request,
 response: *jetzig.http.Response,
 status_code: jetzig.http.status_codes.StatusCode = undefined,
 response_data: *jetzig.data.Data,
-query_data: *jetzig.data.Data,
-query: *jetzig.http.Query,
+query_params: ?*jetzig.http.Query = null,
+query_body: ?*jetzig.http.Query = null,
 cookies: *jetzig.http.Cookies = undefined,
 session: *jetzig.http.Session = undefined,
 body: []const u8 = undefined,
@@ -38,7 +38,7 @@ pub fn init(
     start_time: i128,
     std_http_request: std.http.Server.Request,
     response: *jetzig.http.Response,
-) !Self {
+) !Request {
     const method = switch (std_http_request.head.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
@@ -55,11 +55,6 @@ pub fn init(
     const response_data = try allocator.create(jetzig.data.Data);
     response_data.* = jetzig.data.Data.init(allocator);
 
-    const query_data = try allocator.create(jetzig.data.Data);
-    query_data.* = jetzig.data.Data.init(allocator);
-
-    const query = try allocator.create(jetzig.http.Query);
-
     return .{
         .allocator = allocator,
         .path = jetzig.http.Path.init(std_http_request.head.target),
@@ -68,14 +63,12 @@ pub fn init(
         .server = server,
         .response = response,
         .response_data = response_data,
-        .query_data = query_data,
-        .query = query,
         .std_http_request = std_http_request,
         .start_time = start_time,
     };
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Request) void {
     // self.session.deinit();
     self.allocator.destroy(self.cookies);
     self.allocator.destroy(self.session);
@@ -83,7 +76,7 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Process request, read body if present, parse headers (TODO)
-pub fn process(self: *Self) !void {
+pub fn process(self: *Request) !void {
     var headers_it = self.std_http_request.iterateHeaders();
     var cookie: ?[]const u8 = null;
 
@@ -117,7 +110,7 @@ pub fn process(self: *Self) !void {
 }
 
 /// Set response headers, write response payload, and finalize the response.
-pub fn respond(self: *Self) !void {
+pub fn respond(self: *Request) !void {
     if (!self.processed) unreachable;
 
     var cookie_it = self.cookies.headerIterator();
@@ -143,7 +136,7 @@ pub fn respond(self: *Self) !void {
 
 /// Render a response. This function can only be called once per request (repeat calls will
 /// trigger an error).
-pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
+pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
     if (self.rendered) self.rendered_multiple = true;
 
     self.rendered = true;
@@ -160,7 +153,7 @@ pub fn render(self: *Self, status_code: jetzig.http.status_codes.StatusCode) jet
 /// ```
 /// The second argument must be `moved_permanently` or `found`.
 pub fn redirect(
-    self: *Self,
+    self: *Request,
     location: []const u8,
     redirect_status: enum { moved_permanently, found },
 ) jetzig.views.View {
@@ -188,7 +181,7 @@ pub fn redirect(
 /// * `Accept` header (`application/json` or `text/html`)
 /// * `Content-Type` header (`application/json` or `text/html`)
 /// * Fall back to default: HTML
-pub fn requestFormat(self: *Self) jetzig.http.Request.Format {
+pub fn requestFormat(self: *Request) jetzig.http.Request.Format {
     return self.extensionFormat() orelse
         self.acceptHeaderFormat() orelse
         self.contentTypeHeaderFormat() orelse
@@ -197,7 +190,7 @@ pub fn requestFormat(self: *Self) jetzig.http.Request.Format {
 
 /// Set the layout for the current request/response. Use this to override a `pub const layout`
 /// declaration in a view, either in middleware or in a view function itself.
-pub fn setLayout(self: *Self, layout: ?[]const u8) void {
+pub fn setLayout(self: *Request, layout: ?[]const u8) void {
     if (layout) |layout_name| {
         self.layout = layout_name;
         self.layout_disabled = false;
@@ -208,7 +201,7 @@ pub fn setLayout(self: *Self, layout: ?[]const u8) void {
 
 /// Derive a layout name from the current request if defined, otherwise from the route (if
 /// defined).
-pub fn getLayout(self: *Self, route: *jetzig.views.Route) ?[]const u8 {
+pub fn getLayout(self: *Request, route: *jetzig.views.Route) ?[]const u8 {
     if (self.layout_disabled) return null;
     if (self.layout) |capture| return capture;
     if (route.layout) |capture| return capture;
@@ -218,7 +211,7 @@ pub fn getLayout(self: *Self, route: *jetzig.views.Route) ?[]const u8 {
 
 /// Shortcut for `request.headers.getFirstValue`. Returns the first matching value for a given
 /// header name or `null` if not found. Header names are case-insensitive.
-pub fn getHeader(self: *Self, key: []const u8) ?[]const u8 {
+pub fn getHeader(self: *Request, key: []const u8) ?[]const u8 {
     return self.headers.getFirstValue(key);
 }
 
@@ -227,7 +220,7 @@ pub fn getHeader(self: *Self, key: []const u8) ?[]const u8 {
 /// Note that query parameters are supported for JSON requests if no request body is present,
 /// otherwise the parsed JSON request body will take precedence and query parameters will be
 /// ignored.
-pub fn params(self: *Self) !*jetzig.data.Value {
+pub fn params(self: *Request) !*jetzig.data.Value {
     if (!self.processed) unreachable;
 
     switch (self.requestFormat()) {
@@ -244,35 +237,45 @@ pub fn params(self: *Self) !*jetzig.data.Value {
             };
             return data.value.?;
         },
-        .HTML, .UNKNOWN => return self.queryParams(),
+        .HTML, .UNKNOWN => return self.parseQuery(),
     }
 }
 
-fn queryParams(self: *Self) !*jetzig.data.Value {
-    if (!try self.parseQueryString()) {
-        self.query.data = try self.allocator.create(jetzig.data.Data);
-        self.query.data.* = jetzig.data.Data.init(self.allocator);
-        _ = try self.query.data.object();
-    }
-    return self.query.data.value.?;
+/// Return a `*Value` representing request parameters. This function **always** returns the
+/// parsed query string and never the request body.
+pub fn queryParams(self: *Request) !*jetzig.data.Value {
+    if (self.query_params) |parsed| return parsed.data.value.?;
+
+    const data = try self.allocator.create(jetzig.data.Data);
+    data.* = jetzig.data.Data.init(self.allocator);
+    self.query_params = try self.allocator.create(jetzig.http.Query);
+    self.query_params.?.* = jetzig.http.Query.init(
+        self.allocator,
+        self.path.query orelse "",
+        data,
+    );
+    try self.query_params.?.parse();
+    return self.query_params.?.data.value.?;
 }
 
-fn parseQueryString(self: *Self) !bool {
-    const data: ?[]const u8 = if (self.body.len > 0) self.body else self.path.query;
-    if (data) |query| {
-        self.query.* = jetzig.http.Query.init(
-            self.allocator,
-            query,
-            self.query_data,
-        );
-        try self.query.parse();
-        return true;
-    }
+// Parses request body as params if present, otherwise delegates to `queryParams`.
+fn parseQuery(self: *Request) !*jetzig.data.Value {
+    if (self.body.len == 0) return try self.queryParams();
+    if (self.query_body) |parsed| return parsed.data.value.?;
 
-    return false;
+    const data = try self.allocator.create(jetzig.data.Data);
+    data.* = jetzig.data.Data.init(self.allocator);
+    self.query_body = try self.allocator.create(jetzig.http.Query);
+    self.query_body.?.* = jetzig.http.Query.init(
+        self.allocator,
+        self.body,
+        data,
+    );
+    try self.query_body.?.parse();
+    return self.query_body.?.data.value.?;
 }
 
-fn extensionFormat(self: *Self) ?jetzig.http.Request.Format {
+fn extensionFormat(self: *Request) ?jetzig.http.Request.Format {
     const extension = self.path.extension orelse return null;
 
     if (std.mem.eql(u8, extension, ".html")) {
@@ -284,7 +287,7 @@ fn extensionFormat(self: *Self) ?jetzig.http.Request.Format {
     }
 }
 
-pub fn acceptHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
+pub fn acceptHeaderFormat(self: *Request) ?jetzig.http.Request.Format {
     const acceptHeader = self.getHeader("Accept");
 
     if (acceptHeader) |item| {
@@ -295,7 +298,7 @@ pub fn acceptHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
     return null;
 }
 
-pub fn contentTypeHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
+pub fn contentTypeHeaderFormat(self: *Request) ?jetzig.http.Request.Format {
     const acceptHeader = self.getHeader("content-type");
 
     if (acceptHeader) |item| {
@@ -306,7 +309,7 @@ pub fn contentTypeHeaderFormat(self: *Self) ?jetzig.http.Request.Format {
     return null;
 }
 
-pub fn hash(self: *Self) ![]const u8 {
+pub fn hash(self: *Request) ![]const u8 {
     return try std.fmt.allocPrint(
         self.allocator,
         "{s}-{s}-{s}",
@@ -314,7 +317,7 @@ pub fn hash(self: *Self) ![]const u8 {
     );
 }
 
-pub fn fmtMethod(self: *const Self, colorized: bool) []const u8 {
+pub fn fmtMethod(self: *const Request, colorized: bool) []const u8 {
     if (!colorized) return @tagName(self.method);
 
     return switch (self.method) {
@@ -331,7 +334,7 @@ pub fn fmtMethod(self: *const Self, colorized: bool) []const u8 {
 /// Format a status code appropriately for the current request format.
 /// e.g. `.HTML` => `404 Not Found`
 ///      `.JSON` => `{ "message": "Not Found", "status": "404" }`
-pub fn formatStatus(self: *Self, status_code: jetzig.http.StatusCode) ![]const u8 {
+pub fn formatStatus(self: *Request, status_code: jetzig.http.StatusCode) ![]const u8 {
     const status = jetzig.http.status_codes.get(status_code);
 
     return switch (self.requestFormat()) {
@@ -344,7 +347,7 @@ pub fn formatStatus(self: *Self, status_code: jetzig.http.StatusCode) ![]const u
 }
 
 pub fn setResponse(
-    self: *Self,
+    self: *Request,
     rendered_view: jetzig.http.Server.RenderedView,
     options: struct { content_type: ?[]const u8 = null },
 ) void {
@@ -357,7 +360,7 @@ pub fn setResponse(
 }
 
 // Determine if a given route matches the current request.
-pub fn match(self: *Self, route: jetzig.views.Route) !bool {
+pub fn match(self: *Request, route: jetzig.views.Route) !bool {
     return switch (self.method) {
         .GET => switch (route.action) {
             .index => self.isMatch(.exact, route),
@@ -384,7 +387,7 @@ pub fn match(self: *Self, route: jetzig.views.Route) !bool {
     };
 }
 
-fn isMatch(self: *Self, match_type: enum { exact, resource_id }, route: jetzig.views.Route) bool {
+fn isMatch(self: *Request, match_type: enum { exact, resource_id }, route: jetzig.views.Route) bool {
     const path = switch (match_type) {
         .exact => self.path.base_path,
         .resource_id => self.path.directory,

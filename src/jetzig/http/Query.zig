@@ -33,18 +33,22 @@ pub fn parse(self: *Query) !void {
     while (pairs_it.next()) |pair| {
         var key_value_it = std.mem.splitScalar(u8, pair, '=');
         var count: u2 = 0;
-        var key: []const u8 = undefined;
+        var maybe_key: ?[]const u8 = null;
         var value: ?[]const u8 = null;
 
         while (key_value_it.next()) |key_or_value| {
             switch (count) {
-                0 => key = key_or_value,
+                0 => maybe_key = key_or_value,
                 1 => value = key_or_value,
                 else => return error.JetzigQueryParseError,
             }
             count += 1;
         }
-        try self.query_items.append(.{ .key = key, .value = value });
+        if (maybe_key) |key| {
+            if (key.len > 0) {
+                try self.query_items.append(.{ .key = key, .value = value });
+            }
+        }
     }
 
     var params = try self.data.object();
@@ -120,8 +124,8 @@ test "simple query string" {
     defer query.deinit();
 
     try query.parse();
-    try std.testing.expectEqualStrings((try data.get("foo")).string.value, "bar");
-    try std.testing.expectEqualStrings((try data.get("baz")).string.value, "qux");
+    try std.testing.expectEqualStrings((data.get("foo")).?.string.value, "bar");
+    try std.testing.expectEqualStrings((data.get("baz")).?.string.value, "qux");
 }
 
 test "query string with array values" {
@@ -134,7 +138,7 @@ test "query string with array values" {
 
     try query.parse();
 
-    const value = try data.get("foo");
+    const value = data.get("foo").?;
     switch (value.*) {
         .array => |array| {
             try std.testing.expectEqualStrings(array.get(0).?.string.value, "bar");
@@ -154,7 +158,7 @@ test "query string with mapping values" {
 
     try query.parse();
 
-    const value = try data.get("foo");
+    const value = data.get("foo").?;
     switch (value.*) {
         .object => |object| {
             try std.testing.expectEqualStrings(object.get("bar").?.string.value, "baz");
@@ -174,13 +178,13 @@ test "query string with param without value" {
 
     try query.parse();
 
-    const foo = try data.get("foo");
+    const foo = data.get("foo").?;
     try switch (foo.*) {
         .Null => {},
         else => std.testing.expect(false),
     };
 
-    const bar = try data.get("bar");
+    const bar = data.get("bar").?;
     try switch (bar.*) {
         .Null => {},
         else => std.testing.expect(false),
