@@ -13,6 +13,7 @@ stderr: std.fs.File,
 stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
+mutex: std.Thread.Mutex,
 
 /// Initialize a new Development Logger.
 pub fn init(
@@ -28,12 +29,13 @@ pub fn init(
         .stderr = stderr,
         .stdout_colorized = stdout.isTty(),
         .stderr_colorized = stderr.isTty(),
+        .mutex = std.Thread.Mutex{},
     };
 }
 
 /// Generic log function, receives log level, message (format string), and args for format string.
 pub fn log(
-    self: DevelopmentLogger,
+    self: *const DevelopmentLogger,
     comptime level: LogLevel,
     comptime message: []const u8,
     args: anytype,
@@ -57,6 +59,9 @@ pub fn log(
     };
     const writer = file.writer();
     const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
+
+    @constCast(self).mutex.lock();
+    defer @constCast(self).mutex.unlock();
 
     try writer.print("{s: >5} [{s}] {s}\n", .{ level_formatted, iso8601, output });
 

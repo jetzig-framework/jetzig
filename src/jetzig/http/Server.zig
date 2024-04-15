@@ -16,34 +16,40 @@ allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
 options: ServerOptions,
 routes: []*jetzig.views.Route,
+job_definitions: []const jetzig.JobDefinition,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
 initialized: bool = false,
+jet_kv: *jetzig.jetkv.JetKV,
 
-const Self = @This();
+const Server = @This();
 
 pub fn init(
     allocator: std.mem.Allocator,
     options: ServerOptions,
     routes: []*jetzig.views.Route,
+    job_definitions: []const jetzig.JobDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
-) Self {
+    jet_kv: *jetzig.jetkv.JetKV,
+) Server {
     return .{
         .allocator = allocator,
         .logger = options.logger,
         .options = options,
         .routes = routes,
+        .job_definitions = job_definitions,
         .mime_map = mime_map,
+        .jet_kv = jet_kv,
     };
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Server) void {
     if (self.initialized) self.std_net_server.deinit();
     self.allocator.free(self.options.secret);
     self.allocator.free(self.options.bind);
 }
 
-pub fn listen(self: *Self) !void {
+pub fn listen(self: *Server) !void {
     const address = try std.net.Address.parseIp(self.options.bind, self.options.port);
     self.std_net_server = try address.listen(.{ .reuse_port = true });
 
@@ -57,7 +63,7 @@ pub fn listen(self: *Self) !void {
     try self.processRequests();
 }
 
-fn processRequests(self: *Self) !void {
+fn processRequests(self: *Server) !void {
     // TODO: Keepalive
     while (true) {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -82,7 +88,7 @@ fn processRequests(self: *Self) !void {
     }
 }
 
-fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
+fn processNextRequest(self: *Server, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
     const start_time = std.time.nanoTimestamp();
 
     const std_http_request = try std_http_server.receiveHead();
@@ -108,7 +114,7 @@ fn processNextRequest(self: *Self, allocator: std.mem.Allocator, std_http_server
     try self.logger.logRequest(&request);
 }
 
-fn renderResponse(self: *Self, request: *jetzig.http.Request) !void {
+fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
@@ -139,7 +145,7 @@ fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
 }
 
 fn renderHTML(
-    self: *Self,
+    self: *Server,
     request: *jetzig.http.Request,
     route: ?*jetzig.views.Route,
 ) !void {
@@ -169,7 +175,7 @@ fn renderHTML(
 }
 
 fn renderJSON(
-    self: *Self,
+    self: *Server,
     request: *jetzig.http.Request,
     route: ?*jetzig.views.Route,
 ) !void {
@@ -191,7 +197,7 @@ fn renderJSON(
 }
 
 fn renderMarkdown(
-    self: *Self,
+    self: *Server,
     request: *jetzig.http.Request,
     maybe_route: ?*jetzig.views.Route,
 ) !?RenderedView {
@@ -246,7 +252,7 @@ fn renderMarkdown(
 pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
 
 fn renderView(
-    self: *Self,
+    self: *Server,
     route: *jetzig.views.Route,
     request: *jetzig.http.Request,
     template: ?zmpl.Template,
@@ -288,7 +294,7 @@ fn renderView(
 }
 
 fn renderTemplateWithLayout(
-    self: *Self,
+    self: *Server,
     request: *jetzig.http.Request,
     template: zmpl.Template,
     view: jetzig.views.View,
@@ -347,7 +353,7 @@ fn isBadHttpError(err: anyerror) bool {
     };
 }
 
-fn renderInternalServerError(self: *Self, request: *jetzig.http.Request, err: anyerror) !RenderedView {
+fn renderInternalServerError(self: *Server, request: *jetzig.http.Request, err: anyerror) !RenderedView {
     request.response_data.reset();
 
     try self.logger.ERROR("Encountered Error: {s}", .{@errorName(err)});
@@ -386,7 +392,7 @@ fn renderBadRequest(request: *jetzig.http.Request) !RenderedView {
 }
 
 fn logStackTrace(
-    self: *Self,
+    self: *Server,
     stack: *std.builtin.StackTrace,
     request: *jetzig.http.Request,
 ) !void {
@@ -398,7 +404,7 @@ fn logStackTrace(
     try self.logger.ERROR("{s}\n", .{buf.items});
 }
 
-fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?*jetzig.views.Route {
+fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?*jetzig.views.Route {
     for (self.routes) |route| {
         // .index routes always take precedence.
         if (route.static == static and route.action == .index and try request.match(route.*)) return route;
@@ -413,7 +419,7 @@ fn matchRoute(self: *Self, request: *jetzig.http.Request, static: bool) !?*jetzi
 
 const StaticResource = struct { content: []const u8, mime_type: []const u8 = "application/octet-stream" };
 
-fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResource {
+fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticResource {
     // TODO: Map public and static routes at launch to avoid accessing the file system when
     // matching any route - currently every request causes file system traversal.
     const public_resource = try self.matchPublicContent(request);
@@ -431,7 +437,7 @@ fn matchStaticResource(self: *Self, request: *jetzig.http.Request) !?StaticResou
     return null;
 }
 
-fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResource {
+fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticResource {
     if (request.path.file_path.len <= 1) return null;
     if (request.method != .GET) return null;
 
@@ -470,7 +476,7 @@ fn matchPublicContent(self: *Self, request: *jetzig.http.Request) !?StaticResour
     return null;
 }
 
-fn matchStaticContent(self: *Self, request: *jetzig.http.Request) !?[]const u8 {
+fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8 {
     var static_dir = std.fs.cwd().openDir("static", .{}) catch |err| {
         switch (err) {
             error.FileNotFound => return null,

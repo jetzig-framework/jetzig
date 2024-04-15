@@ -2,16 +2,19 @@ const std = @import("std");
 const util = @import("../../util.zig");
 
 /// Run the middleware generator. Create a middleware file in `src/app/middleware/`
-pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8) !void {
-    if (args.len != 1 or !util.isCamelCase(args[0])) {
+pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, help: bool) !void {
+    if (help or args.len != 1 or !util.isCamelCase(args[0])) {
         std.debug.print(
-            \\Expected a middleware name in CamelCase.
+            \\Generate a middleware module. Module name must be in CamelCase.
             \\
             \\Example:
             \\
             \\  jetzig generate middleware IguanaBrain
             \\
         , .{});
+
+        if (help) return;
+
         return error.JetzigCommandError;
     }
 

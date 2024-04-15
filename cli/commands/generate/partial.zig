@@ -1,16 +1,19 @@
 const std = @import("std");
 
 /// Run the partial generator. Create a partial template in `src/app/views/`
-pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8) !void {
-    if (args.len != 2) {
+pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, help: bool) !void {
+    if (help or args.len != 2) {
         std.debug.print(
-            \\Expected a view name and a name for a partial.
+            \\Generate a partial template. Expects a view name followed by a partial name.
             \\
             \\Example:
             \\
             \\  jetzig generate partial iguanas ziglet
             \\
         , .{});
+
+        if (help) return;
+
         return error.JetzigCommandError;
     }
 

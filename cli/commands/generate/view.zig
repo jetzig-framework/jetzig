@@ -2,17 +2,27 @@ const std = @import("std");
 const util = @import("../../util.zig");
 
 /// Run the view generator. Create a view in `src/app/views/`
-pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8) !void {
-    if (args.len == 0) {
-        std.debug.print(".\n", .{});
+pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, help: bool) !void {
+    if (help or args.len == 0) {
         std.debug.print(
-            \\Expected view name followed by optional actions.
+            \\Generate a view. Pass optional action names from:
+            \\  index, get, post, put, patch, delete
+            \\
+            \\Optionally suffix actions with `:static` to use static routing.
+            \\Static requests are rendered at build time only. Use static routes
+            \\when rendering takes a long time and content does not change between
+            \\deployments.
+            \\
+            \\Omit action names to generate a view with all actions defined.
             \\
             \\Example:
             \\
             \\  jetzig generate view iguanas index:static get post delete
             \\
         , .{});
+
+        if (help) return;
+
         return error.JetzigCommandError;
     }
 

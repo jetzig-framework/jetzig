@@ -32,6 +32,14 @@ pub const jetzig_options = struct {
     // HTTP buffer. Must be large enough to store all headers. This should typically not be modified.
     // pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
 
+    // The number of worker threads to spawn on startup for processing Jobs (NOT the number of
+    // HTTP server worker threads).
+    pub const job_worker_threads: usize = 4;
+
+    // Duration before looking for more Jobs when the queue is found to be empty, in
+    // milliseconds.
+    // pub const job_worker_sleep_interval_ms: usize = 10;
+
     // Set custom fragments for rendering markdown templates. Any values will fall back to
     // defaults provided by Zmd (https://github.com/bobf/zmd/blob/main/src/zmd/html.zig).
     pub const markdown_fragments = struct {
