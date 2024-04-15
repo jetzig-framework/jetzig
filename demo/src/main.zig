@@ -40,6 +40,19 @@ pub const jetzig_options = struct {
     // milliseconds.
     // pub const job_worker_sleep_interval_ms: usize = 10;
 
+    /// SMTP configuration for Jetzig Mail. It is recommended to use a local SMTP relay,
+    /// e.g.: https://github.com/juanluisbaptiste/docker-postfix
+    // pub const smtp: jetzig.mail.SMTPConfig = .{
+    //     .port = 25,
+    //     .encryption = .none, // .insecure, .none, .tls, .start_tls
+    //     .host = "localhost",
+    //     .username = null,
+    //     .password = null,
+    // };
+
+    /// Force email delivery in development mode (instead of printing email body to logger).
+    // pub const force_development_email_delivery = false;
+
     // Set custom fragments for rendering markdown templates. Any values will fall back to
     // defaults provided by Zmd (https://github.com/bobf/zmd/blob/main/src/zmd/html.zig).
     pub const markdown_fragments = struct {

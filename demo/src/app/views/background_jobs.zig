@@ -8,8 +8,8 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var job = try request.job("example");
 
     // Add a param `foo` to the job.
-    try job.put("foo", data.string("bar"));
-    try job.put("id", data.integer(std.crypto.random.int(u32)));
+    try job.params.put("foo", data.string("bar"));
+    try job.params.put("id", data.integer(std.crypto.random.int(u32)));
 
     // Schedule the job for background processing. The job is added to the queue. When the job is
     // processed a new instance of `example_job` is created and its `run` function is invoked.

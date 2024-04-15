@@ -79,6 +79,7 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         self.server_options,
         routes.items,
         &routes_module.jobs,
+        &routes_module.mailers,
         &mime_map,
         &jet_kv,
     );
@@ -87,8 +88,13 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     var worker_pool = jetzig.jobs.Pool.init(
         self.allocator,
         &jet_kv,
-        &routes_module.jobs,
-        server.logger, // TODO: Optional separate log streams for workers
+        .{
+            .logger = server.logger,
+            .environment = server.options.environment,
+            .routes = routes.items,
+            .jobs = &routes_module.jobs,
+            .mailers = &routes_module.mailers,
+        },
     );
     defer worker_pool.deinit();
 

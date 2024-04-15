@@ -109,10 +109,16 @@ fn mappingParam(input: []const u8) ?struct { key: []const u8, field: []const u8 
 
 fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
     if (value) |item_value| {
-        return self.data.string(item_value);
+        const duped = self.data.getAllocator().dupe(u8, item_value) catch @panic("OOM");
+        return self.data.string(uriDecode(duped));
     } else {
         return jetzig.zmpl.Data._null(self.data.getAllocator());
     }
+}
+
+fn uriDecode(input: []u8) []const u8 {
+    std.mem.replaceScalar(u8, input, '+', ' ');
+    return std.Uri.percentDecodeInPlace(input);
 }
 
 test "simple query string" {
@@ -189,4 +195,23 @@ test "query string with param without value" {
         .Null => {},
         else => std.testing.expect(false),
     };
+}
+
+test "query string with encoded characters" {
+    const allocator = std.testing.allocator;
+    const query_string = "foo=bar+baz+qux&bar=hello%20%21%20how%20are%20you%20doing%20%3F%3F%3F";
+    var data = jetzig.data.Data.init(allocator);
+
+    var query = init(allocator, query_string, &data);
+    defer query.deinit();
+
+    try query.parse();
+    try std.testing.expectEqualStrings(
+        "bar baz qux",
+        (data.getT(.string, "foo")).?,
+    );
+    try std.testing.expectEqualStrings(
+        "hello ! how are you doing ???",
+        (data.getT(.string, "bar")).?,
+    );
 }

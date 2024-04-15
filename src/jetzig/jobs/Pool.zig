@@ -6,8 +6,7 @@ const Pool = @This();
 
 allocator: std.mem.Allocator,
 jet_kv: *jetzig.jetkv.JetKV,
-job_definitions: []const jetzig.jobs.JobDefinition,
-logger: jetzig.loggers.Logger,
+job_env: jetzig.jobs.JobEnv,
 pool: std.Thread.Pool = undefined,
 workers: std.ArrayList(*jetzig.jobs.Worker),
 
@@ -15,14 +14,12 @@ workers: std.ArrayList(*jetzig.jobs.Worker),
 pub fn init(
     allocator: std.mem.Allocator,
     jet_kv: *jetzig.jetkv.JetKV,
-    job_definitions: []const jetzig.jobs.JobDefinition,
-    logger: jetzig.loggers.Logger,
+    job_env: jetzig.jobs.JobEnv,
 ) Pool {
     return .{
         .allocator = allocator,
         .jet_kv = jet_kv,
-        .job_definitions = job_definitions,
-        .logger = logger,
+        .job_env = job_env,
         .workers = std.ArrayList(*jetzig.jobs.Worker).init(allocator),
     };
 }
@@ -43,10 +40,9 @@ pub fn work(self: *Pool, threads: usize, interval: usize) !void {
         const worker = try self.allocator.create(jetzig.jobs.Worker);
         worker.* = jetzig.jobs.Worker.init(
             self.allocator,
-            self.logger,
+            self.job_env,
             index,
             self.jet_kv,
-            self.job_definitions,
             interval,
         );
         try self.workers.append(worker);

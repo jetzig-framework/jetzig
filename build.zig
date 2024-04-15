@@ -15,15 +15,13 @@ const zmpl_build = @import("zmpl");
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const template_path_option = b.option([]const u8, "zmpl_templates_path", "Path to templates") orelse
-        "src/app/views/";
-    const template_path: []const u8 = if (std.fs.path.isAbsolute(template_path_option))
-        try b.allocator.dupe(u8, template_path_option)
-    else
-        std.fs.cwd().realpathAlloc(b.allocator, template_path_option) catch |err| switch (err) {
-            error.FileNotFound => "",
-            else => return err,
-        };
+    const templates_paths = try zmpl_build.templatesPaths(
+        b.allocator,
+        &.{
+            .{ .prefix = "views", .path = &.{ "src", "app", "views" } },
+            .{ .prefix = "mailers", .path = &.{ "src", "app", "mailers" } },
+        },
+    );
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
@@ -40,32 +38,13 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("mime_types", mime_module);
     lib.root_module.addImport("jetzig", jetzig_module);
 
-    const zmpl_version = b.option(
-        enum { v1, v2 },
-        "zmpl_version",
-        "Zmpl syntax version (default: v1)",
-    ) orelse .v2;
-
-    if (zmpl_version == .v1) {
-        std.debug.print(
-            \\[WARN] Zmpl v1 is deprecated and will soon be removed.
-            \\       Update to v2 by modifying `jetzigInit` in your `build.zig`:
-            \\
-            \\       try jetzig.jetzigInit(b, exe, .{{ .zmpl_version = .v2 }});
-            \\
-            \\       See https://jetzig.dev/documentation.html for information on migrating to Zmpl v2.
-            \\
-        , .{});
-    }
-
     const zmpl_dep = b.dependency(
         "zmpl",
         .{
             .target = target,
             .optimize = optimize,
-            .zmpl_templates_path = template_path,
+            .zmpl_templates_paths = templates_paths,
             .zmpl_auto_build = false,
-            .zmpl_version = zmpl_version,
             .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
                 jetzig_view: []const u8,
                 jetzig_action: []const u8,
@@ -84,11 +63,17 @@ pub fn build(b: *std.Build) !void {
 
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
 
+    const smtp_client_dep = b.dependency("smtp_client", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     lib.root_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("zmpl", zmpl_module);
     jetzig_module.addImport("args", zig_args_dep.module("args"));
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
     jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
+    jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },
@@ -115,15 +100,20 @@ pub fn build(b: *std.Build) !void {
 
 /// Build-time options for Jetzig.
 pub const JetzigInitOptions = struct {
-    zmpl_version: enum { v1, v2 } = .v1,
+    zmpl_version: enum { v1, v2 } = .v2,
 };
 
 pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigInitOptions) !void {
+    if (options.zmpl_version == .v1) {
+        std.debug.print("Zmpl v1 has now been removed. Please upgrade to v2.\n", .{});
+        return error.ZmplVersionNotSupported;
+    }
+
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
     const jetzig_dep = b.dependency(
         "jetzig",
-        .{ .optimize = optimize, .target = target, .zmpl_version = options.zmpl_version },
+        .{ .optimize = optimize, .target = target },
     );
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
@@ -140,17 +130,31 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     }
 
     const root_path = b.build_root.path orelse try std.fs.cwd().realpathAlloc(b.allocator, ".");
-    const templates_path = try std.fs.path.join(
+    const templates_path: []const u8 = try std.fs.path.join(
+        b.allocator,
+        &[_][]const u8{ root_path, "src", "app" },
+    );
+    const views_path: []const u8 = try std.fs.path.join(
         b.allocator,
         &[_][]const u8{ root_path, "src", "app", "views" },
     );
-
     const jobs_path = try std.fs.path.join(
         b.allocator,
         &[_][]const u8{ root_path, "src", "app", "jobs" },
     );
+    const mailers_path = try std.fs.path.join(
+        b.allocator,
+        &[_][]const u8{ root_path, "src", "app", "mailers" },
+    );
 
-    var generate_routes = try Routes.init(b.allocator, root_path, templates_path, jobs_path);
+    var generate_routes = try Routes.init(
+        b.allocator,
+        root_path,
+        templates_path,
+        views_path,
+        jobs_path,
+        mailers_path,
+    );
     try generate_routes.generateRoutes();
     const write_files = b.addWriteFiles();
     const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);

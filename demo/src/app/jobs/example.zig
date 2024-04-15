@@ -1,9 +1,22 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-/// The `run` function for all jobs receives an arena allocator, a logger, and the params
-/// passed to the job when it was created.
-pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, logger: jetzig.Logger) !void {
-    _ = allocator;
-    try logger.INFO("Job received params: {s}", .{try params.toJson()});
+/// The `run` function for all jobs receives an arena allocator, the params passed to the job
+/// when it was created, and an environment which provides a logger, the current server
+/// environment `{ development, production }`.
+pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig.jobs.JobEnv) !void {
+    try env.logger.INFO("Job received params: {s}", .{try params.toJson()});
+
+    const mail = jetzig.mail.Mail.init(
+        allocator,
+        .{
+            .subject = "Hello!!!",
+            .from = "bob@jetzig.dev",
+            .to = &.{"bob@jetzig.dev"},
+            .html = "<div>Hello!</div>",
+            .text = "Hello!",
+        },
+    );
+
+    try mail.deliver();
 }

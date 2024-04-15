@@ -17,7 +17,7 @@ const Options = struct {
     environment: EnvironmentName = .development,
     log: []const u8 = "-",
     @"log-error": []const u8 = "-",
-    @"log-level": jetzig.loggers.LogLevel = .INFO,
+    @"log-level": ?jetzig.loggers.LogLevel = null,
     @"log-format": jetzig.loggers.LogFormat = .development,
     detach: bool = false,
 
@@ -41,7 +41,7 @@ const Options = struct {
             \\Optional path to separate error log file. Use '-' for stderr. If omitted, errors are logged to the location specified by the `log` option (or stderr if `log` is '-').
             ,
             .@"log-level" =
-            \\Minimum log level. Log events below the given level are ignored. Must be one of: { TRACE, DEBUG, INFO, WARN, ERROR, FATAL } (default: DEBUG)
+            \\Minimum log level. Log events below the given level are ignored. Must be one of: { TRACE, DEBUG, INFO, WARN, ERROR, FATAL } (default: DEBUG in development, INFO in production)
             ,
             .@"log-format" =
             \\Output logs in the given format. Must be one of: { development, json } (default: development)
@@ -69,11 +69,13 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         std.process.exit(0);
     }
 
+    const environment = options.options.environment;
+
     var logger = switch (options.options.@"log-format") {
         .development => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 self.allocator,
-                options.options.@"log-level",
+                resolveLogLevel(options.options.@"log-level", environment),
                 try getLogFile(.stdout, options.options),
                 try getLogFile(.stderr, options.options),
             ),
@@ -81,7 +83,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         .json => jetzig.loggers.Logger{
             .json_logger = jetzig.loggers.JsonLogger.init(
                 self.allocator,
-                options.options.@"log-level",
+                resolveLogLevel(options.options.@"log-level", environment),
                 try getLogFile(.stdout, options.options),
                 try getLogFile(.stderr, options.options),
             ),
@@ -92,8 +94,6 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         try logger.ERROR("Must pass `--log` when using `--detach`.", .{});
         std.process.exit(1);
     }
-
-    const environment = options.options.environment;
 
     // TODO: Generate nonce per session - do research to confirm correct best practice.
     const secret_len = jetzig.http.Session.Cipher.key_length + jetzig.http.Session.Cipher.nonce_length;
@@ -160,5 +160,12 @@ fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u1
             },
             else => return err,
         }
+    };
+}
+
+fn resolveLogLevel(level: ?jetzig.loggers.LogLevel, environment: EnvironmentName) jetzig.loggers.LogLevel {
+    return level orelse switch (environment) {
+        .development => .DEBUG,
+        .production => .INFO,
     };
 }

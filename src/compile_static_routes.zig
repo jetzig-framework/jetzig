@@ -118,7 +118,7 @@ fn renderMarkdown(
         defer allocator.free(prefixed_name);
         defer allocator.free(prefixed_name);
 
-        if (zmpl.find(prefixed_name)) |layout| {
+        if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
             view.data.content = .{ .data = content };
             return try layout.render(view.data);
         } else {
@@ -133,7 +133,7 @@ fn renderZmplTemplate(
     route: jetzig.views.Route,
     view: jetzig.views.View,
 ) !?[]const u8 {
-    if (zmpl.find(route.template)) |template| {
+    if (zmpl.findPrefixed("views", route.template)) |template| {
         try view.data.addConst("jetzig_view", view.data.string(route.name));
         try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
 
@@ -142,7 +142,7 @@ fn renderZmplTemplate(
             const prefixed_name = try std.mem.concat(allocator, u8, &[_][]const u8{ "layouts_", layout_name });
             defer allocator.free(prefixed_name);
 
-            if (zmpl.find(prefixed_name)) |layout| {
+            if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
                 return try template.renderWithLayout(layout, view.data);
             } else {
                 std.debug.print("Unknown layout: {s}\n", .{layout_name});
