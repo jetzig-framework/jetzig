@@ -330,6 +330,65 @@ pub fn job(self: *Request, job_name: []const u8) !*jetzig.Job {
     return background_job;
 }
 
+const RequestMail = struct {
+    request: *Request,
+    mail_params: jetzig.mail.MailParams,
+    name: []const u8,
+
+    // Will allow scheduling when strategy is `.later` (e.g.).
+    const DeliveryOptions = struct {};
+
+    pub fn deliver(self: RequestMail, strategy: enum { background, now }, options: DeliveryOptions) !void {
+        _ = options;
+        var mail_job = try self.request.job("__jetzig_mail");
+
+        try mail_job.params.put("mailer_name", mail_job.data.string(self.name));
+
+        const from = if (self.mail_params.from) |from| mail_job.data.string(from) else null;
+        try mail_job.params.put("from", from);
+
+        var to_array = try mail_job.data.array();
+        if (self.mail_params.to) |capture| {
+            for (capture) |to| try to_array.append(mail_job.data.string(to));
+        }
+        try mail_job.params.put("to", to_array);
+
+        const subject = if (self.mail_params.subject) |subject| mail_job.data.string(subject) else null;
+        try mail_job.params.put("subject", subject);
+
+        const html = if (self.mail_params.html) |html| mail_job.data.string(html) else null;
+        try mail_job.params.put("html", html);
+
+        const text = if (self.mail_params.text) |text| mail_job.data.string(text) else null;
+        try mail_job.params.put("text", text);
+
+        if (self.request.response_data.value) |value| try mail_job.params.put("params", value);
+
+        switch (strategy) {
+            .background => try mail_job.schedule(),
+            .now => try mail_job.definition.?.runFn(
+                self.request.allocator,
+                mail_job.params,
+                jetzig.jobs.JobEnv{
+                    .environment = self.request.server.options.environment,
+                    .logger = self.request.server.logger,
+                    .routes = self.request.server.routes,
+                    .mailers = self.request.server.mailer_definitions,
+                    .jobs = self.request.server.job_definitions,
+                },
+            ),
+        }
+    }
+};
+
+pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParams) RequestMail {
+    return .{
+        .request = self,
+        .name = name,
+        .mail_params = mail_params,
+    };
+}
+
 fn extensionFormat(self: *Request) ?jetzig.http.Request.Format {
     const extension = self.path.extension orelse return null;
     if (std.mem.eql(u8, extension, ".html")) {

@@ -31,7 +31,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     const file = dir.createFile(filename, .{ .exclusive = true }) catch |err| {
         switch (err) {
             error.PathAlreadyExists => {
-                std.debug.print("Partial already exists: {s}\n", .{filename});
+                std.debug.print("Job already exists: {s}\n", .{filename});
                 return error.JetzigCommandError;
             },
             else => return err,
@@ -42,10 +42,20 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         \\const std = @import("std");
         \\const jetzig = @import("jetzig");
         \\
-        \\/// The `run` function for all jobs receives an arena allocator, a logger, and the params
-        \\/// passed to the job when it was created.
+        \\// The `run` function for a job is invoked every time the job is processed by a queue worker
+        \\// (or by the Jetzig server if the job is processed in-line).
+        \\//
+        \\// Arguments:
+        \\// * allocator: Arena allocator for use during the job execution process.
+        \\// * params:    Params assigned to a job (from a request, any values added to `data`).
+        \\// * env:       Provides the following fields:
+        \\//              - logger:      Logger attached to the same stream as the Jetzig server.
+        \\//              - environment: Enum of `{ production, development }`.
         \\pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, logger: jetzig.Logger) !void {
-        \\    // Job execution code
+        \\    _ = allocator;
+        \\    _ = params;
+        \\    // Job execution code goes here. Add any code that you would like to run in the background.
+        \\    try env.logger.INFO("Running a job.", .{});
         \\}
         \\
     );

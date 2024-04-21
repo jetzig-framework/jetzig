@@ -14,6 +14,7 @@ pub const util = @import("jetzig/util.zig");
 pub const types = @import("jetzig/types.zig");
 pub const markdown = @import("jetzig/markdown.zig");
 pub const jobs = @import("jetzig/jobs.zig");
+pub const mail = @import("jetzig/mail.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -51,6 +52,9 @@ pub const Job = jobs.Job;
 
 /// A container for a job definition, includes the job name and run function.
 pub const JobDefinition = jobs.Job.JobDefinition;
+
+/// A container for a mailer definition, includes mailer name and mail function.
+pub const MailerDefinition = mail.MailerDefinition;
 
 /// A generic logger type. Provides all standard log levels as functions (`INFO`, `WARN`,
 /// `ERROR`, etc.). Note that all log functions are CAPITALIZED.
@@ -94,6 +98,18 @@ pub const config = struct {
     /// Duration before looking for more Jobs when the queue is found to be empty, in
     /// milliseconds.
     pub const job_worker_sleep_interval_ms: usize = 10;
+
+    /// SMTP configuration for Jetzig Mail.
+    pub const smtp: mail.SMTPConfig = .{
+        .port = 25,
+        .encryption = .none, // .insecure, .none, .tls, .start_tls
+        .host = "localhost",
+        .username = null,
+        .password = null,
+    };
+
+    /// Force email delivery in development mode (instead of printing email body to logger).
+    pub const force_development_email_delivery = false;
 
     /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
     pub fn get(T: type, comptime key: []const u8) T {

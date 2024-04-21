@@ -4,26 +4,23 @@ const jetzig = @import("../../jetzig.zig");
 const Worker = @This();
 
 allocator: std.mem.Allocator,
-logger: jetzig.loggers.Logger,
+job_env: jetzig.jobs.JobEnv,
 id: usize,
 jet_kv: *jetzig.jetkv.JetKV,
-job_definitions: []const jetzig.jobs.JobDefinition,
 interval: usize,
 
 pub fn init(
     allocator: std.mem.Allocator,
-    logger: jetzig.loggers.Logger,
+    job_env: jetzig.jobs.JobEnv,
     id: usize,
     jet_kv: *jetzig.jetkv.JetKV,
-    job_definitions: []const jetzig.jobs.JobDefinition,
     interval: usize,
 ) Worker {
     return .{
         .allocator = allocator,
-        .logger = logger,
+        .job_env = job_env,
         .id = id,
         .jet_kv = jet_kv,
-        .job_definitions = job_definitions,
         .interval = interval * 1000 * 1000, // millisecond => nanosecond
     };
 }
@@ -65,7 +62,7 @@ fn matchJob(self: Worker, json: []const u8) ?jetzig.jobs.JobDefinition {
     const job_name = parsed_json.value.__jetzig_job_name;
 
     // TODO: Hashmap
-    for (self.job_definitions) |job_definition| {
+    for (self.job_env.jobs) |job_definition| {
         if (std.mem.eql(u8, job_definition.name, job_name)) {
             parsed_json.deinit();
             return job_definition;
@@ -94,7 +91,7 @@ fn processJob(self: Worker, job_definition: jetzig.JobDefinition, json: []const 
     defer arena.deinit();
 
     if (data.value) |params| {
-        job_definition.runFn(arena.allocator(), params, self.logger) catch |err| {
+        job_definition.runFn(arena.allocator(), params, self.job_env) catch |err| {
             self.log(
                 .ERROR,
                 "[worker-{}] Encountered error processing job `{s}`: {s}",
@@ -115,7 +112,7 @@ fn log(
     comptime message: []const u8,
     args: anytype,
 ) void {
-    self.logger.log(level, message, args) catch |err| {
+    self.job_env.logger.log(level, message, args) catch |err| {
         // XXX: In (daemonized) deployment stderr will not be available, find a better solution.
         // Note that this only occurs if logging itself fails.
         std.debug.print("[worker-{}] Logger encountered error: {s}\n", .{ self.id, @errorName(err) });

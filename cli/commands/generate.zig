@@ -1,17 +1,19 @@
 const std = @import("std");
 const args = @import("args");
+const secret = @import("generate/secret.zig");
+const util = @import("../util.zig");
+
 const view = @import("generate/view.zig");
 const partial = @import("generate/partial.zig");
 const layout = @import("generate/layout.zig");
 const middleware = @import("generate/middleware.zig");
 const job = @import("generate/job.zig");
-const secret = @import("generate/secret.zig");
-const util = @import("../util.zig");
+const mailer = @import("generate/mailer.zig");
 
 /// Command line options for the `generate` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[view|partial|layout|middleware|job|secret] [options]",
+        .usage_summary = "[view|partial|layout|mailer|middleware|job|secret] [options]",
         .full_text =
         \\Generate scaffolding for views, middleware, and other objects.
         \\
@@ -36,34 +38,38 @@ pub fn run(
 
     _ = options;
 
-    var generate_type: ?enum { view, partial, layout, middleware, job, secret } = null;
+    const Generator = enum { view, partial, layout, mailer, middleware, job, secret };
     var sub_args = std.ArrayList([]const u8).init(allocator);
     defer sub_args.deinit();
 
-    for (positionals) |arg| {
-        if (generate_type == null and std.mem.eql(u8, arg, "view")) {
-            generate_type = .view;
-        } else if (generate_type == null and std.mem.eql(u8, arg, "partial")) {
-            generate_type = .partial;
-        } else if (generate_type == null and std.mem.eql(u8, arg, "layout")) {
-            generate_type = .layout;
-        } else if (generate_type == null and std.mem.eql(u8, arg, "job")) {
-            generate_type = .job;
-        } else if (generate_type == null and std.mem.eql(u8, arg, "middleware")) {
-            generate_type = .middleware;
-        } else if (generate_type == null and std.mem.eql(u8, arg, "secret")) {
-            generate_type = .secret;
-        } else if (generate_type == null) {
-            std.debug.print("Unknown generator command: {s}\n", .{arg});
-            return error.JetzigCommandError;
-        } else {
-            try sub_args.append(arg);
-        }
+    const map = std.ComptimeStringMap(Generator, .{
+        .{ "view", .view },
+        .{ "partial", .partial },
+        .{ "layout", .layout },
+        .{ "job", .job },
+        .{ "mailer", .mailer },
+        .{ "middleware", .middleware },
+        .{ "secret", .secret },
+    });
+
+    var available_buf = std.ArrayList([]const u8).init(allocator);
+    defer available_buf.deinit();
+    for (map.kvs) |kv| try available_buf.append(kv.key);
+    const available_help = try std.mem.join(allocator, "|", available_buf.items);
+    defer allocator.free(available_help);
+
+    const generate_type: ?Generator = if (positionals.len > 0) map.get(positionals[0]) else null;
+
+    if (positionals.len > 1) {
+        for (positionals[1..]) |arg| try sub_args.append(arg);
     }
 
     if (other_options.help and generate_type == null) {
         try args.printHelp(Options, "jetzig generate", writer);
         return;
+    } else if (generate_type == null) {
+        std.debug.print("Missing sub-command. Expected: [{s}]\n", .{available_help});
+        return error.JetzigCommandError;
     }
 
     if (generate_type) |capture| {
@@ -71,12 +77,10 @@ pub fn run(
             .view => view.run(allocator, cwd, sub_args.items, other_options.help),
             .partial => partial.run(allocator, cwd, sub_args.items, other_options.help),
             .layout => layout.run(allocator, cwd, sub_args.items, other_options.help),
+            .mailer => mailer.run(allocator, cwd, sub_args.items, other_options.help),
             .job => job.run(allocator, cwd, sub_args.items, other_options.help),
             .middleware => middleware.run(allocator, cwd, sub_args.items, other_options.help),
             .secret => secret.run(allocator, cwd, sub_args.items, other_options.help),
         };
-    } else {
-        std.debug.print("Missing sub-command. Expected: [view|partial|layout|job|middleware|secret]\n", .{});
-        return error.JetzigCommandError;
     }
 }

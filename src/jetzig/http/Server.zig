@@ -17,6 +17,7 @@ logger: jetzig.loggers.Logger,
 options: ServerOptions,
 routes: []*jetzig.views.Route,
 job_definitions: []const jetzig.JobDefinition,
+mailer_definitions: []const jetzig.MailerDefinition,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
 initialized: bool = false,
@@ -29,6 +30,7 @@ pub fn init(
     options: ServerOptions,
     routes: []*jetzig.views.Route,
     job_definitions: []const jetzig.JobDefinition,
+    mailer_definitions: []const jetzig.MailerDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
     jet_kv: *jetzig.jetkv.JetKV,
 ) Server {
@@ -38,6 +40,7 @@ pub fn init(
         .options = options,
         .routes = routes,
         .job_definitions = job_definitions,
+        .mailer_definitions = mailer_definitions,
         .mime_map = mime_map,
         .jet_kv = jet_kv,
     };
@@ -150,7 +153,7 @@ fn renderHTML(
     route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
-        const template = zmpl.find(matched_route.template);
+        const template = zmpl.findPrefixed("views", matched_route.template);
         if (template == null) {
             request.response_data.noop(bool, false); // FIXME: Weird Zig bug ? Any call here fixes it.
             if (try self.renderMarkdown(request, route)) |rendered_markdown| {
@@ -238,7 +241,7 @@ fn renderMarkdown(
         );
         defer self.allocator.free(prefixed_name);
 
-        if (zmpl.find(prefixed_name)) |layout| {
+        if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
             rendered.view.data.content = .{ .data = markdown_content };
             rendered.content = try layout.render(rendered.view.data);
         } else {
@@ -307,7 +310,7 @@ fn renderTemplateWithLayout(
         const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts", "/", layout_name });
         defer self.allocator.free(prefixed_name);
 
-        if (zmpl.find(prefixed_name)) |layout| {
+        if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
             return try template.renderWithLayout(layout, view.data);
         } else {
             try self.logger.WARN("Unknown layout: {s}", .{layout_name});

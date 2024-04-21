@@ -4,8 +4,10 @@ const jetzig = @import("jetzig.zig");
 ast: std.zig.Ast = undefined,
 allocator: std.mem.Allocator,
 root_path: []const u8,
+templates_path: []const u8,
 views_path: []const u8,
 jobs_path: []const u8,
+mailers_path: []const u8,
 buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
@@ -87,8 +89,10 @@ const Arg = struct {
 pub fn init(
     allocator: std.mem.Allocator,
     root_path: []const u8,
+    templates_path: []const u8,
     views_path: []const u8,
     jobs_path: []const u8,
+    mailers_path: []const u8,
 ) !Routes {
     const data = try allocator.create(jetzig.data.Data);
     data.* = jetzig.data.Data.init(allocator);
@@ -96,8 +100,10 @@ pub fn init(
     return .{
         .allocator = allocator,
         .root_path = root_path,
+        .templates_path = templates_path,
         .views_path = views_path,
         .jobs_path = jobs_path,
+        .mailers_path = mailers_path,
         .buffer = std.ArrayList(u8).init(allocator),
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
@@ -122,9 +128,18 @@ pub fn generateRoutes(self: *Routes) !void {
         \\pub const routes = [_]jetzig.Route{
         \\
     );
-
     try self.writeRoutes(writer);
+    try writer.writeAll(
+        \\};
+        \\
+    );
 
+    try writer.writeAll(
+        \\
+        \\pub const mailers = [_]jetzig.MailerDefinition{
+        \\
+    );
+    try self.writeMailers(writer);
     try writer.writeAll(
         \\};
         \\
@@ -133,11 +148,10 @@ pub fn generateRoutes(self: *Routes) !void {
     try writer.writeAll(
         \\
         \\pub const jobs = [_]jetzig.JobDefinition{
+        \\    .{ .name = "__jetzig_mail", .runFn = jetzig.mail.Job.run },
         \\
     );
-
     try self.writeJobs(writer);
-
     try writer.writeAll(
         \\};
         \\
@@ -148,13 +162,14 @@ pub fn generateRoutes(self: *Routes) !void {
 
 pub fn relativePathFrom(
     self: Routes,
-    root: enum { root, views, jobs },
+    root: enum { root, views, mailers, jobs },
     sub_path: []const u8,
     format: enum { os, posix },
 ) ![]u8 {
     const root_path = switch (root) {
         .root => self.root_path,
         .views => self.views_path,
+        .mailers => self.mailers_path,
         .jobs => self.jobs_path,
     };
 
@@ -250,7 +265,11 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
     const view_name = try route.viewName();
     defer self.allocator.free(view_name);
 
-    const template = try std.mem.concat(self.allocator, u8, &[_][]const u8{ view_name, "/", route.name });
+    const template = try std.mem.concat(
+        self.allocator,
+        u8,
+        &[_][]const u8{ view_name, "/", route.name },
+    );
 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
 
@@ -579,9 +598,61 @@ fn normalizePosix(self: Routes, path: []const u8) ![]u8 {
     return try std.mem.join(self.allocator, std.fs.path.sep_str_posix, buf.items);
 }
 
-//
-// Generate Jobs
-//
+fn writeMailers(self: Routes, writer: anytype) !void {
+    var dir = std.fs.openDirAbsolute(self.mailers_path, .{ .iterate = true }) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                std.debug.print(
+                    "[jetzig] Mailers directory not found, no mailers generated: `{s}`\n",
+                    .{self.mailers_path},
+                );
+                return;
+            },
+            else => return err,
+        }
+    };
+    defer dir.close();
+
+    var count: usize = 0;
+    var walker = try dir.walk(self.allocator);
+    while (try walker.next()) |entry| {
+        if (!std.mem.eql(u8, std.fs.path.extension(entry.path), ".zig")) continue;
+
+        const realpath = try dir.realpathAlloc(self.allocator, entry.path);
+        defer self.allocator.free(realpath);
+
+        const root_relative_path = try self.relativePathFrom(.root, realpath, .posix);
+        defer self.allocator.free(root_relative_path);
+
+        const mailers_relative_path = try self.relativePathFrom(.mailers, realpath, .posix);
+        defer self.allocator.free(mailers_relative_path);
+
+        const module_path = try self.zigEscape(root_relative_path);
+        defer self.allocator.free(module_path);
+
+        const name_path = try self.zigEscape(mailers_relative_path);
+        defer self.allocator.free(name_path);
+
+        const name = chompExtension(name_path);
+
+        try writer.writeAll(try std.fmt.allocPrint(
+            self.allocator,
+            \\    .{{
+            \\        .name = "{0s}",
+            \\        .deliverFn = @import("{1s}").deliver,
+            \\        .defaults = if (@hasDecl(@import("{1s}"), "defaults")) @import("{1s}").defaults else null,
+            \\        .html_template = "{0s}/html",
+            \\        .text_template = "{0s}/text",
+            \\    }},
+            \\
+        ,
+            .{ name, module_path },
+        ));
+        count += 1;
+    }
+
+    std.debug.print("[jetzig] Imported {} mailer(s)\n", .{count});
+}
 
 fn writeJobs(self: Routes, writer: anytype) !void {
     var dir = std.fs.openDirAbsolute(self.jobs_path, .{ .iterate = true }) catch |err| {
