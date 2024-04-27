@@ -3,12 +3,12 @@
     .version = "0.0.0",
     .dependencies = .{
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/901e4ce55cdbfd82c42cfd4feb3a1682dab4b418.tar.gz",
-            .hash = "12207d49df326e0c180a90fa65d9993898e0a0ffd8e79616b4b81f81769261858856",
+            .url = "https://github.com/jetzig-framework/zmd/archive/45a9ff0e3a55b4758163abad5a601bd3ef8127a8.tar.gz",
+            .hash = "122067a3107499e4b561a883a9f1e9f39662c4b87249a2e4e630279bd91ab7840230",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/4511ae706e8679385d38cc1366497082f8f53afb.tar.gz",
-            .hash = "1220d493e6fdfaccbafff41df2b7b407728ed11619bebb198c90dae9420f03a6d29d",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/9712b85e61f33879f388d5e1829856e326c53822.tar.gz",
+            .hash = "1220b185cf8316ae5ad6dd7d45bea278575391986b7d8233a9d9b2c342e339d65ac0",
         },
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",

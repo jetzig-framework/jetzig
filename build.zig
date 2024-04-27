@@ -45,6 +45,7 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .zmpl_templates_paths = templates_paths,
             .zmpl_auto_build = false,
+            .zmpl_markdown_fragments = try generateMarkdownFragments(b),
             .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
                 jetzig_view: []const u8,
                 jetzig_action: []const u8,
@@ -55,13 +56,13 @@ pub fn build(b: *std.Build) !void {
     const zmpl_module = zmpl_dep.module("zmpl");
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
+    const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
-
-    const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
+    b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
 
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
@@ -117,9 +118,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     );
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
+    const zmd_module = jetzig_dep.module("zmd");
 
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
+    exe.root_module.addImport("zmd", zmd_module);
 
     if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
         if (jetzig_runner) {
@@ -203,4 +206,46 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     run_static_routes_cmd.expectExitCode(0);
     exe.step.dependOn(&run_static_routes_cmd.step);
+}
+
+fn generateMarkdownFragments(b: *std.Build) ![]const u8 {
+    const file = std.fs.cwd().openFile(b.pathJoin(&.{ "src", "main.zig" }), .{}) catch |err| {
+        switch (err) {
+            error.FileNotFound => return "",
+            else => return err,
+        }
+    };
+    const stat = try file.stat();
+    const source = try file.readToEndAllocOptions(b.allocator, stat.size, null, @alignOf(u8), 0);
+    if (try getMarkdownFragmentsSource(b.allocator, source)) |markdown_fragments_source| {
+        return try std.fmt.allocPrint(b.allocator,
+            \\const std = @import("std");
+            \\const zmd = @import("zmd");
+            \\
+            \\{s};
+            \\
+        , .{markdown_fragments_source});
+    } else {
+        return "";
+    }
+}
+
+fn getMarkdownFragmentsSource(allocator: std.mem.Allocator, source: [:0]const u8) !?[]const u8 {
+    var ast = try std.zig.Ast.parse(allocator, source, .zig);
+    defer ast.deinit(allocator);
+
+    for (ast.nodes.items(.tag), 0..) |tag, index| {
+        switch (tag) {
+            .simple_var_decl => {
+                const decl = ast.simpleVarDecl(@intCast(index));
+                const identifier = ast.tokenSlice(decl.ast.mut_token + 1);
+                if (std.mem.eql(u8, identifier, "markdown_fragments")) {
+                    return ast.getNodeSource(@intCast(index));
+                }
+            },
+            else => continue,
+        }
+    }
+
+    return null;
 }

@@ -2,11 +2,11 @@
 
 ![jetzig logo](https://www.jetzig.dev/jetzig.png)
 
-_Markdown_ is rendered by _[zmd](https://github.com/jetzig-framework/zmd)_.
+_Markdown_ is rendered by [zmd](https://github.com/jetzig-framework/zmd).
 
 You can use a `StaticRequest` in your view if you prefer to render your _Markdown_ at build time, or use `Request` in development to render at run time without a server restart.
 
-Simply create a `.md` file instead of a `.zmpl` file, e.g. `src/app/views/iguanas/index.md` and _Markdown_ will be rendered.
+Simply create a `.md.zmpl` file instead of a `.zmpl` file, e.g. `src/app/views/iguanas/index.md.zmpl` and _Markdown_ will be rendered. You can still use _Zmpl_ references, modes, and partials. In fact, a `.md.zmpl` template is simply a regular _Zmpl_ template with the root mode set to `markdown`.
 
 ## An _ordered_ list
 

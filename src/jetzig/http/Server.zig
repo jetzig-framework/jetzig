@@ -2,6 +2,7 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 const zmpl = @import("zmpl");
+const zmd = @import("zmd");
 
 pub const ServerOptions = struct {
     logger: jetzig.loggers.Logger,
@@ -153,27 +154,22 @@ fn renderHTML(
     route: ?*jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
-        const template = zmpl.findPrefixed("views", matched_route.template);
-        if (template == null) {
-            request.response_data.noop(bool, false); // FIXME: Weird Zig bug ? Any call here fixes it.
-            if (try self.renderMarkdown(request, route)) |rendered_markdown| {
-                return request.setResponse(rendered_markdown, .{});
-            }
-        }
-        const rendered = self.renderView(matched_route, request, template) catch |err| {
-            if (isUnhandledError(err)) return err;
-            const rendered_error = try self.renderInternalServerError(request, err);
-            return request.setResponse(rendered_error, .{});
-        };
-        if (request.status_code != .not_found) {
+        if (zmpl.findPrefixed("views", matched_route.template)) |template| {
+            const rendered = self.renderView(matched_route, request, template) catch |err| {
+                if (isUnhandledError(err)) return err;
+                const rendered_error = try self.renderInternalServerError(request, err);
+                return request.setResponse(rendered_error, .{});
+            };
             return request.setResponse(rendered, .{});
+        } else {
+            return request.setResponse(try renderNotFound(request), .{});
         }
-    }
-
-    if (try self.renderMarkdown(request, route)) |rendered| {
-        return request.setResponse(rendered, .{});
     } else {
-        return request.setResponse(try renderNotFound(request), .{});
+        if (try self.renderMarkdown(request)) |rendered| {
+            return request.setResponse(rendered, .{});
+        } else {
+            return request.setResponse(try renderNotFound(request), .{});
+        }
     }
 }
 
@@ -199,57 +195,18 @@ fn renderJSON(
     }
 }
 
-fn renderMarkdown(
-    self: *Server,
-    request: *jetzig.http.Request,
-    maybe_route: ?*jetzig.views.Route,
-) !?RenderedView {
-    const route = maybe_route orelse {
-        // No route recognized, but we can still render a static markdown file if it matches the URI:
-        if (request.method != .GET) return null;
-        if (try jetzig.markdown.render(request.allocator, request.path.base_path, null)) |content| {
-            return .{
-                .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
-                .content = content,
-            };
-        } else {
-            return null;
-        }
-    };
-
-    const path = try std.mem.join(
-        request.allocator,
-        "/",
-        &[_][]const u8{ route.uri_path, @tagName(route.action) },
-    );
-    const markdown_content = try jetzig.markdown.render(request.allocator, path, null) orelse
+fn renderMarkdown(self: *Server, request: *jetzig.http.Request) !?RenderedView {
+    _ = self;
+    // No route recognized, but we can still render a static markdown file if it matches the URI:
+    if (request.method != .GET) return null;
+    if (try jetzig.markdown.render(request.allocator, request.path.base_path, null)) |content| {
+        return .{
+            .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
+            .content = content,
+        };
+    } else {
         return null;
-
-    var rendered = self.renderView(route, request, null) catch |err| {
-        if (isUnhandledError(err)) return err;
-        return try self.renderInternalServerError(request, err);
-    };
-
-    try addTemplateConstants(rendered.view, route);
-
-    if (request.getLayout(route)) |layout_name| {
-        // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
-        const prefixed_name = try std.mem.concat(
-            self.allocator,
-            u8,
-            &[_][]const u8{ "layouts_", layout_name },
-        );
-        defer self.allocator.free(prefixed_name);
-
-        if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
-            rendered.view.data.content = .{ .data = markdown_content };
-            rendered.content = try layout.render(rendered.view.data);
-        } else {
-            try self.logger.WARN("Unknown layout: {s}", .{layout_name});
-            rendered.content = markdown_content;
-        }
     }
-    return rendered;
 }
 
 pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
@@ -260,7 +217,7 @@ fn renderView(
     request: *jetzig.http.Request,
     template: ?zmpl.Template,
 ) !RenderedView {
-    // View functions return a `View` to help encourage users to return from a view function with
+    // View functions return a `View` to encourage users to return from a view function with
     // `return request.render(.ok)`, but the actual rendered view is stored in
     // `request.rendered_view`.
     _ = route.render(route.*, request) catch |err| {
@@ -307,11 +264,15 @@ fn renderTemplateWithLayout(
 
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
-        const prefixed_name = try std.mem.concat(self.allocator, u8, &[_][]const u8{ "layouts", "/", layout_name });
+        const prefixed_name = try std.mem.concat(
+            self.allocator,
+            u8,
+            &[_][]const u8{ "layouts", "/", layout_name },
+        );
         defer self.allocator.free(prefixed_name);
 
         if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
-            return try template.renderWithLayout(layout, view.data);
+            return try template.renderWithOptions(view.data, .{ .layout = layout });
         } else {
             try self.logger.WARN("Unknown layout: {s}", .{layout_name});
             return try template.render(view.data);

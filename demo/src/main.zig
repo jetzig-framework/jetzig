@@ -1,6 +1,7 @@
 const std = @import("std");
 
-pub const jetzig = @import("jetzig");
+const jetzig = @import("jetzig");
+const zmd = @import("zmd");
 
 pub const routes = @import("routes");
 
@@ -54,14 +55,14 @@ pub const jetzig_options = struct {
     // pub const force_development_email_delivery = false;
 
     // Set custom fragments for rendering markdown templates. Any values will fall back to
-    // defaults provided by Zmd (https://github.com/bobf/zmd/blob/main/src/zmd/html.zig).
+    // defaults provided by Zmd (https://github.com/jetzig-framework/zmd/blob/main/src/zmd/html.zig).
     pub const markdown_fragments = struct {
         pub const root = .{
             "<div class='p-5'>",
             "</div>",
         };
         pub const h1 = .{
-            "<h1 class='text-2xl mb-3 font-bold'>",
+            "<h1 class='text-2xl mb-3 text-green font-bold'>",
             "</h1>",
         };
         pub const h2 = .{
@@ -91,13 +92,13 @@ pub const jetzig_options = struct {
             "</ul>",
         };
 
-        pub fn block(allocator: std.mem.Allocator, node: jetzig.zmd.Node) ![]const u8 {
+        pub fn block(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
             return try std.fmt.allocPrint(allocator,
                 \\<pre class="w-1/2 font-mono mt-4 ms-3 bg-gray-900 p-2 text-white"><code class="language-{?s}">{s}</code></pre>
             , .{ node.meta, node.content });
         }
 
-        pub fn link(allocator: std.mem.Allocator, node: jetzig.zmd.Node) ![]const u8 {
+        pub fn link(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
             return try std.fmt.allocPrint(allocator,
                 \\<a class="underline decoration-sky-500" href="{0s}" title={1s}>{1s}</a>
             , .{ node.href.?, node.title.? });

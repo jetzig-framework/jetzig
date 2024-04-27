@@ -1,8 +1,9 @@
 const std = @import("std");
 
+const Zmd = @import("zmd").Zmd;
+
 const jetzig = @import("../jetzig.zig");
 
-const Zmd = @import("zmd").Zmd;
 pub fn render(
     allocator: std.mem.Allocator,
     path: []const u8,
