@@ -45,7 +45,7 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
         const stat = try dir.statFile(path);
         const encoded = base64Encode(
             build.allocator,
-            try dir.readFileAlloc(build.allocator, path, stat.size),
+            try dir.readFileAlloc(build.allocator, path, @intCast(stat.size)),
         );
         defer build.allocator.free(encoded);
 

@@ -1,8 +1,9 @@
 const std = @import("std");
 
+const Zmd = @import("zmd").Zmd;
+
 const jetzig = @import("../jetzig.zig");
 
-const Zmd = @import("zmd").Zmd;
 pub fn render(
     allocator: std.mem.Allocator,
     path: []const u8,
@@ -32,7 +33,7 @@ pub fn render(
             else => err,
         };
     };
-    const markdown_content = std.fs.cwd().readFileAlloc(allocator, full_path, stat.size) catch |err| {
+    const markdown_content = std.fs.cwd().readFileAlloc(allocator, full_path, @intCast(stat.size)) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
             else => return err,

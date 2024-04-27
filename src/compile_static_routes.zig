@@ -143,7 +143,7 @@ fn renderZmplTemplate(
             defer allocator.free(prefixed_name);
 
             if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
-                return try template.renderWithLayout(layout, view.data);
+                return try template.renderWithOptions(view.data, .{ .layout = layout });
             } else {
                 std.debug.print("Unknown layout: {s}\n", .{layout_name});
                 return try allocator.dupe(u8, "");
