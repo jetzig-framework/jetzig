@@ -173,7 +173,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
             if (!std.mem.eql(u8, ".zig", std.fs.path.extension(entry.path))) continue;
 
             const stat = try src_dir.statFile(entry.path);
-            const src_data = try src_dir.readFileAlloc(b.allocator, entry.path, stat.size);
+            const src_data = try src_dir.readFileAlloc(b.allocator, entry.path, @intCast(stat.size));
             defer b.allocator.free(src_data);
 
             const relpath = try std.fs.path.join(b.allocator, &[_][]const u8{ "src", entry.path });
@@ -216,7 +216,7 @@ fn generateMarkdownFragments(b: *std.Build) ![]const u8 {
         }
     };
     const stat = try file.stat();
-    const source = try file.readToEndAllocOptions(b.allocator, stat.size, null, @alignOf(u8), 0);
+    const source = try file.readToEndAllocOptions(b.allocator, @intCast(stat.size), null, @alignOf(u8), 0);
     if (try getMarkdownFragmentsSource(b.allocator, source)) |markdown_fragments_source| {
         return try std.fmt.allocPrint(b.allocator,
             \\const std = @import("std");

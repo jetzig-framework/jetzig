@@ -296,7 +296,7 @@ const RouteSet = struct {
 
 fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !RouteSet {
     const stat = try dir.statFile(path);
-    const source = try dir.readFileAllocOptions(self.allocator, path, stat.size, null, @alignOf(u8), 0);
+    const source = try dir.readFileAllocOptions(self.allocator, path, @intCast(stat.size), null, @alignOf(u8), 0);
     defer self.allocator.free(source);
 
     self.ast = try std.zig.Ast.parse(self.allocator, source, .zig);

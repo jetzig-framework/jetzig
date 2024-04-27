@@ -16,9 +16,3 @@
   <div>Take a look at the <span class="font-mono">/demo/src/app/</span> directory to see how this application works.</div>
   <div>Visit <a class="font-bold text-[#39b54a]" href="https://jetzig.dev/">jetzig.dev</a> to get started.</div>
 </div>
-
-@markdown {
-  # Hello
-
-  [foobar](https://www.google.com)
-}

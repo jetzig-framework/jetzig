@@ -10,7 +10,7 @@ const JsonMimeType = struct {
 pub fn generateMimeModule(build: *std.Build) !*std.Build.Module {
     const file = try std.fs.openFileAbsolute(build.pathFromRoot("src/jetzig/http/mime/mimeData.json"), .{});
     const stat = try file.stat();
-    const json = try file.readToEndAlloc(build.allocator, stat.size);
+    const json = try file.readToEndAlloc(build.allocator, @intCast(stat.size));
     defer build.allocator.free(json);
 
     const parsed_mime_types = try std.json.parseFromSlice(

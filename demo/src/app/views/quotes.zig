@@ -37,7 +37,7 @@ const Quote = struct {
 fn randomQuote(allocator: std.mem.Allocator) !Quote {
     const path = "src/app/config/quotes.json";
     const stat = try std.fs.cwd().statFile(path);
-    const json = try std.fs.cwd().readFileAlloc(allocator, path, stat.size);
+    const json = try std.fs.cwd().readFileAlloc(allocator, path, @intCast(stat.size));
     const quotes = try std.json.parseFromSlice([]Quote, allocator, json, .{});
     return quotes.value[std.crypto.random.intRangeLessThan(usize, 0, quotes.value.len)];
 }

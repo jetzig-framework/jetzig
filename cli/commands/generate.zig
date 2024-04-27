@@ -42,19 +42,36 @@ pub fn run(
     var sub_args = std.ArrayList([]const u8).init(allocator);
     defer sub_args.deinit();
 
-    const map = std.ComptimeStringMap(Generator, .{
-        .{ "view", .view },
-        .{ "partial", .partial },
-        .{ "layout", .layout },
-        .{ "job", .job },
-        .{ "mailer", .mailer },
-        .{ "middleware", .middleware },
-        .{ "secret", .secret },
-    });
-
     var available_buf = std.ArrayList([]const u8).init(allocator);
     defer available_buf.deinit();
-    for (map.kvs) |kv| try available_buf.append(kv.key);
+
+    // XXX: 0.12 Compatibility
+    const map = if (@hasDecl(std, "ComptimeStringMap")) blk: {
+        const inner_map = std.ComptimeStringMap(Generator, .{
+            .{ "view", .view },
+            .{ "partial", .partial },
+            .{ "layout", .layout },
+            .{ "job", .job },
+            .{ "mailer", .mailer },
+            .{ "middleware", .middleware },
+            .{ "secret", .secret },
+        });
+        for (inner_map.kvs) |kv| try available_buf.append(kv.key);
+        break :blk inner_map;
+    } else if (@hasDecl(std, "StaticStringMap")) blk: {
+        const inner_map = std.StaticStringMap(Generator).initComptime(.{
+            .{ "view", .view },
+            .{ "partial", .partial },
+            .{ "layout", .layout },
+            .{ "job", .job },
+            .{ "mailer", .mailer },
+            .{ "middleware", .middleware },
+            .{ "secret", .secret },
+        });
+        for (inner_map.keys()) |key| try available_buf.append(key);
+        break :blk inner_map;
+    } else unreachable;
+
     const available_help = try std.mem.join(allocator, "|", available_buf.items);
     defer allocator.free(available_help);
 
