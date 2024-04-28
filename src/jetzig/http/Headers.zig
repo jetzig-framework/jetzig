@@ -40,7 +40,7 @@ pub fn getAll(self: Headers, name: []const u8) []const []const u8 {
 }
 
 // Deprecated
-pub fn getFirstValue(self: *Headers, name: []const u8) ?[]const u8 {
+pub fn getFirstValue(self: *const Headers, name: []const u8) ?[]const u8 {
     return self.get(name);
 }
 

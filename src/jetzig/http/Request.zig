@@ -181,7 +181,7 @@ pub fn redirect(
 /// * `Accept` header (`application/json` or `text/html`)
 /// * `Content-Type` header (`application/json` or `text/html`)
 /// * Fall back to default: HTML
-pub fn requestFormat(self: *Request) jetzig.http.Request.Format {
+pub fn requestFormat(self: *const Request) jetzig.http.Request.Format {
     return self.extensionFormat() orelse
         self.acceptHeaderFormat() orelse
         self.contentTypeHeaderFormat() orelse
@@ -211,7 +211,7 @@ pub fn getLayout(self: *Request, route: *jetzig.views.Route) ?[]const u8 {
 
 /// Shortcut for `request.headers.getFirstValue`. Returns the first matching value for a given
 /// header name or `null` if not found. Header names are case-insensitive.
-pub fn getHeader(self: *Request, key: []const u8) ?[]const u8 {
+pub fn getHeader(self: *const Request, key: []const u8) ?[]const u8 {
     return self.headers.getFirstValue(key);
 }
 
@@ -389,7 +389,7 @@ pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParam
     };
 }
 
-fn extensionFormat(self: *Request) ?jetzig.http.Request.Format {
+fn extensionFormat(self: *const Request) ?jetzig.http.Request.Format {
     const extension = self.path.extension orelse return null;
     if (std.mem.eql(u8, extension, ".html")) {
         return .HTML;
@@ -400,7 +400,7 @@ fn extensionFormat(self: *Request) ?jetzig.http.Request.Format {
     }
 }
 
-pub fn acceptHeaderFormat(self: *Request) ?jetzig.http.Request.Format {
+pub fn acceptHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
     const acceptHeader = self.getHeader("Accept");
 
     if (acceptHeader) |item| {
@@ -411,7 +411,7 @@ pub fn acceptHeaderFormat(self: *Request) ?jetzig.http.Request.Format {
     return null;
 }
 
-pub fn contentTypeHeaderFormat(self: *Request) ?jetzig.http.Request.Format {
+pub fn contentTypeHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
     const acceptHeader = self.getHeader("content-type");
 
     if (acceptHeader) |item| {
@@ -447,13 +447,15 @@ pub fn fmtMethod(self: *const Request, colorized: bool) []const u8 {
 /// Format a status code appropriately for the current request format.
 /// e.g. `.HTML` => `404 Not Found`
 ///      `.JSON` => `{ "message": "Not Found", "status": "404" }`
-pub fn formatStatus(self: *Request, status_code: jetzig.http.StatusCode) ![]const u8 {
+pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) ![]const u8 {
     const status = jetzig.http.status_codes.get(status_code);
 
     return switch (self.requestFormat()) {
         .JSON => try std.json.stringifyAlloc(self.allocator, .{
-            .message = status.getMessage(),
-            .status = status.getCode(),
+            .@"error" = .{
+                .message = status.getMessage(),
+                .code = status.getCode(),
+            },
         }, .{}),
         .HTML, .UNKNOWN => status.getFormatted(.{ .linebreak = true }),
     };
