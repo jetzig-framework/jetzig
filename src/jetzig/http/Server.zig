@@ -162,13 +162,13 @@ fn renderHTML(
             };
             return request.setResponse(rendered, .{});
         } else {
-            return request.setResponse(try renderNotFound(request), .{});
+            return request.setResponse(try self.renderNotFound(request), .{});
         }
     } else {
         if (try self.renderMarkdown(request)) |rendered| {
             return request.setResponse(rendered, .{});
         } else {
-            return request.setResponse(try renderNotFound(request), .{});
+            return request.setResponse(try self.renderNotFound(request), .{});
         }
     }
 }
@@ -191,7 +191,7 @@ fn renderJSON(
 
         request.setResponse(rendered, .{});
     } else {
-        request.setResponse(try renderNotFound(request), .{});
+        request.setResponse(try self.renderNotFound(request), .{});
     }
 }
 
@@ -223,7 +223,7 @@ fn renderView(
     _ = route.render(route.*, request) catch |err| {
         try self.logger.ERROR("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
-        if (isBadRequest(err)) return try renderBadRequest(request);
+        if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
 
@@ -239,7 +239,7 @@ fn renderView(
             };
         } else {
             return switch (request.requestFormat()) {
-                .HTML, .UNKNOWN => try renderNotFound(request),
+                .HTML, .UNKNOWN => try self.renderNotFound(request),
                 .JSON => .{ .view = rendered_view, .content = "" },
             };
         }
@@ -326,37 +326,117 @@ fn renderInternalServerError(self: *Server, request: *jetzig.http.Request, err: 
     if (stack) |capture| try self.logStackTrace(capture, request);
 
     const status = .internal_server_error;
-    const content = try request.formatStatus(status);
-    return .{
-        .view = jetzig.views.View{ .data = request.response_data, .status_code = status },
-        .content = content,
-    };
+    return try self.renderError(request, status);
 }
 
-fn renderNotFound(request: *jetzig.http.Request) !RenderedView {
+fn renderNotFound(self: *Server, request: *jetzig.http.Request) !RenderedView {
     request.response_data.reset();
 
     const status: jetzig.http.StatusCode = .not_found;
-    const content = try request.formatStatus(status);
+    return try self.renderError(request, status);
+}
+
+fn renderBadRequest(self: *Server, request: *jetzig.http.Request) !RenderedView {
+    request.response_data.reset();
+
+    const status: jetzig.http.StatusCode = .bad_request;
+    return try self.renderError(request, status);
+}
+
+fn renderError(
+    self: Server,
+    request: *jetzig.http.Request,
+    status_code: jetzig.http.StatusCode,
+) !RenderedView {
+    if (try self.renderErrorView(request, status_code)) |view| return view;
+    if (try renderStaticErrorPage(request, status_code)) |view| return view;
+
+    return try renderDefaultError(request, status_code);
+}
+
+fn renderErrorView(
+    self: Server,
+    request: *jetzig.http.Request,
+    status_code: jetzig.http.StatusCode,
+) !?RenderedView {
+    for (self.routes) |route| {
+        if (std.mem.eql(u8, route.view_name, "errors") and route.action == .index) {
+            request.response_data.reset();
+            request.status_code = status_code;
+
+            _ = route.render(route.*, request) catch |err| {
+                if (isUnhandledError(err)) return err;
+                try self.logger.ERROR(
+                    "Unexepected error occurred while rendering error page: {s}",
+                    .{@errorName(err)},
+                );
+                const stack = @errorReturnTrace();
+                if (stack) |capture| try self.logStackTrace(capture, request);
+                return try renderDefaultError(request, status_code);
+            };
+
+            if (request.rendered_view) |view| {
+                switch (request.requestFormat()) {
+                    .HTML, .UNKNOWN => {
+                        if (zmpl.findPrefixed("views", route.template)) |template| {
+                            try addTemplateConstants(view, route);
+                            return .{ .view = view, .content = try template.render(request.response_data) };
+                        }
+                    },
+                    .JSON => return .{ .view = view, .content = try request.response_data.toJson() },
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+fn renderStaticErrorPage(request: *jetzig.http.Request, status_code: jetzig.http.StatusCode) !?RenderedView {
+    if (request.requestFormat() == .JSON) return null;
+
+    var dir = std.fs.cwd().openDir(
+        jetzig.config.get([]const u8, "public_content_path"),
+        .{ .iterate = false, .no_follow = true },
+    ) catch |err| {
+        switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        }
+    };
+    defer dir.close();
+
+    const status = jetzig.http.status_codes.get(status_code);
+    const content = dir.readFileAlloc(
+        request.allocator,
+        try std.mem.concat(request.allocator, u8, &.{ status.getCode(), ".html" }),
+        jetzig.config.get(usize, "max_bytes_public_content"),
+    ) catch |err| {
+        switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        }
+    };
+
     return .{
-        .view = .{ .data = request.response_data, .status_code = status },
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = status_code },
         .content = content,
     };
 }
 
-fn renderBadRequest(request: *jetzig.http.Request) !RenderedView {
-    request.response_data.reset();
-
-    const status: jetzig.http.StatusCode = .bad_request;
-    const content = try request.formatStatus(status);
+fn renderDefaultError(
+    request: *const jetzig.http.Request,
+    status_code: jetzig.http.StatusCode,
+) !RenderedView {
+    const content = try request.formatStatus(status_code);
     return .{
-        .view = jetzig.views.View{ .data = request.response_data, .status_code = status },
+        .view = jetzig.views.View{ .data = request.response_data, .status_code = status_code },
         .content = content,
     };
 }
 
 fn logStackTrace(
-    self: *Server,
+    self: Server,
     stack: *std.builtin.StackTrace,
     request: *jetzig.http.Request,
 ) !void {
