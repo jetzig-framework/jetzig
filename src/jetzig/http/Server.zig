@@ -312,6 +312,7 @@ fn isBadHttpError(err: anyerror) bool {
         error.MissingFinalNewline,
         error.HttpConnectionClosing,
         error.ConnectionResetByPeer,
+        error.BrokenPipe,
         => true,
         else => false,
     };
