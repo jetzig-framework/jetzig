@@ -95,8 +95,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         std.process.exit(1);
     }
 
-    // TODO: Generate nonce per session - do research to confirm correct best practice.
-    const secret_len = jetzig.http.Session.Cipher.key_length + jetzig.http.Session.Cipher.nonce_length;
+    const secret_len = jetzig.http.Session.Cipher.key_length;
     const secret = (try self.getSecret(&logger, secret_len, environment))[0..secret_len];
 
     if (secret.len != secret_len) {

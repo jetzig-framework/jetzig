@@ -10,7 +10,7 @@ pub fn equalStringsCaseInsensitive(expected: []const u8, actual: []const u8) boo
 }
 
 /// Encode arbitrary input to Base64.
-pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]const u8 {
+pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
     const encoder = std.base64.Base64Encoder.init(
         std.base64.url_safe_no_pad.alphabet_chars,
         std.base64.url_safe_no_pad.pad_char,
@@ -22,7 +22,7 @@ pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]const u
 }
 
 /// Decode arbitrary input from Base64.
-pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]const u8 {
+pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
     const decoder = std.base64.Base64Decoder.init(
         std.base64.url_safe_no_pad.alphabet_chars,
         std.base64.url_safe_no_pad.pad_char,

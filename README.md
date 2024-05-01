@@ -38,11 +38,11 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Static content parameter definitions.
 * :white_check_mark: Middleware interface.
 * :white_check_mark: MIME type inference.
+* :white_check_mark: Email delivery.
+* :white_check_mark: Background jobs.
 * :x: Environment configurations (develompent/production/etc.)
-* :x: Email delivery.
 * :x: Custom/non-conventional routes.
 * :x: General-purpose cache.
-* :x: Background jobs.
 * :x: Testing helpers for testing HTTP requests/responses.
 * :x: Development server auto-reload.
 * :x: Database integration.
