@@ -22,7 +22,9 @@ mailer_definitions: []const jetzig.MailerDefinition,
 mime_map: *jetzig.http.mime.MimeMap,
 std_net_server: std.net.Server = undefined,
 initialized: bool = false,
-jet_kv: *jetzig.jetkv.JetKV,
+store: *jetzig.kv.Store,
+job_queue: *jetzig.kv.Store,
+cache: *jetzig.kv.Store,
 
 const Server = @This();
 
@@ -33,7 +35,9 @@ pub fn init(
     job_definitions: []const jetzig.JobDefinition,
     mailer_definitions: []const jetzig.MailerDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
-    jet_kv: *jetzig.jetkv.JetKV,
+    store: *jetzig.kv.Store,
+    job_queue: *jetzig.kv.Store,
+    cache: *jetzig.kv.Store,
 ) Server {
     return .{
         .allocator = allocator,
@@ -43,7 +47,9 @@ pub fn init(
         .job_definitions = job_definitions,
         .mailer_definitions = mailer_definitions,
         .mime_map = mime_map,
-        .jet_kv = jet_kv,
+        .store = store,
+        .job_queue = job_queue,
+        .cache = cache,
     };
 }
 

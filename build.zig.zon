@@ -7,16 +7,16 @@
             .hash = "1220482f07f2bbaef335f20d6890c15a1e14739950b784232bc69182423520e058a5",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/046c05d376a4fe89d86c52596baa18137891cd87.tar.gz",
-            .hash = "1220d8890b1161e4356d2c59d4b88280566d55480dae840b6f5dae34bf852bef6b56",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/4457eba50bd2eff3743601aa00adbffebcd4207a.tar.gz",
+            .hash = "122001d661e534ef59fc20936330bb0c3068c8aaf1b7c60f9dde9e58d9a536918754",
+        },
+        .jetkv = .{
+            .url = "https://github.com/jetzig-framework/jetkv/archive/edfda9108c857dd5a04f87ae48667d3ed57612d9.tar.gz",
+            .hash = "122015e8a911a7e3a519bbf09c5ef932b569428f6eb6946417df5747a2e76b2a09b0",
         },
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
             .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
-        },
-        .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/a6fcc2df220c1a40094e167eeb567bb5888404e9.tar.gz",
-            .hash = "12207bd2d7465b33e745a5b0567172377f94a221d1fc9aab238bb1b372c64f4ec1a0",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/e79e411862d4f4d41657bf41efb884efca3d67dd.tar.gz",

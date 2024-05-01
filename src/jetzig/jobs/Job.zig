@@ -13,10 +13,15 @@ pub const JobEnv = struct {
     routes: []*const jetzig.Route,
     mailers: []const jetzig.MailerDefinition,
     jobs: []const jetzig.JobDefinition,
+    store: *jetzig.kv.Store,
+    cache: *jetzig.kv.Store,
+    mutex: *std.Thread.Mutex,
 };
 
 allocator: std.mem.Allocator,
-jet_kv: *jetzig.jetkv.JetKV,
+store: *jetzig.kv.Store,
+job_queue: *jetzig.kv.Store,
+cache: *jetzig.kv.Store,
 logger: jetzig.loggers.Logger,
 name: []const u8,
 definition: ?JobDefinition,
@@ -28,7 +33,9 @@ const Job = @This();
 /// Initialize a new Job
 pub fn init(
     allocator: std.mem.Allocator,
-    jet_kv: *jetzig.jetkv.JetKV,
+    store: *jetzig.kv.Store,
+    job_queue: *jetzig.kv.Store,
+    cache: *jetzig.kv.Store,
     logger: jetzig.loggers.Logger,
     jobs: []const JobDefinition,
     name: []const u8,
@@ -47,7 +54,9 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .jet_kv = jet_kv,
+        .store = store,
+        .job_queue = job_queue,
+        .cache = cache,
         .logger = logger,
         .name = name,
         .definition = definition,
@@ -65,7 +74,6 @@ pub fn deinit(self: *Job) void {
 /// Add a Job to the queue
 pub fn schedule(self: *Job) !void {
     try self.params.put("__jetzig_job_name", self.data.string(self.name));
-    const json = try self.data.toJson();
-    try self.jet_kv.prepend("__jetzig_jobs", json);
+    try self.job_queue.append("__jetzig_jobs", self.data.value.?);
     try self.logger.INFO("Scheduled job: {s}", .{self.name});
 }

@@ -15,6 +15,7 @@ pub const types = @import("jetzig/types.zig");
 pub const markdown = @import("jetzig/markdown.zig");
 pub const jobs = @import("jetzig/jobs.zig");
 pub const mail = @import("jetzig/mail.zig");
+pub const kv = @import("jetzig/kv.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -99,6 +100,45 @@ pub const config = struct {
     /// milliseconds.
     pub const job_worker_sleep_interval_ms: usize = 10;
 
+    /// Key-value store options. Set backend to `.file` to use a file-based store.
+    /// When using `.file` backend, you must also set `.file_options`.
+    /// The key-value store is exposed as `request.store` in views and is also available in as
+    /// `env.store` in all jobs/mailers.
+    pub const store: kv.Store.KVOptions = .{
+        .backend = .memory,
+        // .backend = .file,
+        // .file_options = .{
+        //     .path = "/path/to/jetkv-store.db",
+        //     .truncate = false, // Set to `true` to clear the store on each server launch.
+        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+        // },
+    };
+
+    /// Job queue options. Identical to `store` options, but allows using different
+    /// backends (e.g. `.memory` for key-value store, `.file` for jobs queue.
+    /// The job queue is managed internally by Jetzig.
+    pub const job_queue: kv.Store.KVOptions = .{
+        .backend = .memory,
+        // .backend = .file,
+        // .file_options = .{
+        //     .path = "/path/to/jetkv-queue.db",
+        //     .truncate = false, // Set to `true` to clear the store on each server launch.
+        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+        // },
+    };
+
+    /// Cache. Identical to `store` options, but allows using different
+    /// backends (e.g. `.memory` for key-value store, `.file` for cache.
+    pub const cache: kv.Store.KVOptions = .{
+        .backend = .memory,
+        // .backend = .file,
+        // .file_options = .{
+        //     .path = "/path/to/jetkv-cache.db",
+        //     .truncate = false, // Set to `true` to clear the store on each server launch.
+        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+        // },
+    };
+
     /// SMTP configuration for Jetzig Mail.
     pub const smtp: mail.SMTPConfig = .{
         .port = 25,
@@ -133,7 +173,7 @@ pub fn init(allocator: std.mem.Allocator) !App {
     const environment = Environment.init(allocator);
 
     return .{
-        .server_options = try environment.getServerOptions(),
+        .environment = environment,
         .allocator = allocator,
     };
 }

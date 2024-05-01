@@ -7,7 +7,7 @@ const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
 const App = @This();
 
-server_options: jetzig.http.Server.ServerOptions,
+environment: jetzig.Environment,
 allocator: std.mem.Allocator,
 
 pub fn deinit(self: App) void {
@@ -57,9 +57,29 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         self.allocator.destroy(route);
     };
 
-    var jet_kv = jetzig.jetkv.JetKV.init(self.allocator, .{});
+    var store = try jetzig.kv.Store.init(
+        self.allocator,
+        jetzig.config.get(jetzig.kv.Store.KVOptions, "store"),
+    );
+    defer store.deinit();
 
-    if (self.server_options.detach) {
+    var job_queue = try jetzig.kv.Store.init(
+        self.allocator,
+        jetzig.config.get(jetzig.kv.Store.KVOptions, "job_queue"),
+    );
+    defer job_queue.deinit();
+
+    var cache = try jetzig.kv.Store.init(
+        self.allocator,
+        jetzig.config.get(jetzig.kv.Store.KVOptions, "cache"),
+    );
+    defer cache.deinit();
+
+    const server_options = try self.environment.getServerOptions();
+    defer self.allocator.free(server_options.bind);
+    defer self.allocator.free(server_options.secret);
+
+    if (server_options.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
         var child_argv = std.ArrayList([]const u8).init(self.allocator);
@@ -76,24 +96,30 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
 
     var server = jetzig.http.Server.init(
         self.allocator,
-        self.server_options,
+        server_options,
         routes.items,
         &routes_module.jobs,
         &routes_module.mailers,
         &mime_map,
-        &jet_kv,
+        &store,
+        &job_queue,
+        &cache,
     );
     defer server.deinit();
 
+    var mutex = std.Thread.Mutex{};
     var worker_pool = jetzig.jobs.Pool.init(
         self.allocator,
-        &jet_kv,
+        &job_queue,
         .{
             .logger = server.logger,
             .environment = server.options.environment,
             .routes = routes.items,
             .jobs = &routes_module.jobs,
             .mailers = &routes_module.mailers,
+            .store = &store,
+            .cache = &cache,
+            .mutex = &mutex,
         },
     );
     defer worker_pool.deinit();
@@ -108,13 +134,13 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
             error.AddressInUse => {
                 try server.logger.ERROR(
                     "Socket unavailable: {s}:{} - unable to start server.\n",
-                    .{ self.server_options.bind, self.server_options.port },
+                    .{ server_options.bind, server_options.port },
                 );
                 return;
             },
             else => {
                 try server.logger.ERROR("Encountered error: {}\nExiting.\n", .{err});
-                return err;
+                std.process.exit(1);
             },
         }
     };

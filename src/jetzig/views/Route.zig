@@ -65,7 +65,7 @@ pub fn initParams(self: *Route, allocator: std.mem.Allocator) !void {
 pub fn deinitParams(self: *const Route) void {
     for (self.params.items) |data| {
         data.deinit();
-        data._allocator.destroy(data);
+        data.parent_allocator.destroy(data);
     }
     self.params.deinit();
 }

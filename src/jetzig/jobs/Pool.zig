@@ -5,7 +5,7 @@ const jetzig = @import("../../jetzig.zig");
 const Pool = @This();
 
 allocator: std.mem.Allocator,
-jet_kv: *jetzig.jetkv.JetKV,
+job_queue: *jetzig.kv.Store,
 job_env: jetzig.jobs.JobEnv,
 pool: std.Thread.Pool = undefined,
 workers: std.ArrayList(*jetzig.jobs.Worker),
@@ -13,12 +13,12 @@ workers: std.ArrayList(*jetzig.jobs.Worker),
 /// Initialize a new worker thread pool.
 pub fn init(
     allocator: std.mem.Allocator,
-    jet_kv: *jetzig.jetkv.JetKV,
+    job_queue: *jetzig.kv.Store,
     job_env: jetzig.jobs.JobEnv,
 ) Pool {
     return .{
         .allocator = allocator,
-        .jet_kv = jet_kv,
+        .job_queue = job_queue,
         .job_env = job_env,
         .workers = std.ArrayList(*jetzig.jobs.Worker).init(allocator),
     };
@@ -42,7 +42,7 @@ pub fn work(self: *Pool, threads: usize, interval: usize) !void {
             self.allocator,
             self.job_env,
             index,
-            self.jet_kv,
+            self.job_queue,
             interval,
         );
         try self.workers.append(worker);
