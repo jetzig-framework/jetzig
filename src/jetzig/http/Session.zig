@@ -101,6 +101,8 @@ fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
 }
 
 fn decrypt(self: *Self, data: []u8) ![]u8 {
+    if (data.len < Cipher.nonce_length + Cipher.tag_length) return error.JetzigInvalidSessionCookie;
+
     const secret_bytes = std.mem.sliceAsBytes(self.encryption_key);
     const key = secret_bytes[0..Cipher.key_length];
     const nonce = data[0..Cipher.nonce_length];
@@ -176,4 +178,20 @@ test "get value from parsed/decrypted cookie" {
     try session.parse();
     var value = (try session.get("foo")).?;
     try std.testing.expectEqualStrings("bar", try value.toString());
+}
+
+test "invalid cookie value - too short" {
+    const allocator = std.testing.allocator;
+    var cookies = jetzig.http.Cookies.init(
+        allocator,
+        "_jetzig-session=abc",
+    );
+    defer cookies.deinit();
+    try cookies.parse();
+
+    const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
+    var session = Self.init(allocator, &cookies, &secret);
+    defer session.deinit();
+
+    try std.testing.expectError(error.JetzigInvalidSessionCookie, session.parse());
 }
