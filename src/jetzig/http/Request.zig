@@ -31,6 +31,60 @@ redirected: bool = false,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 start_time: i128,
+store: ArenaStore,
+cache: ArenaStore,
+
+/// Wrapper for KV store that uses the request's arena allocator for fetching values.
+pub const ArenaStore = struct {
+    allocator: std.mem.Allocator,
+    store: *jetzig.kv.Store,
+
+    /// Put a String or into the key-value store.
+    pub fn get(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+        return try self.store.get(try self.data(), key);
+    }
+
+    /// Get a String from the store.
+    pub fn put(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+        try self.store.put(key, value);
+    }
+
+    /// Remove a String to from the key-value store and return it if found.
+    pub fn fetchRemove(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+        return try self.store.fetchRemove(try self.data(), key);
+    }
+
+    /// Remove a String to from the key-value store.
+    pub fn remove(self: ArenaStore, key: []const u8) !void {
+        try self.store.remove(key);
+    }
+
+    /// Append a Value to the end of an Array in the key-value store.
+    pub fn append(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+        try self.store.append(key, value);
+    }
+
+    /// Prepend a Value to the start of an Array in the key-value store.
+    pub fn prepend(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+        try self.store.prepend(key, value);
+    }
+
+    /// Pop a String from an Array in the key-value store.
+    pub fn pop(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+        return try self.store.pop(try self.data(), key);
+    }
+
+    /// Left-pop a String from an Array in the key-value store.
+    pub fn popFirst(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+        return try self.store.popFirst(try self.data(), key);
+    }
+
+    fn data(self: ArenaStore) !*jetzig.data.Data {
+        const arena_data = try self.allocator.create(jetzig.data.Data);
+        arena_data.* = jetzig.data.Data.init(self.allocator);
+        return arena_data;
+    }
+};
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -65,11 +119,14 @@ pub fn init(
         .response_data = response_data,
         .std_http_request = std_http_request,
         .start_time = start_time,
+        .store = .{ .store = server.store, .allocator = allocator },
+        .cache = .{ .store = server.cache, .allocator = allocator },
     };
 }
 
 pub fn deinit(self: *Request) void {
-    // self.session.deinit();
+    self.session.deinit();
+    self.cookies.deinit();
     self.allocator.destroy(self.cookies);
     self.allocator.destroy(self.session);
     if (self.processed) self.allocator.free(self.body);
@@ -275,37 +332,6 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
     return self.query_body.?.data.value.?;
 }
 
-/// Put a String or Array into the key-value store.
-/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
-pub fn kvPut(
-    self: *Request,
-    comptime value_type: jetzig.jetkv.value_types,
-    key: jetzig.jetkv.types.String,
-    value: jetzig.jetkv.ValueType(value_type),
-) !void {
-    try self.server.jet_kv.put(value_type, key, value);
-}
-
-/// Get a String or Array from the key-value store.
-/// `T` can be either `jetzig.KVString` or `jetzig.KVArray`
-pub fn kvGet(
-    self: *Request,
-    comptime value_type: jetzig.jetkv.value_types,
-    key: jetzig.jetkv.types.String,
-) ?jetzig.jetkv.ValueType(value_type) {
-    return self.server.jet_kv.get(value_type, key);
-}
-
-/// Pop a String from an Array in the key-value store.
-pub fn kvPop(self: *Request, key: jetzig.jetkv.types.String) ?jetzig.jetkv.types.String {
-    return self.server.jet_kv.pop(key);
-}
-
-/// Return a new Array suitable for use in the KV store.
-pub fn kvArray(self: Request) jetzig.jetkv.types.Array {
-    return jetzig.jetkv.types.Array.init(self.allocator);
-}
-
 /// Creates a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
 /// Call `Job.put(...)` to set job params.
 /// Call `Job.background()` to run the job outside of the request/response flow.
@@ -322,7 +348,9 @@ pub fn job(self: *Request, job_name: []const u8) !*jetzig.Job {
     const background_job = try self.allocator.create(jetzig.Job);
     background_job.* = jetzig.Job.init(
         self.allocator,
-        self.server.jet_kv,
+        self.server.store,
+        self.server.job_queue,
+        self.server.cache,
         self.server.logger,
         self.server.job_definitions,
         job_name,
@@ -375,6 +403,9 @@ const RequestMail = struct {
                     .routes = self.request.server.routes,
                     .mailers = self.request.server.mailer_definitions,
                     .jobs = self.request.server.job_definitions,
+                    .store = self.request.server.store,
+                    .cache = self.request.server.cache,
+                    .mutex = undefined,
                 },
             ),
         }

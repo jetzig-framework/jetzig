@@ -109,10 +109,10 @@ fn mappingParam(input: []const u8) ?struct { key: []const u8, field: []const u8 
 
 fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
     if (value) |item_value| {
-        const duped = self.data.getAllocator().dupe(u8, item_value) catch @panic("OOM");
+        const duped = self.data.allocator().dupe(u8, item_value) catch @panic("OOM");
         return self.data.string(uriDecode(duped));
     } else {
-        return jetzig.zmpl.Data._null(self.data.getAllocator());
+        return jetzig.zmpl.Data._null(self.data.allocator());
     }
 }
 

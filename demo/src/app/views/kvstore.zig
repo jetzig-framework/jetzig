@@ -6,29 +6,23 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
 
     // Fetch a string from the KV store. If it exists, store it in the root data object,
     // otherwise store a string value to be picked up by the next request.
-    if (request.kvGet(.string, "example-key")) |capture| {
-        try root.put("stored_string", data.string(capture));
+    if (try request.store.fetchRemove("example-key")) |capture| {
+        try root.put("stored_string", capture);
     } else {
-        try request.kvPut(.string, "example-key", "example-value");
+        try root.put("stored_string", null);
+        try request.store.put("example-key", data.string("example-value"));
     }
 
-    // Pop an item from the array and store it in the root data object. This will empty the
+    // Left-pop an item from the array and store it in the root data object. This will empty the
     // array after multiple requests.
-    if (request.kvPop("example-array")) |string| try root.put("popped", data.string(string));
-
-    // Fetch an array from the KV store. If it exists, store its values in the root data object,
-    // otherwise store a new array to be picked up by the next request.
-    if (request.kvGet(.array, "example-array")) |kv_array| {
-        var array = try data.array();
-        for (kv_array.items()) |item| try array.append(data.string(item));
-        try root.put("stored_array", array);
+    if (try request.store.popFirst("example-array")) |value| {
+        try root.put("popped", value);
     } else {
-        // Create a KV Array and store it in the key value store.
-        var kv_array = request.kvArray();
-        try kv_array.append("hello");
-        try kv_array.append("goodbye");
-        try kv_array.append("hello again");
-        try request.kvPut(.array, "example-array", kv_array);
+        try root.put("popped", null);
+        // Store some values in an array in the KV store.
+        try request.store.append("example-array", data.string("hello"));
+        try request.store.append("example-array", data.string("goodbye"));
+        try request.store.append("example-array", data.string("hello again"));
     }
 
     return request.render(.ok);

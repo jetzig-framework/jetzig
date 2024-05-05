@@ -6,21 +6,21 @@ const Worker = @This();
 allocator: std.mem.Allocator,
 job_env: jetzig.jobs.JobEnv,
 id: usize,
-jet_kv: *jetzig.jetkv.JetKV,
+job_queue: *jetzig.kv.Store,
 interval: usize,
 
 pub fn init(
     allocator: std.mem.Allocator,
     job_env: jetzig.jobs.JobEnv,
     id: usize,
-    jet_kv: *jetzig.jetkv.JetKV,
+    job_queue: *jetzig.kv.Store,
     interval: usize,
 ) Worker {
     return .{
         .allocator = allocator,
         .job_env = job_env,
         .id = id,
-        .jet_kv = jet_kv,
+        .job_queue = job_queue,
         .interval = interval * 1000 * 1000, // millisecond => nanosecond
     };
 }
@@ -30,10 +30,16 @@ pub fn work(self: *const Worker) void {
     self.log(.INFO, "[worker-{}] Job worker started.", .{self.id});
 
     while (true) {
-        if (self.jet_kv.pop("__jetzig_jobs")) |json| {
-            defer self.allocator.free(json);
-            if (self.matchJob(json)) |job_definition| {
-                self.processJob(job_definition, json);
+        var data = jetzig.data.Data.init(self.allocator);
+        defer data.deinit();
+        const maybe_value = self.job_queue.popFirst(&data, "__jetzig_jobs") catch |err| blk: {
+            self.log(.ERROR, "Error fetching job from queue: {s}", .{@errorName(err)});
+            break :blk null; // FIXME: Probably close thread here ?
+        };
+
+        if (maybe_value) |value| {
+            if (self.matchJob(value)) |job_definition| {
+                self.processJob(job_definition, value);
             }
         } else {
             std.time.sleep(self.interval);
@@ -44,27 +50,19 @@ pub fn work(self: *const Worker) void {
 }
 
 // Do a minimal parse of JSON job data to identify job name, then match on known job definitions.
-fn matchJob(self: Worker, json: []const u8) ?jetzig.jobs.JobDefinition {
-    const parsed_json = std.json.parseFromSlice(
-        struct { __jetzig_job_name: []const u8 },
-        self.allocator,
-        json,
-        .{ .ignore_unknown_fields = true },
-    ) catch |err| {
+fn matchJob(self: Worker, value: *const jetzig.data.Value) ?jetzig.jobs.JobDefinition {
+    const job_name = value.getT(.string, "__jetzig_job_name") orelse {
         self.log(
             .ERROR,
-            "[worker-{}] Error parsing JSON from job queue: {s}",
-            .{ self.id, @errorName(err) },
+            "[worker-{}] Missing expected job name field `__jetzig_job_name`",
+            .{self.id},
         );
         return null;
     };
 
-    const job_name = parsed_json.value.__jetzig_job_name;
-
     // TODO: Hashmap
     for (self.job_env.jobs) |job_definition| {
         if (std.mem.eql(u8, job_definition.name, job_name)) {
-            parsed_json.deinit();
             return job_definition;
         }
     } else {
@@ -75,34 +73,19 @@ fn matchJob(self: Worker, json: []const u8) ?jetzig.jobs.JobDefinition {
 
 // Fully parse JSON job data and invoke the defined job's run function, passing the parsed params
 // as a `*jetzig.data.Value`.
-fn processJob(self: Worker, job_definition: jetzig.JobDefinition, json: []const u8) void {
-    var data = jetzig.data.Data.init(self.allocator);
-    defer data.deinit();
-
-    data.fromJson(json) catch |err| {
-        self.log(
-            .INFO,
-            "[worker-{}] Error parsing JSON for job `{s}`: {s}",
-            .{ self.id, job_definition.name, @errorName(err) },
-        );
-    };
-
+fn processJob(self: Worker, job_definition: jetzig.JobDefinition, params: *jetzig.data.Value) void {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
 
-    if (data.value) |params| {
-        job_definition.runFn(arena.allocator(), params, self.job_env) catch |err| {
-            self.log(
-                .ERROR,
-                "[worker-{}] Encountered error processing job `{s}`: {s}",
-                .{ self.id, job_definition.name, @errorName(err) },
-            );
-            return;
-        };
-        self.log(.INFO, "[worker-{}] Job completed: {s}", .{ self.id, job_definition.name });
-    } else {
-        self.log(.ERROR, "Error in job params definition for job: {s}", .{job_definition.name});
-    }
+    job_definition.runFn(arena.allocator(), params, self.job_env) catch |err| {
+        self.log(
+            .ERROR,
+            "[worker-{}] Encountered error processing job `{s}`: {s}",
+            .{ self.id, job_definition.name, @errorName(err) },
+        );
+        return;
+    };
+    self.log(.INFO, "[worker-{}] Job completed: {s}", .{ self.id, job_definition.name });
 }
 
 // Log with error handling and fallback. Prefix with worker ID.
