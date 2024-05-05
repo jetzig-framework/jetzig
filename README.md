@@ -40,11 +40,11 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: MIME type inference.
 * :white_check_mark: Email delivery.
 * :white_check_mark: Background jobs.
+* :white_check_mark: General-purpose cache.
+* :white_check_mark: Development server auto-reload.
 * :x: Environment configurations (develompent/production/etc.)
 * :x: Custom/non-conventional routes.
-* :x: General-purpose cache.
 * :x: Testing helpers for testing HTTP requests/responses.
-* :x: Development server auto-reload.
 * :x: Database integration.
 * :x: Email receipt (via SendGrid/AWS SES/etc.)
 
