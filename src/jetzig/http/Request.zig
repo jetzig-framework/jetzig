@@ -31,55 +31,55 @@ redirected: bool = false,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 start_time: i128,
-store: ArenaStore,
-cache: ArenaStore,
+store: RequestStore,
+cache: RequestStore,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
-pub const ArenaStore = struct {
+pub const RequestStore = struct {
     allocator: std.mem.Allocator,
     store: *jetzig.kv.Store,
 
     /// Put a String or into the key-value store.
-    pub fn get(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+    pub fn get(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
         return try self.store.get(try self.data(), key);
     }
 
     /// Get a String from the store.
-    pub fn put(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+    pub fn put(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
         try self.store.put(key, value);
     }
 
     /// Remove a String to from the key-value store and return it if found.
-    pub fn fetchRemove(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+    pub fn fetchRemove(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
         return try self.store.fetchRemove(try self.data(), key);
     }
 
     /// Remove a String to from the key-value store.
-    pub fn remove(self: ArenaStore, key: []const u8) !void {
+    pub fn remove(self: RequestStore, key: []const u8) !void {
         try self.store.remove(key);
     }
 
     /// Append a Value to the end of an Array in the key-value store.
-    pub fn append(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+    pub fn append(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
         try self.store.append(key, value);
     }
 
     /// Prepend a Value to the start of an Array in the key-value store.
-    pub fn prepend(self: ArenaStore, key: []const u8, value: *jetzig.data.Value) !void {
+    pub fn prepend(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
         try self.store.prepend(key, value);
     }
 
     /// Pop a String from an Array in the key-value store.
-    pub fn pop(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+    pub fn pop(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
         return try self.store.pop(try self.data(), key);
     }
 
     /// Left-pop a String from an Array in the key-value store.
-    pub fn popFirst(self: ArenaStore, key: []const u8) !?*jetzig.data.Value {
+    pub fn popFirst(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
         return try self.store.popFirst(try self.data(), key);
     }
 
-    fn data(self: ArenaStore) !*jetzig.data.Data {
+    fn data(self: RequestStore) !*jetzig.data.Data {
         const arena_data = try self.allocator.create(jetzig.data.Data);
         arena_data.* = jetzig.data.Data.init(self.allocator);
         return arena_data;
@@ -390,7 +390,10 @@ const RequestMail = struct {
         const text = if (self.mail_params.text) |text| mail_job.data.string(text) else null;
         try mail_job.params.put("text", text);
 
-        if (self.request.response_data.value) |value| try mail_job.params.put("params", value);
+        if (self.request.response_data.value) |value| try mail_job.params.put(
+            "params",
+            if (strategy == .now) try value.clone(self.request.allocator) else value,
+        );
 
         switch (strategy) {
             .background => try mail_job.schedule(),

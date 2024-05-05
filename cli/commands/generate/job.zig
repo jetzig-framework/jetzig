@@ -51,7 +51,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         \\// * env:       Provides the following fields:
         \\//              - logger:      Logger attached to the same stream as the Jetzig server.
         \\//              - environment: Enum of `{ production, development }`.
-        \\pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, logger: jetzig.Logger) !void {
+        \\pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig.jobs.JobEnv) !void {
         \\    _ = allocator;
         \\    _ = params;
         \\    // Job execution code goes here. Add any code that you would like to run in the background.

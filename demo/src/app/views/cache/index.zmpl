@@ -1,3 +1,3 @@
 <div>
-  <span>Cached value: {{.cached_value}}</span>
+  <span>Cached value: {{.message}}</span>
 </div>

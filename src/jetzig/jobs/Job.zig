@@ -7,14 +7,24 @@ pub const JobDefinition = struct {
     runFn: *const fn (std.mem.Allocator, *jetzig.data.Value, JobEnv) anyerror!void,
 };
 
+/// Environment passed to all jobs.
 pub const JobEnv = struct {
+    /// The Jetzig server logger
     logger: jetzig.loggers.Logger,
+    /// The current server environment, `enum { development, production }`
     environment: jetzig.Environment.EnvironmentName,
+    /// All routes detected by Jetzig on startup
     routes: []*const jetzig.Route,
+    /// All mailers detected by Jetzig on startup
     mailers: []const jetzig.MailerDefinition,
+    /// All jobs detected by Jetzig on startup
     jobs: []const jetzig.JobDefinition,
+    /// Global key-value store
     store: *jetzig.kv.Store,
+    /// Global cache
     cache: *jetzig.kv.Store,
+    /// Global mutex - use with caution if it is necessary to guarantee thread safety/consistency
+    /// between concurrent job workers
     mutex: *std.Thread.Mutex,
 };
 

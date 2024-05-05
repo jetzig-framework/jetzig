@@ -34,7 +34,9 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
         .defaults = mailer.defaults,
     };
 
-    try mailer.deliverFn(allocator, &mail_params, params, env);
+    var data = jetzig.data.Data.init(allocator);
+
+    try mailer.deliverFn(allocator, &mail_params, &data, params.get("params").?, env);
 
     const mail = jetzig.mail.Mail.init(allocator, .{
         .subject = mail_params.get(.subject) orelse "(No subject)",
