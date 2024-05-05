@@ -1,1 +1,3 @@
 {{.message}}
+
+{{.email_message}}

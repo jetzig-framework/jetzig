@@ -8,7 +8,7 @@ const util = @import("../util.zig");
 /// Command line options for the `bundle` command.
 pub const Options = struct {
     optimize: enum { Debug, ReleaseFast, ReleaseSmall } = .ReleaseFast,
-    arch: enum { x86_64, aarch64, default } = .default,
+    arch: enum { x86, x86_64, aarch64, default } = .default,
     os: enum { linux, macos, windows, default } = .default,
 
     pub const meta = .{
@@ -190,6 +190,7 @@ fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Op
 
     try target_buf.append("-Dtarget=");
     switch (options.arch) {
+        .x86 => try target_buf.append("x86"),
         .x86_64 => try target_buf.append("x86_64"),
         .aarch64 => try target_buf.append("aarch64"),
         .default => try target_buf.append(@tagName(builtin.cpu.arch)),

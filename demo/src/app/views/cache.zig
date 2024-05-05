@@ -3,7 +3,7 @@ const jetzig = @import("jetzig");
 
 pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var root = try data.object();
-    try root.put("cached_value", try request.cache.get("example"));
+    try root.put("message", try request.cache.get("message"));
 
     return request.render(.ok);
 }
