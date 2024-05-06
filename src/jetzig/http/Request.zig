@@ -183,24 +183,16 @@ pub fn respond(self: *Request) !void {
     defer std_response_headers.deinit(self.allocator);
 
     for (self.response.headers.headers.items) |header| {
-        self.httpz_response.header(header.name, header.value);
+        self.httpz_response.header(
+            try self.httpz_response.arena.dupe(u8, header.name),
+            try self.httpz_response.arena.dupe(u8, header.value),
+        );
     }
 
     const status = jetzig.http.status_codes.get(self.response.status_code);
     self.httpz_response.status = try status.getCodeInt();
-    self.httpz_response.body = self.response.content;
-    try self.httpz_response.write();
-
-    // try self.httpz_response.respond(
-    //     self.response.content,
-    //     .{
-    //         .keep_alive = false,
-    //         .status = switch (self.response.status_code) {
-    //             inline else => |tag| @field(std.http.Status, @tagName(tag)),
-    //         },
-    //         .extra_headers = std_response_headers.items,
-    //     },
-    // );
+    self.httpz_response.body = try self.httpz_response.arena.dupe(u8, self.response.content);
+    // try self.httpz_response.write();
 }
 
 /// Render a response. This function can only be called once per request (repeat calls will

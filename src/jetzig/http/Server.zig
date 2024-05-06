@@ -66,8 +66,8 @@ pub fn listen(self: *Server) !void {
         .{
             .port = self.options.port,
             .address = self.options.bind,
-            .workers = .{ .count = 8 },
-            .thread_pool = .{ .count = 8 },
+            .workers = .{ .count = 20 },
+            .thread_pool = .{ .count = 1 },
         },
         self,
     );
@@ -131,32 +131,6 @@ fn processNextRequest(
     // try self.logger.logRequest(&request);
 }
 
-// fn processNextRequest(self: *Server, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
-//     const start_time = std.time.nanoTimestamp();
-//
-//     const std_http_request = try std_http_server.receiveHead();
-//     if (std_http_server.state == .receiving_head) return error.JetzigParseHeadError;
-//
-//     var response = try jetzig.http.Response.init(allocator);
-//     var request = try jetzig.http.Request.init(allocator, self, start_time, std_http_request, &response);
-//
-//     try request.process();
-//
-//     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
-//
-//     try self.renderResponse(&request);
-//     try request.response.headers.append("content-type", response.content_type);
-//
-//     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
-//
-//     try request.respond();
-//
-//     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
-//     jetzig.http.middleware.deinit(&middleware_data, &request);
-//
-//     try self.logger.logRequest(&request);
-// }
-//
 fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
