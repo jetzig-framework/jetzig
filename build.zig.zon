@@ -22,6 +22,10 @@
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/e79e411862d4f4d41657bf41efb884efca3d67dd.tar.gz",
             .hash = "12209907c69891a38e6923308930ac43bfb40135bc609ea370b5759fc2e1c4f57284",
         },
+        .httpz = .{
+            .url = "https://github.com/karlseguin/http.zig/archive/bf748c6508090464213d3088a77d51faf9cd0876.tar.gz",
+            .hash = "12209b7426293ebe5075b930ae6029c009bfb6deb7ff92b9d69e28463abd14ad03da",
+        },
     },
 
     .paths = .{

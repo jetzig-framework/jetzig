@@ -94,6 +94,9 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         std.process.exit(0);
     }
 
+    // var httpz_server = try jetzig.HttpzServer.init(self.allocator);
+    // defer httpz_server.deinit();
+
     var server = jetzig.http.Server.init(
         self.allocator,
         server_options,
@@ -105,7 +108,6 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         &job_queue,
         &cache,
     );
-    defer server.deinit();
 
     var mutex = std.Thread.Mutex{};
     var worker_pool = jetzig.jobs.Pool.init(

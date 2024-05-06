@@ -3,6 +3,7 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 const zmpl = @import("zmpl");
 const zmd = @import("zmd");
+const httpz = @import("httpz");
 
 pub const ServerOptions = struct {
     logger: jetzig.loggers.Logger,
@@ -60,52 +61,58 @@ pub fn deinit(self: *Server) void {
 }
 
 pub fn listen(self: *Server) !void {
-    const address = try std.net.Address.parseIp(self.options.bind, self.options.port);
-    self.std_net_server = try address.listen(.{ .reuse_port = true });
+    var httpz_server = try httpz.ServerCtx(*jetzig.http.Server, *jetzig.http.Server).init(
+        self.allocator,
+        .{
+            .port = self.options.port,
+            .address = self.options.bind,
+            .workers = .{ .count = 8 },
+            .thread_pool = .{ .count = 8 },
+        },
+        self,
+    );
+    defer httpz_server.deinit();
+    httpz_server.notFound(jetzig.http.Server.dispatcherFn);
+    // httpz_server.dispatcher(jetzig.http.Server.dispatcherFn);
 
-    self.initialized = true;
-
-    try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
-        self.options.bind,
-        self.options.port,
-        @tagName(self.options.environment),
-    });
-    try self.processRequests();
+    return try httpz_server.listen();
+    // const address = try std.net.Address.parseIp(self.options.bind, self.options.port);
+    // self.std_net_server = try address.listen(.{ .reuse_port = true });
+    //
+    // self.initialized = true;
+    //
+    // try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
+    //     self.options.bind,
+    //     self.options.port,
+    //     @tagName(self.options.environment),
+    // });
+    // try self.processRequests();
 }
 
-fn processRequests(self: *Server) !void {
-    // TODO: Keepalive
-    while (true) {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        errdefer arena.deinit();
-        const allocator = arena.allocator();
-
-        const connection = try self.std_net_server.accept();
-
-        var buf: [jetzig.config.get(usize, "http_buffer_size")]u8 = undefined;
-        var std_http_server = std.http.Server.init(connection, &buf);
-        errdefer std_http_server.connection.stream.close();
-
-        self.processNextRequest(allocator, &std_http_server) catch |err| {
-            if (isBadHttpError(err)) {
-                std_http_server.connection.stream.close();
-                continue;
-            } else return err;
-        };
-
-        std_http_server.connection.stream.close();
-        arena.deinit();
-    }
+pub fn dispatcherFn(self: *Server, request: *httpz.Request, response: *httpz.Response) !void {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    try self.processNextRequest(allocator, request, response);
 }
 
-fn processNextRequest(self: *Server, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
+fn processNextRequest(
+    self: *Server,
+    allocator: std.mem.Allocator,
+    httpz_request: *httpz.Request,
+    httpz_response: *httpz.Response,
+) !void {
     const start_time = std.time.nanoTimestamp();
 
-    const std_http_request = try std_http_server.receiveHead();
-    if (std_http_server.state == .receiving_head) return error.JetzigParseHeadError;
-
     var response = try jetzig.http.Response.init(allocator);
-    var request = try jetzig.http.Request.init(allocator, self, start_time, std_http_request, &response);
+    var request = try jetzig.http.Request.init(
+        allocator,
+        self,
+        start_time,
+        httpz_request,
+        httpz_response,
+        &response,
+    );
 
     try request.process();
 
@@ -121,9 +128,35 @@ fn processNextRequest(self: *Server, allocator: std.mem.Allocator, std_http_serv
     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);
 
-    try self.logger.logRequest(&request);
+    // try self.logger.logRequest(&request);
 }
 
+// fn processNextRequest(self: *Server, allocator: std.mem.Allocator, std_http_server: *std.http.Server) !void {
+//     const start_time = std.time.nanoTimestamp();
+//
+//     const std_http_request = try std_http_server.receiveHead();
+//     if (std_http_server.state == .receiving_head) return error.JetzigParseHeadError;
+//
+//     var response = try jetzig.http.Response.init(allocator);
+//     var request = try jetzig.http.Request.init(allocator, self, start_time, std_http_request, &response);
+//
+//     try request.process();
+//
+//     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
+//
+//     try self.renderResponse(&request);
+//     try request.response.headers.append("content-type", response.content_type);
+//
+//     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+//
+//     try request.respond();
+//
+//     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
+//     jetzig.http.middleware.deinit(&middleware_data, &request);
+//
+//     try self.logger.logRequest(&request);
+// }
+//
 fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
