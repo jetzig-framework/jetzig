@@ -60,48 +60,64 @@ pub fn deinit(self: *Server) void {
     self.allocator.free(self.options.bind);
 }
 
+const Dispatcher = struct {
+    server: *Server,
+
+    pub fn handle(self: Dispatcher, request: *httpz.Request, response: *httpz.Response) void {
+        self.server.processNextRequest(request, response) catch |err| {
+            self.server.errorHandlerFn(request, response, err);
+        };
+    }
+};
+
 pub fn listen(self: *Server) !void {
-    var httpz_server = try httpz.ServerCtx(*jetzig.http.Server, *jetzig.http.Server).init(
+    var httpz_server = try httpz.ServerCtx(Dispatcher, Dispatcher).init(
         self.allocator,
         .{
             .port = self.options.port,
             .address = self.options.bind,
-            .workers = .{ .count = 20 },
-            .thread_pool = .{ .count = 1 },
+            .thread_pool = .{ .count = @intCast(try std.Thread.getCpuCount()) },
         },
-        self,
+        Dispatcher{ .server = self },
     );
     defer httpz_server.deinit();
-    httpz_server.notFound(jetzig.http.Server.dispatcherFn);
-    // httpz_server.dispatcher(jetzig.http.Server.dispatcherFn);
+
+    try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
+        self.options.bind,
+        self.options.port,
+        @tagName(self.options.environment),
+    });
+
+    self.initialized = true;
 
     return try httpz_server.listen();
-    // const address = try std.net.Address.parseIp(self.options.bind, self.options.port);
-    // self.std_net_server = try address.listen(.{ .reuse_port = true });
-    //
-    // self.initialized = true;
-    //
-    // try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
-    //     self.options.bind,
-    //     self.options.port,
-    //     @tagName(self.options.environment),
-    // });
-    // try self.processRequests();
 }
 
-pub fn dispatcherFn(self: *Server, request: *httpz.Request, response: *httpz.Response) !void {
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-    try self.processNextRequest(allocator, request, response);
+pub fn errorHandlerFn(self: *Server, request: *httpz.Request, response: *httpz.Response, err: anyerror) void {
+    if (isBadHttpError(err)) return;
+
+    self.logger.ERROR("Encountered error: {s} {s}", .{ @errorName(err), request.url.raw }) catch {};
+    response.body = "500 Internal Server Error";
 }
 
 fn processNextRequest(
     self: *Server,
-    allocator: std.mem.Allocator,
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
 ) !void {
+    const state = try self.allocator.create(jetzig.http.Request.CallbackState);
+    const arena = try self.allocator.create(std.heap.ArenaAllocator);
+    arena.* = std.heap.ArenaAllocator.init(self.allocator);
+    state.* = .{
+        .arena = arena,
+        .allocator = self.allocator,
+    };
+
+    // Regular arena deinit occurs in jetzig.http.Request.responseCompletCallback
+    errdefer state.arena.deinit();
+
+    const allocator = state.arena.allocator();
+
     const start_time = std.time.nanoTimestamp();
 
     var response = try jetzig.http.Response.init(allocator);
@@ -123,12 +139,12 @@ fn processNextRequest(
 
     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
 
-    try request.respond();
+    try request.respond(state);
 
     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);
 
-    // try self.logger.logRequest(&request);
+    try self.logger.logRequest(&request);
 }
 
 fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
