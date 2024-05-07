@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 
 pub const Server = @import("http/Server.zig");
 pub const Request = if (builtin.os.tag == .windows)
-    @import("http/RequestWindows.zig")
+    @import("windows/Request.zig")
 else
     @import("http/Request.zig");
 pub const StaticRequest = @import("http/StaticRequest.zig");
