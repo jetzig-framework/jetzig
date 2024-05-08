@@ -72,8 +72,6 @@ const Dispatcher = struct {
 };
 
 pub fn listen(self: *Server) !void {
-    if (builtin.os.tag == .windows) return try @import("../windows.zig").listen(self);
-
     var httpz_server = try httpz.ServerCtx(Dispatcher, Dispatcher).init(
         self.allocator,
         .{
@@ -150,8 +148,7 @@ fn processNextRequest(
     try self.logger.logRequest(&request);
 }
 
-// TODO: Make private when http.zig Windows is working
-pub fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
+fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
@@ -332,8 +329,7 @@ fn isUnhandledError(err: anyerror) bool {
     };
 }
 
-// TODO: Make private when http.zig Windows is working
-pub fn isBadHttpError(err: anyerror) bool {
+fn isBadHttpError(err: anyerror) bool {
     return switch (err) {
         error.JetzigParseHeadError,
         error.UnknownHttpMethod,
