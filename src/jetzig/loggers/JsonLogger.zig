@@ -54,9 +54,9 @@ pub fn log(
     const output = try std.fmt.allocPrint(self.allocator, message, args);
     defer self.allocator.free(output);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
     const file = self.getFile(level);
     const writer = file.writer();
@@ -80,9 +80,9 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
 
     const duration = jetzig.util.duration(request.start_time);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
     const status = switch (request.response.status_code) {
         inline else => |status_code| @unionInit(

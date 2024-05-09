@@ -101,15 +101,16 @@ pub fn runtimeWhite(allocator: std.mem.Allocator, message: []const u8) ![]const 
     return try runtimeWrap(allocator, codes.white, message);
 }
 
-pub fn duration(allocator: std.mem.Allocator, delta: i64) ![]const u8 {
-    var buf: [1024]u8 = undefined;
-    const formatted_duration = try std.fmt.bufPrint(&buf, "{}", .{std.fmt.fmtDurationSigned(delta)});
-
-    if (delta < 1000000) {
-        return try runtimeGreen(allocator, formatted_duration);
-    } else if (delta < 5000000) {
-        return try runtimeYellow(allocator, formatted_duration);
-    } else {
-        return try runtimeRed(allocator, formatted_duration);
-    }
+pub fn duration(buf: *[256]u8, delta: i64) ![]const u8 {
+    const code = if (delta < 1000000)
+        codes.green
+    else if (delta < 5000000)
+        codes.yellow
+    else
+        codes.red;
+    return try std.fmt.bufPrint(
+        buf,
+        "{s}{s}m{}{s}{s}m",
+        .{ codes.escape, code, std.fmt.fmtDurationSigned(delta), codes.escape, codes.reset },
+    );
 }

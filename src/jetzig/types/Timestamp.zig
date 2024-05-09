@@ -3,7 +3,6 @@ const std = @import("std");
 const Self = @This();
 
 timestamp: i64,
-allocator: std.mem.Allocator,
 
 const constants = struct {
     pub const seconds_in_day: i64 = 60 * 60 * 24;
@@ -12,18 +11,18 @@ const constants = struct {
     pub const epoch_year: i64 = 1970;
 };
 
-pub fn init(timestamp: i64, allocator: std.mem.Allocator) Self {
-    return .{ .allocator = allocator, .timestamp = timestamp };
+pub fn init(timestamp: i64) Self {
+    return .{ .timestamp = timestamp };
 }
 
-pub fn iso8601(self: *const Self) ![]const u8 {
+pub fn iso8601(self: *const Self, buf: *[256]u8) ![]const u8 {
     const u32_year: u32 = @intCast(self.year());
     const u32_month: u32 = @intCast(self.month());
     const u32_day_of_month: u32 = @intCast(self.dayOfMonth());
     const u32_hour: u32 = @intCast(self.hour());
     const u32_minute: u32 = @intCast(self.minute());
     const u32_second: u32 = @intCast(self.second());
-    return try std.fmt.allocPrint(self.allocator, "{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}", .{
+    return try std.fmt.bufPrint(buf, "{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}", .{
         u32_year,
         u32_month,
         u32_day_of_month,

@@ -22,9 +22,9 @@ pub fn init(
     return .{
         .allocator = allocator,
         .level = level,
-        .log_queue = log_queue,
-        .stdout_colorized = true, // TODO
-        .stderr_colorized = true, // TODO
+        .log_queue = log_queue, // TODO: stdout/stderr queues
+        .stdout_colorized = log_queue.is_tty,
+        .stderr_colorized = log_queue.is_tty,
     };
 }
 
@@ -40,9 +40,9 @@ pub fn log(
     const output = try std.fmt.allocPrint(self.allocator, message, args);
     defer self.allocator.free(output);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
     const colorized = switch (level) {
         .TRACE, .DEBUG, .INFO => self.stdout_colorized,
@@ -59,15 +59,15 @@ pub fn log(
 
 /// Log a one-liner including response status code, path, method, duration, etc.
 pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) !void {
+    var duration_buf: [256]u8 = undefined;
     const formatted_duration = if (self.stdout_colorized)
-        try jetzig.colors.duration(self.allocator, jetzig.util.duration(request.start_time))
+        try jetzig.colors.duration(&duration_buf, jetzig.util.duration(request.start_time))
     else
-        try std.fmt.allocPrint(
-            self.allocator,
+        try std.fmt.bufPrint(
+            &duration_buf,
             "{}",
             .{std.fmt.fmtDurationSigned(jetzig.util.duration(request.start_time))},
         );
-    defer self.allocator.free(formatted_duration);
 
     const status: jetzig.http.status_codes.TaggedStatusCode = switch (request.response.status_code) {
         inline else => |status_code| @unionInit(
@@ -82,14 +82,19 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     else
         status.getFormatted(.{});
 
-    const message = try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
+
+    const writer = self.log_queue.writer;
+    try writer.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
+        if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO),
+        iso8601,
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
         formatted_status,
         request.path.path,
     });
-    defer self.allocator.free(message);
-    try self.log(.INFO, "{s}", .{message});
 }
 
 fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
