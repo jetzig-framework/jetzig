@@ -59,7 +59,10 @@ pub fn init(allocator: std.mem.Allocator) Environment {
 }
 
 /// Generate server initialization options using command line args with defaults.
-pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
+pub fn getServerOptions(
+    self: Environment,
+    log_queue: *jetzig.loggers.LogQueue,
+) !jetzig.http.Server.ServerOptions {
     const options = try args.parseForCurrentProcess(Options, self.allocator, .print);
     defer options.deinit();
 
@@ -72,22 +75,24 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     const environment = options.options.environment;
 
     var logger = switch (options.options.@"log-format") {
-        .development => jetzig.loggers.Logger{
+        .development, .json => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 self.allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
-                try getLogFile(.stdout, options.options),
-                try getLogFile(.stderr, options.options),
+                log_queue,
+                // try getLogFile(.stdout, options.options),
+                // try getLogFile(.stderr, options.options),
             ),
         },
-        .json => jetzig.loggers.Logger{
-            .json_logger = jetzig.loggers.JsonLogger.init(
-                self.allocator,
-                resolveLogLevel(options.options.@"log-level", environment),
-                try getLogFile(.stdout, options.options),
-                try getLogFile(.stderr, options.options),
-            ),
-        },
+        // TODO
+        // .json => jetzig.loggers.Logger{
+        //     .json_logger = jetzig.loggers.JsonLogger.init(
+        //         self.allocator,
+        //         resolveLogLevel(options.options.@"log-level", environment),
+        //         try getLogFile(.stdout, options.options),
+        //         try getLogFile(.stderr, options.options),
+        //     ),
+        // },
     };
 
     if (options.options.detach and std.mem.eql(u8, options.options.log, "-")) {

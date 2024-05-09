@@ -8,28 +8,23 @@ const Timestamp = jetzig.types.Timestamp;
 const LogLevel = jetzig.loggers.LogLevel;
 
 allocator: std.mem.Allocator,
-stdout: std.fs.File,
-stderr: std.fs.File,
 stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
-mutex: std.Thread.Mutex,
+log_queue: *jetzig.loggers.LogQueue,
 
 /// Initialize a new Development Logger.
 pub fn init(
     allocator: std.mem.Allocator,
     level: LogLevel,
-    stdout: std.fs.File,
-    stderr: std.fs.File,
+    log_queue: *jetzig.loggers.LogQueue,
 ) DevelopmentLogger {
     return .{
         .allocator = allocator,
         .level = level,
-        .stdout = stdout,
-        .stderr = stderr,
-        .stdout_colorized = stdout.isTty(),
-        .stderr_colorized = stderr.isTty(),
-        .mutex = std.Thread.Mutex{},
+        .log_queue = log_queue,
+        .stdout_colorized = true, // TODO
+        .stderr_colorized = true, // TODO
     };
 }
 
@@ -53,19 +48,13 @@ pub fn log(
         .TRACE, .DEBUG, .INFO => self.stdout_colorized,
         .WARN, .ERROR, .FATAL => self.stderr_colorized,
     };
-    const file = switch (level) {
-        .TRACE, .DEBUG, .INFO => self.stdout,
-        .WARN, .ERROR, .FATAL => self.stderr,
+    const writer = switch (level) {
+        .TRACE, .DEBUG, .INFO => self.log_queue.writer,
+        .WARN, .ERROR, .FATAL => self.log_queue.writer,
     };
-    const writer = file.writer();
     const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
 
-    @constCast(self).mutex.lock();
-    defer @constCast(self).mutex.unlock();
-
     try writer.print("{s: >5} [{s}] {s}\n", .{ level_formatted, iso8601, output });
-
-    if (!file.isTty()) try file.sync();
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.

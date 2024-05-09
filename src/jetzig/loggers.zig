@@ -6,6 +6,7 @@ const Self = @This();
 
 pub const DevelopmentLogger = @import("loggers/DevelopmentLogger.zig");
 pub const JsonLogger = @import("loggers/JsonLogger.zig");
+pub const LogQueue = @import("loggers/LogQueue.zig");
 
 pub const LogLevel = enum(u4) { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
 pub const LogFormat = enum { development, json };

@@ -75,9 +75,19 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     );
     defer cache.deinit();
 
-    const server_options = try self.environment.getServerOptions();
+    var log_queue = try jetzig.loggers.LogQueue.init(self.allocator);
+    try log_queue.setFile(std.io.getStdOut());
+
+    const server_options = try self.environment.getServerOptions(&log_queue);
     defer self.allocator.free(server_options.bind);
     defer self.allocator.free(server_options.secret);
+
+    var log_thread = try std.Thread.spawn(
+        .{ .allocator = self.allocator },
+        jetzig.loggers.LogQueue.Reader.publish,
+        .{log_queue.reader},
+    );
+    defer log_thread.join();
 
     if (server_options.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
