@@ -15,7 +15,7 @@ pub const jetzig_options = struct {
         jetzig.middleware.HtmxMiddleware,
         // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
         // middleware system.
-        @import("app/middleware/DemoMiddleware.zig"),
+        // @import("app/middleware/DemoMiddleware.zig"),
     };
 
     // Maximum bytes to allow in request body.

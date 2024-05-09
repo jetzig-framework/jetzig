@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const httpz = @import("httpz");
+
 const jetzig = @import("../../jetzig.zig");
 
 const Request = @This();
@@ -14,7 +16,8 @@ path: jetzig.http.Path,
 method: Method,
 headers: jetzig.http.Headers,
 server: *jetzig.http.Server,
-std_http_request: std.http.Server.Request,
+httpz_request: *httpz.Request,
+httpz_response: *httpz.Response,
 response: *jetzig.http.Response,
 status_code: jetzig.http.status_codes.StatusCode = .not_found,
 response_data: *jetzig.data.Data,
@@ -90,20 +93,18 @@ pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
     start_time: i128,
-    std_http_request: std.http.Server.Request,
+    httpz_request: *httpz.Request,
+    httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
 ) !Request {
-    const method = switch (std_http_request.head.method) {
+    const method = switch (httpz_request.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
         .POST => Method.POST,
         .HEAD => Method.HEAD,
         .PUT => Method.PUT,
-        .CONNECT => Method.CONNECT,
         .OPTIONS => Method.OPTIONS,
-        .TRACE => Method.TRACE,
-        _ => return error.JetzigUnsupportedHttpMethod,
     };
 
     const response_data = try allocator.create(jetzig.data.Data);
@@ -111,13 +112,14 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = jetzig.http.Path.init(std_http_request.head.target),
+        .path = jetzig.http.Path.init(httpz_request.url.raw),
         .method = method,
         .headers = jetzig.http.Headers.init(allocator),
         .server = server,
         .response = response,
         .response_data = response_data,
-        .std_http_request = std_http_request,
+        .httpz_request = httpz_request,
+        .httpz_response = httpz_response,
         .start_time = start_time,
         .store = .{ .store = server.store, .allocator = allocator },
         .cache = .{ .store = server.cache, .allocator = allocator },
@@ -134,12 +136,14 @@ pub fn deinit(self: *Request) void {
 
 /// Process request, read body if present, parse headers (TODO)
 pub fn process(self: *Request) !void {
-    var headers_it = self.std_http_request.iterateHeaders();
     var cookie: ?[]const u8 = null;
 
-    while (headers_it.next()) |header| {
-        try self.headers.append(header.name, header.value);
-        if (std.mem.eql(u8, header.name, "Cookie")) cookie = header.value;
+    var header_index: usize = 0;
+    while (header_index < self.httpz_request.headers.len) : (header_index += 1) {
+        const name = self.httpz_request.headers.keys[header_index];
+        const value = self.httpz_request.headers.values[header_index];
+        try self.headers.append(name, value);
+        if (std.mem.eql(u8, name, "Cookie")) cookie = value;
     }
 
     self.cookies = try self.allocator.create(jetzig.http.Cookies);
@@ -161,13 +165,27 @@ pub fn process(self: *Request) !void {
         }
     };
 
-    const reader = try self.std_http_request.reader();
-    self.body = try reader.readAllAlloc(self.allocator, jetzig.config.get(usize, "max_bytes_request_body"));
+    self.body = self.httpz_request.body() orelse "";
     self.processed = true;
 }
 
+pub const CallbackState = struct {
+    arena: *std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
+};
+
+pub fn responseCompleteCallback(ptr: *anyopaque) void {
+    var state: *CallbackState = @ptrCast(@alignCast(ptr));
+    state.arena.deinit();
+    state.allocator.destroy(state.arena);
+    state.allocator.destroy(state);
+}
+
 /// Set response headers, write response payload, and finalize the response.
-pub fn respond(self: *Request) !void {
+pub fn respond(
+    self: *Request,
+    state: *CallbackState,
+) !void {
     if (!self.processed) unreachable;
 
     var cookie_it = self.cookies.headerIterator();
@@ -176,19 +194,14 @@ pub fn respond(self: *Request) !void {
         try self.response.headers.append("Set-Cookie", header);
     }
 
-    var std_response_headers = try self.response.headers.stdHeaders();
-    defer std_response_headers.deinit(self.allocator);
+    for (self.response.headers.headers.items) |header| {
+        self.httpz_response.header(header.name, header.value);
+    }
 
-    try self.std_http_request.respond(
-        self.response.content,
-        .{
-            .keep_alive = false,
-            .status = switch (self.response.status_code) {
-                inline else => |tag| @field(std.http.Status, @tagName(tag)),
-            },
-            .extra_headers = std_response_headers.items,
-        },
-    );
+    const status = jetzig.http.status_codes.get(self.response.status_code);
+    self.httpz_response.status = try status.getCodeInt();
+    self.httpz_response.body = self.response.content;
+    self.httpz_response.callback(responseCompleteCallback, @ptrCast(state));
 }
 
 /// Render a response. This function can only be called once per request (repeat calls will

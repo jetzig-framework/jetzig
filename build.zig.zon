@@ -19,8 +19,12 @@
             .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
         },
         .smtp_client = .{
-            .url = "https://github.com/bobf/smtp_client.zig/archive/86315adf5527e6add304fea3f1ff110613126283.tar.gz",
-            .hash = "12203ccdd3f7145f305c6f88b18ecd407d27b36051a523f8f579f0099db6a17cd757",
+            .url = "https://github.com/karlseguin/smtp_client.zig/archive/964152ad4e19dc1d22f6def6f659c86df60e7832.tar.gz",
+            .hash = "1220d4f1c2472769b0d689ea878f41f0a66cb07f28569a138aea2c0a648a5c90dd4e",
+        },
+        .httpz = .{
+            .url = "https://github.com/karlseguin/http.zig/archive/206a34c0ee35a07b89d000f630b2f1e0f7c98119.tar.gz",
+            .hash = "1220768b5925b4e13f73c036f1ca18b4a7d987ffaf5e825af6443d5d4ed8e37e7dfd",
         },
     },
 

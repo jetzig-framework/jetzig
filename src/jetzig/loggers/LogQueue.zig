@@ -41,7 +41,6 @@ pub const Writer = struct {
 
     pub fn print(self: *Writer, comptime message: []const u8, args: anytype) !void {
         const output = try std.fmt.allocPrint(self.queue.allocator, message, args);
-        defer self.queue.allocator.free(output);
         try self.queue.append(output);
     }
 };
@@ -73,7 +72,7 @@ pub fn append(self: *LogQueue, message: []const u8) !void {
     defer self.read_write_mutex.unlock();
 
     const node = try self.allocator.create(List.Node);
-    node.* = .{ .data = try self.allocator.dupe(u8, message) };
+    node.* = .{ .data = message };
     self.list.append(node);
     self.condition.signal();
 }

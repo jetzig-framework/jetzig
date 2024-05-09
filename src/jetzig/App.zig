@@ -115,7 +115,6 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         &job_queue,
         &cache,
     );
-    defer server.deinit();
 
     var mutex = std.Thread.Mutex{};
     var worker_pool = jetzig.jobs.Pool.init(
