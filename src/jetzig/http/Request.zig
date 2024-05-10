@@ -134,7 +134,7 @@ pub fn deinit(self: *Request) void {
     if (self.processed) self.allocator.free(self.body);
 }
 
-/// Process request, read body if present, parse headers (TODO)
+/// Process request, read body if present, parse headers
 pub fn process(self: *Request) !void {
     var cookie: ?[]const u8 = null;
 
