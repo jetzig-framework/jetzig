@@ -37,24 +37,30 @@ pub fn setFile(self: *LogQueue, file: std.fs.File) !void {
     self.is_tty = file.isTty();
 }
 
+/// Writer for `LogQueue`. Receives log events and publishes to the queue.
 pub const Writer = struct {
     file: std.fs.File,
     queue: *LogQueue,
 
+    /// True if target output file is a TTY.
     pub fn isTty(self: Writer) bool {
         return self.file.isTty();
     }
 
+    /// Print a log event.
     pub fn print(self: *Writer, comptime message: []const u8, args: anytype) !void {
         const output = try std.fmt.allocPrint(self.queue.allocator, message, args);
         try self.queue.append(output);
     }
 };
 
+/// Reader for `LogQueue`. Reads log events from the queue.
 pub const Reader = struct {
     file: std.fs.File,
     queue: *LogQueue,
 
+    /// Publish log events from the queue. Invoke from a dedicated thread. Sleeps when log queue
+    /// is empty, wakes up when a new event is published.
     pub fn publish(self: *Reader) !void {
         const writer = self.file.writer();
         while (true) {
@@ -73,17 +79,18 @@ pub const Reader = struct {
     }
 };
 
-pub fn append(self: *LogQueue, message: []const u8) !void {
+// Append a log event to the queue. Signal the publish loop thread to wake up. Recycle nodes if
+// available in the pool, otherwise create a new one.
+fn append(self: *LogQueue, message: []const u8) !void {
     self.read_write_mutex.lock();
     defer self.read_write_mutex.unlock();
 
     const node = if (self.position >= self.pool.items.len) blk: {
-        self.position += 1;
         break :blk try self.allocator.create(List.Node);
     } else blk: {
-        self.position += 1;
-        break :blk self.pool.items[self.position - 1];
+        break :blk self.pool.items[self.position];
     };
+    self.position += 1;
 
     node.* = .{ .data = message };
     self.list.append(node);
@@ -91,7 +98,8 @@ pub fn append(self: *LogQueue, message: []const u8) !void {
     self.condition.signal();
 }
 
-pub fn popFirst(self: *LogQueue) !?[]const u8 {
+// Pop a log event from the queue. Return node to the pool for re-use.
+fn popFirst(self: *LogQueue) !?[]const u8 {
     self.read_write_mutex.lock();
     defer self.read_write_mutex.unlock();
 
@@ -101,7 +109,7 @@ pub fn popFirst(self: *LogQueue) !?[]const u8 {
         if (self.position < self.pool.items.len) {
             self.pool.items[self.position] = node;
         } else {
-            try self.pool.append(node);
+            try self.pool.append(node); // TODO: Set a maximum here to avoid never-ending inflation.
         }
         return value;
     } else {
