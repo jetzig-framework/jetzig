@@ -11,8 +11,8 @@
             .hash = "122093b741ef4aff151e916fc6005cb0c2aed747a34b77c0d4b45099ea2b561df9c7",
         },
         .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/50016e13c89e86c89b7f7ae93d4f0a31d3be303b.tar.gz",
-            .hash = "122090b828d2cdd4915d242cb3761fe9142b145e49a2341f8b29343839945d6ab256",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/6fc375b1ece563ae6d16849bb7c0441ff2883a04.tar.gz",
+            .hash = "122079edca9ea46ebb5ce8f05ea2c58ee957cf2d73fcfd9a0fd6a50f65879f3bf88f",
         },
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",

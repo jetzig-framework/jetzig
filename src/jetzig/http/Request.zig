@@ -23,8 +23,8 @@ status_code: jetzig.http.status_codes.StatusCode = .not_found,
 response_data: *jetzig.data.Data,
 query_params: ?*jetzig.http.Query = null,
 query_body: ?*jetzig.http.Query = null,
-cookies: *jetzig.http.Cookies = undefined,
-session: *jetzig.http.Session = undefined,
+_cookies: ?*jetzig.http.Cookies = null,
+_session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
 processed: bool = false,
 layout: ?[]const u8 = null,
@@ -114,7 +114,7 @@ pub fn init(
         .allocator = allocator,
         .path = jetzig.http.Path.init(httpz_request.url.raw),
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator),
+        .headers = jetzig.http.Headers.init(allocator, &httpz_request.headers),
         .server = server,
         .response = response,
         .response_data = response_data,
@@ -134,37 +134,8 @@ pub fn deinit(self: *Request) void {
     if (self.processed) self.allocator.free(self.body);
 }
 
-/// Process request, read body if present, parse headers
+/// Process request, read body if present.
 pub fn process(self: *Request) !void {
-    var cookie: ?[]const u8 = null;
-
-    var header_index: usize = 0;
-    while (header_index < self.httpz_request.headers.len) : (header_index += 1) {
-        const name = self.httpz_request.headers.keys[header_index];
-        const value = self.httpz_request.headers.values[header_index];
-        try self.headers.append(name, value);
-        if (std.mem.eql(u8, name, "Cookie")) cookie = value;
-    }
-
-    self.cookies = try self.allocator.create(jetzig.http.Cookies);
-    self.cookies.* = jetzig.http.Cookies.init(
-        self.allocator,
-        cookie orelse "",
-    );
-    try self.cookies.parse();
-
-    self.session = try self.allocator.create(jetzig.http.Session);
-    self.session.* = jetzig.http.Session.init(self.allocator, self.cookies, self.server.options.secret);
-    self.session.parse() catch |err| {
-        switch (err) {
-            error.JetzigInvalidSessionCookie => {
-                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
-                try self.session.reset();
-            },
-            else => return err,
-        }
-    };
-
     self.body = self.httpz_request.body() orelse "";
     self.processed = true;
 }
@@ -188,15 +159,7 @@ pub fn respond(
 ) !void {
     if (!self.processed) unreachable;
 
-    var cookie_it = self.cookies.headerIterator();
-    while (try cookie_it.next()) |header| {
-        // FIXME: Skip setting cookies that are already present ?
-        try self.response.headers.append("Set-Cookie", header);
-    }
-
-    for (self.response.headers.headers.items) |header| {
-        self.httpz_response.header(header.name, header.value);
-    }
+    try self.setCookieHeaders();
 
     const status = jetzig.http.status_codes.get(self.response.status_code);
     self.httpz_response.status = try status.getCodeInt();
@@ -239,8 +202,15 @@ pub fn redirect(
 
     self.response_data.reset();
 
-    self.response.headers.remove("Location");
-    self.response.headers.append("Location", location) catch @panic("OOM");
+    self.response.headers.append("Location", location) catch |err| {
+        switch (err) {
+            error.JetzigTooManyHeaders => std.debug.print(
+                "Header limit reached. Unable to add redirect header.\n",
+                .{},
+            ),
+            else => @panic("OOM"),
+        }
+    };
 
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
@@ -328,7 +298,7 @@ pub fn queryParams(self: *Request) !*jetzig.data.Value {
     return self.query_params.?.data.value.?;
 }
 
-// Parses request body as params if present, otherwise delegates to `queryParams`.
+// Parse request body as params if present, otherwise delegate to `queryParams`.
 fn parseQuery(self: *Request) !*jetzig.data.Value {
     if (self.body.len == 0) return try self.queryParams();
     if (self.query_body) |parsed| return parsed.data.value.?;
@@ -345,7 +315,46 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
     return self.query_body.?.data.value.?;
 }
 
-/// Creates a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
+/// Parse `Cookie` header into separate cookies.
+pub fn cookies(self: *Request) !*jetzig.http.Cookies {
+    if (self._cookies) |capture| return capture;
+
+    const cookie = self.httpz_request.headers.get("cookie");
+
+    const local_cookies = try self.allocator.create(jetzig.http.Cookies);
+    local_cookies.* = jetzig.http.Cookies.init(
+        self.allocator,
+        cookie orelse "",
+    );
+    try local_cookies.parse();
+
+    self._cookies = local_cookies;
+
+    return local_cookies;
+}
+
+/// Parse cookies, decrypt Jetzig cookie (`jetzig.http.Session.cookie_name`) and return a mutable
+/// `jetzig.http.Session`.
+pub fn session(self: *Request) !*jetzig.http.Session {
+    if (self._session) |capture| return capture;
+
+    const local_session = try self.allocator.create(jetzig.http.Session);
+    local_session.* = jetzig.http.Session.init(self.allocator, try self.cookies(), self.server.options.secret);
+    local_session.parse() catch |err| {
+        switch (err) {
+            error.JetzigInvalidSessionCookie => {
+                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
+                try local_session.reset();
+            },
+            else => return err,
+        }
+    };
+
+    self._session = local_session;
+    return local_session;
+}
+
+/// Create a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
 /// Call `Job.put(...)` to set job params.
 /// Call `Job.background()` to run the job outside of the request/response flow.
 /// e.g.:
@@ -448,33 +457,21 @@ fn extensionFormat(self: *const Request) ?jetzig.http.Request.Format {
 }
 
 pub fn acceptHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
-    const acceptHeader = self.getHeader("Accept");
-
-    if (acceptHeader) |item| {
-        if (std.mem.eql(u8, item, "text/html")) return .HTML;
-        if (std.mem.eql(u8, item, "application/json")) return .JSON;
+    if (self.httpz_request.headers.get("accept")) |value| {
+        if (std.mem.eql(u8, value, "text/html")) return .HTML;
+        if (std.mem.eql(u8, value, "application/json")) return .JSON;
     }
 
     return null;
 }
 
 pub fn contentTypeHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
-    const acceptHeader = self.getHeader("content-type");
-
-    if (acceptHeader) |item| {
-        if (std.mem.eql(u8, item, "text/html")) return .HTML;
-        if (std.mem.eql(u8, item, "application/json")) return .JSON;
+    if (self.httpz_request.headers.get("content-type")) |value| {
+        if (std.mem.eql(u8, value, "text/html")) return .HTML;
+        if (std.mem.eql(u8, value, "application/json")) return .JSON;
     }
 
     return null;
-}
-
-pub fn hash(self: *Request) ![]const u8 {
-    return try std.fmt.allocPrint(
-        self.allocator,
-        "{s}-{s}-{s}",
-        .{ @tagName(self.method), self.path, @tagName(self.requestFormat()) },
-    );
 }
 
 pub fn fmtMethod(self: *const Request, colorized: bool) []const u8 {
@@ -519,6 +516,17 @@ pub fn setResponse(
         .HTML, .UNKNOWN => "text/html",
         .JSON => "application/json",
     };
+}
+
+fn setCookieHeaders(self: *Request) !void {
+    const local_cookies = self._cookies orelse return;
+    if (!local_cookies.modified) return;
+
+    var cookie_it = local_cookies.headerIterator();
+    while (try cookie_it.next()) |header| {
+        // FIXME: Skip setting cookies that are already present ?
+        try self.response.headers.append("Set-Cookie", header);
+    }
 }
 
 // Determine if a given route matches the current request.

@@ -59,12 +59,16 @@ pub fn init(allocator: std.mem.Allocator) Environment {
 }
 
 /// Generate server initialization options using command line args with defaults.
-pub fn getServerOptions(
-    self: Environment,
-    log_queue: *jetzig.loggers.LogQueue,
-) !jetzig.http.Server.ServerOptions {
+pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     const options = try args.parseForCurrentProcess(Options, self.allocator, .print);
     defer options.deinit();
+
+    const log_queue = try self.allocator.create(jetzig.loggers.LogQueue);
+    log_queue.* = try jetzig.loggers.LogQueue.init(self.allocator);
+    try log_queue.setFiles(
+        try getLogFile(.stdout, options.options),
+        try getLogFile(.stderr, options.options),
+    );
 
     if (options.options.help) {
         const writer = std.io.getStdErr().writer();
@@ -75,24 +79,20 @@ pub fn getServerOptions(
     const environment = options.options.environment;
 
     var logger = switch (options.options.@"log-format") {
-        .development, .json => jetzig.loggers.Logger{
+        .development => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 self.allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
                 log_queue,
-                // try getLogFile(.stdout, options.options),
-                // try getLogFile(.stderr, options.options),
             ),
         },
-        // TODO
-        // .json => jetzig.loggers.Logger{
-        //     .json_logger = jetzig.loggers.JsonLogger.init(
-        //         self.allocator,
-        //         resolveLogLevel(options.options.@"log-level", environment),
-        //         try getLogFile(.stdout, options.options),
-        //         try getLogFile(.stderr, options.options),
-        //     ),
-        // },
+        .json => jetzig.loggers.Logger{
+            .json_logger = jetzig.loggers.JsonLogger.init(
+                self.allocator,
+                resolveLogLevel(options.options.@"log-level", environment),
+                log_queue,
+            ),
+        },
     };
 
     if (options.options.detach and std.mem.eql(u8, options.options.log, "-")) {
@@ -116,6 +116,7 @@ pub fn getServerOptions(
         .port = options.options.port,
         .detach = options.options.detach,
         .environment = environment,
+        .log_queue = log_queue,
     };
 }
 

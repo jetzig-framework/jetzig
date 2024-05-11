@@ -22,9 +22,9 @@ pub fn init(
     return .{
         .allocator = allocator,
         .level = level,
-        .log_queue = log_queue, // TODO: stdout/stderr queues
-        .stdout_colorized = log_queue.is_tty,
-        .stderr_colorized = log_queue.is_tty,
+        .log_queue = log_queue,
+        .stdout_colorized = log_queue.stdout_is_tty,
+        .stderr_colorized = log_queue.stderr_is_tty,
     };
 }
 
@@ -48,13 +48,14 @@ pub fn log(
         .TRACE, .DEBUG, .INFO => self.stdout_colorized,
         .WARN, .ERROR, .FATAL => self.stderr_colorized,
     };
-    const writer = switch (level) {
-        .TRACE, .DEBUG, .INFO => self.log_queue.writer,
-        .WARN, .ERROR, .FATAL => self.log_queue.writer,
-    };
     const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
+    const target = jetzig.loggers.logTarget(level);
 
-    try writer.print("{s: >5} [{s}] {s}\n", .{ level_formatted, iso8601, output });
+    try self.log_queue.writer.print(
+        "{s: >5} [{s}] {s}\n",
+        .{ level_formatted, iso8601, output },
+        target,
+    );
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.
@@ -86,23 +87,22 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    const writer = self.log_queue.writer;
-    try writer.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
+    try self.log_queue.writer.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
         if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO),
         iso8601,
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
         formatted_status,
         request.path.path,
-    });
+    }, .stdout);
 }
 
 fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
     return switch (level) {
         .TRACE => jetzig.colors.white(@tagName(level)),
         .DEBUG => jetzig.colors.cyan(@tagName(level)),
-        .INFO => jetzig.colors.blue(@tagName(level) ++ " "),
-        .WARN => jetzig.colors.yellow(@tagName(level) ++ " "),
+        .INFO => jetzig.colors.blue(@tagName(level) ++ " "), // Keep logs neatly aligned
+        .WARN => jetzig.colors.yellow(@tagName(level) ++ " "), // "
         .ERROR => jetzig.colors.red(@tagName(level)),
         .FATAL => jetzig.colors.red(@tagName(level)),
     };

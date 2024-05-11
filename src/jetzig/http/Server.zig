@@ -13,6 +13,7 @@ pub const ServerOptions = struct {
     secret: []const u8,
     detach: bool,
     environment: jetzig.Environment.EnvironmentName,
+    log_queue: *jetzig.loggers.LogQueue,
 };
 
 allocator: std.mem.Allocator,
@@ -121,7 +122,7 @@ fn processNextRequest(
 
     const start_time = std.time.nanoTimestamp();
 
-    var response = try jetzig.http.Response.init(allocator);
+    var response = try jetzig.http.Response.init(allocator, httpz_response);
     var request = try jetzig.http.Request.init(
         allocator,
         self,
@@ -136,7 +137,7 @@ fn processNextRequest(
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
     try self.renderResponse(&request);
-    try request.response.headers.append("content-type", response.content_type);
+    try request.response.headers.append("Content-Type", response.content_type);
 
     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
 
@@ -192,7 +193,17 @@ fn renderHTML(
             };
             return request.setResponse(rendered, .{});
         } else {
-            return request.setResponse(try self.renderNotFound(request), .{});
+            // Try rendering without a template to see if we get a redirect.
+            const rendered = self.renderView(matched_route, request, null) catch |err| {
+                if (isUnhandledError(err)) return err;
+                const rendered_error = try self.renderInternalServerError(request, err);
+                return request.setResponse(rendered_error, .{});
+            };
+
+            return if (request.redirected)
+                request.setResponse(rendered, .{})
+            else
+                request.setResponse(try self.renderNotFound(request), .{});
         }
     } else {
         if (try self.renderMarkdown(request)) |rendered| {

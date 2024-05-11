@@ -12,7 +12,7 @@ pub const jetzig_options = struct {
     pub const middleware: []const type = &.{
         // htmx middleware skips layouts when `HX-Target` header is present and issues
         // `HX-Redirect` instead of a regular HTTP redirect when `request.redirect` is called.
-        jetzig.middleware.HtmxMiddleware,
+        // jetzig.middleware.HtmxMiddleware,
         // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
         // middleware system.
         // @import("app/middleware/DemoMiddleware.zig"),
@@ -26,6 +26,16 @@ pub const jetzig_options = struct {
 
     // Maximum filesize for `static/` content (applies only to apps using `jetzig.http.StaticRequest`).
     // pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 18);
+
+    // Maximum length of a header name. There is no limit imposed by the HTTP specification but
+    // AWS load balancers reference 40 as a limit so we use that as a baseline:
+    // https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_HttpHeaderConditionConfig.html
+    // This can be increased if needed.
+    // pub const max_bytes_header_name: u16 = 40;
+
+    // Log message buffer size. Log messages exceeding this size spill to heap with degraded
+    // performance. Log messages should aim to fit in the message buffer.
+    // pub const log_message_buffer_len: usize = 4096;
 
     // Path relative to cwd() to serve public content from. Symlinks are not followed.
     // pub const public_content_path = "public";

@@ -22,7 +22,7 @@ pub fn iso8601(self: *const Self, buf: *[256]u8) ![]const u8 {
     const u32_hour: u32 = @intCast(self.hour());
     const u32_minute: u32 = @intCast(self.minute());
     const u32_second: u32 = @intCast(self.second());
-    return try std.fmt.bufPrint(buf, "{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}", .{
+    return try std.fmt.bufPrint(buf, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}", .{
         u32_year,
         u32_month,
         u32_day_of_month,
