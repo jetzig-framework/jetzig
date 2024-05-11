@@ -51,7 +51,7 @@ pub fn log(
     const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
     const target = jetzig.loggers.logTarget(level);
 
-    try self.log_queue.writer.print(
+    try self.log_queue.print(
         "{s: >5} [{s}] {s}\n",
         .{ level_formatted, iso8601, output },
         target,
@@ -87,7 +87,7 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    try self.log_queue.writer.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
+    try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
         if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO),
         iso8601,
         formatted_duration,

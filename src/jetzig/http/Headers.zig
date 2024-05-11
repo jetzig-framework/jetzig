@@ -78,7 +78,8 @@ pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
 
 test "append (deprecated)" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try std.testing.expectEqualStrings(headers.get("foo").?, "bar");
@@ -86,7 +87,8 @@ test "append (deprecated)" {
 
 test "add" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try std.testing.expectEqualStrings(headers.get("foo").?, "bar");
@@ -94,7 +96,8 @@ test "add" {
 
 test "get with multiple headers (bugfix regression test)" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try headers.append("bar", "baz");
@@ -103,7 +106,8 @@ test "get with multiple headers (bugfix regression test)" {
 
 test "getAll" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try headers.append("foo", "baz");
@@ -115,7 +119,8 @@ test "getAll" {
 
 test "add too many headers" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     for (0..10) |_| try headers.append("foo", "bar");
 
@@ -124,7 +129,8 @@ test "add too many headers" {
 
 test "case-insensitive matching" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator, try HttpzKeyValue.init(allocator, 10));
+    var httpz_headers = try HttpzKeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("Content-Type", "bar");
     try std.testing.expectEqualStrings(headers.get("content-type").?, "bar");

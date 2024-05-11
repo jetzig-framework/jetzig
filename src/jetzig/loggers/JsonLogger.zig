@@ -59,7 +59,7 @@ pub fn log(
     const json = try std.json.stringifyAlloc(self.allocator, log_message, .{ .whitespace = .minified });
     defer self.allocator.free(json);
 
-    try self.log_queue.writer.print("{s}\n", .{json}, jetzig.loggers.logTarget(level));
+    try self.log_queue.print("{s}\n", .{json}, jetzig.loggers.logTarget(level));
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.
@@ -98,7 +98,7 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
         }
     };
 
-    try self.log_queue.writer.print("{s}\n", .{stream.getWritten()}, .stdout);
+    try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
 }
 
 fn getFile(self: JsonLogger, level: LogLevel) std.fs.File {

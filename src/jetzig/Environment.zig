@@ -64,7 +64,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     defer options.deinit();
 
     const log_queue = try self.allocator.create(jetzig.loggers.LogQueue);
-    log_queue.* = try jetzig.loggers.LogQueue.init(self.allocator);
+    log_queue.* = jetzig.loggers.LogQueue.init(self.allocator);
     try log_queue.setFiles(
         try getLogFile(.stdout, options.options),
         try getLogFile(.stderr, options.options),
