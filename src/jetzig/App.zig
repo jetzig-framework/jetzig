@@ -79,6 +79,13 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     defer self.allocator.free(server_options.bind);
     defer self.allocator.free(server_options.secret);
 
+    var log_thread = try std.Thread.spawn(
+        .{ .allocator = self.allocator },
+        jetzig.loggers.LogQueue.Reader.publish,
+        .{ &server_options.log_queue.reader, .{} },
+    );
+    defer log_thread.join();
+
     if (server_options.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
@@ -105,7 +112,6 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         &job_queue,
         &cache,
     );
-    defer server.deinit();
 
     var mutex = std.Thread.Mutex{};
     var worker_pool = jetzig.jobs.Pool.init(

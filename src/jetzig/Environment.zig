@@ -63,6 +63,13 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     const options = try args.parseForCurrentProcess(Options, self.allocator, .print);
     defer options.deinit();
 
+    const log_queue = try self.allocator.create(jetzig.loggers.LogQueue);
+    log_queue.* = jetzig.loggers.LogQueue.init(self.allocator);
+    try log_queue.setFiles(
+        try getLogFile(.stdout, options.options),
+        try getLogFile(.stderr, options.options),
+    );
+
     if (options.options.help) {
         const writer = std.io.getStdErr().writer();
         try args.printHelp(Options, options.executable_name orelse "<app-name>", writer);
@@ -76,16 +83,14 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 self.allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
-                try getLogFile(.stdout, options.options),
-                try getLogFile(.stderr, options.options),
+                log_queue,
             ),
         },
         .json => jetzig.loggers.Logger{
             .json_logger = jetzig.loggers.JsonLogger.init(
                 self.allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
-                try getLogFile(.stdout, options.options),
-                try getLogFile(.stderr, options.options),
+                log_queue,
             ),
         },
     };
@@ -111,6 +116,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         .port = options.options.port,
         .detach = options.options.detach,
         .environment = environment,
+        .log_queue = log_queue,
     };
 }
 

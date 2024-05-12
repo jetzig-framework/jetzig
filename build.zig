@@ -57,6 +57,7 @@ pub fn build(b: *std.Build) !void {
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
+    const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
@@ -75,6 +76,7 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
     jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
     jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
+    jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
     const main_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },
@@ -93,6 +95,7 @@ pub fn build(b: *std.Build) !void {
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
+    main_tests.root_module.addImport("httpz", httpz_dep.module("httpz"));
     const run_main_tests = b.addRunArtifact(main_tests);
 
     const test_step = b.step("test", "Run library tests");

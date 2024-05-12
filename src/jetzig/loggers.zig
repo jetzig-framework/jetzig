@@ -6,10 +6,18 @@ const Self = @This();
 
 pub const DevelopmentLogger = @import("loggers/DevelopmentLogger.zig");
 pub const JsonLogger = @import("loggers/JsonLogger.zig");
+pub const LogQueue = @import("loggers/LogQueue.zig");
 
 pub const LogLevel = enum(u4) { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
 pub const LogFormat = enum { development, json };
 
+/// Infer a log target (stdout or stderr) from a given log level.
+pub inline fn logTarget(comptime level: LogLevel) LogQueue.Target {
+    return switch (level) {
+        .TRACE, .DEBUG, .INFO => .stdout,
+        .WARN, .ERROR, .FATAL => .stderr,
+    };
+}
 pub const Logger = union(enum) {
     development_logger: DevelopmentLogger,
     json_logger: JsonLogger,

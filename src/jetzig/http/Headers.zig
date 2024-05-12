@@ -1,120 +1,102 @@
 const std = @import("std");
+
+const httpz = @import("httpz");
+
 const jetzig = @import("../../jetzig.zig");
 
 allocator: std.mem.Allocator,
-headers: HeadersArray,
+httpz_headers: *httpz.key_value.KeyValue,
+new_headers: std.ArrayList(Header),
 
 const Headers = @This();
-pub const max_headers = 25;
-const HeadersArray = std.ArrayListUnmanaged(std.http.Header);
+const Header = struct { name: []const u8, value: []const u8 };
+const max_bytes_header_name = jetzig.config.get(u8, "max_bytes_header_name");
 
-pub fn init(allocator: std.mem.Allocator) Headers {
+pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.KeyValue) Headers {
     return .{
         .allocator = allocator,
-        .headers = HeadersArray.initCapacity(allocator, max_headers) catch @panic("OOM"),
+        .httpz_headers = httpz_headers,
+        .new_headers = std.ArrayList(Header).init(allocator),
     };
 }
 
 pub fn deinit(self: *Headers) void {
-    self.headers.deinit(self.allocator);
-}
+    self.httpz_headers.deinit(self.allocator);
 
-/// Gets the first value for a given header identified by `name`. Names are case insensitive.
-pub fn get(self: Headers, name: []const u8) ?[]const u8 {
-    for (self.headers.items) |header| {
-        if (jetzig.util.equalStringsCaseInsensitive(name, header.name)) return header.value;
+    for (self.new_headers.items) |header| {
+        self.allocator.free(header.name);
+        self.allocator.free(header.value);
     }
-    return null;
+
+    self.new_headers.deinit();
 }
 
-/// Gets the first value for a given header identified by `name`. Names are case insensitive.
+/// Get the first value for a given header identified by `name`. Names are case insensitive.
+pub fn get(self: Headers, name: []const u8) ?[]const u8 {
+    std.debug.assert(name.len <= max_bytes_header_name);
+
+    var buf: [max_bytes_header_name]u8 = undefined;
+    const lower = std.ascii.lowerString(&buf, name);
+
+    return self.httpz_headers.get(lower);
+}
+
+/// Get all values for a given header identified by `name`. Names are case insensitive.
 pub fn getAll(self: Headers, name: []const u8) []const []const u8 {
     var headers = std.ArrayList([]const u8).init(self.allocator);
 
-    for (self.headers.items) |header| {
-        if (jetzig.util.equalStringsCaseInsensitive(name, header.name)) {
-            headers.append(header.value) catch @panic("OOM");
-        }
+    for (self.httpz_headers.keys, 0..) |key, index| {
+        var buf: [max_bytes_header_name]u8 = undefined;
+        const lower = std.ascii.lowerString(&buf, name);
+
+        if (std.mem.eql(u8, lower, key)) headers.append(self.httpz_headers.values[index]) catch @panic("OOM");
     }
     return headers.toOwnedSlice() catch @panic("OOM");
 }
 
-// Deprecated
+/// Deprecated
 pub fn getFirstValue(self: *const Headers, name: []const u8) ?[]const u8 {
     return self.get(name);
 }
 
-/// Appends `name` and `value` to headers.
+/// Add `name` and `value` to headers.
 pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
-    if (self.headers.items.len >= 25) return error.JetzigTooManyHeaders;
+    if (self.httpz_headers.len >= self.httpz_headers.keys.len) return error.JetzigTooManyHeaders;
 
-    self.headers.appendAssumeCapacity(.{ .name = name, .value = value });
-}
+    var buf: [max_bytes_header_name]u8 = undefined;
+    const lower = std.ascii.lowerString(&buf, name);
 
-/// Removes **all** header entries matching `name`. Names are case-insensitive.
-pub fn remove(self: *Headers, name: []const u8) void {
-    if (self.headers.items.len == 0) return;
-
-    var index: usize = self.headers.items.len;
-
-    while (index > 0) {
-        index -= 1;
-        if (jetzig.util.equalStringsCaseInsensitive(name, self.headers.items[index].name)) {
-            _ = self.headers.orderedRemove(index);
-        }
-    }
-}
-
-/// Returns an iterator which implements `next()` returning each name/value of the stored headers.
-pub fn iterator(self: Headers) Iterator {
-    return Iterator{ .headers = self.headers };
-}
-
-/// Returns an array of `std.http.Header`, can be used to set response headers directly.
-/// Caller owns memory.
-pub fn stdHeaders(self: *Headers) !std.ArrayListUnmanaged(std.http.Header) {
-    var array = try std.ArrayListUnmanaged(std.http.Header).initCapacity(self.allocator, max_headers);
-
-    var it = self.iterator();
-    while (it.next()) |header| {
-        array.appendAssumeCapacity(.{ .name = header.name, .value = header.value });
-    }
-    return array;
-}
-
-/// Iterates through stored headers yielidng a `Header` on each call to `next()`
-const Iterator = struct {
-    headers: HeadersArray,
-    index: usize = 0,
-
-    const Header = struct {
-        name: []const u8,
-        value: []const u8,
+    const header = .{
+        .name = try self.allocator.dupe(u8, lower),
+        .value = try self.allocator.dupe(u8, value),
     };
 
-    /// Returns the next item in the current iteration of headers.
-    pub fn next(self: *Iterator) ?Header {
-        if (self.headers.items.len > self.index) {
-            const std_header = self.headers.items[self.index];
-            self.index += 1;
-            return .{ .name = std_header.name, .value = std_header.value };
-        } else {
-            return null;
-        }
-    }
-};
+    try self.new_headers.append(header);
+    self.httpz_headers.add(header.name, header.value);
+}
 
-test "append" {
+test "append (deprecated)" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
-    try std.testing.expectEqualStrings(headers.getFirstValue("foo").?, "bar");
+    try std.testing.expectEqualStrings(headers.get("foo").?, "bar");
+}
+
+test "add" {
+    const allocator = std.testing.allocator;
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
+    defer headers.deinit();
+    try headers.append("foo", "bar");
+    try std.testing.expectEqualStrings(headers.get("foo").?, "bar");
 }
 
 test "get with multiple headers (bugfix regression test)" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try headers.append("bar", "baz");
@@ -123,75 +105,32 @@ test "get with multiple headers (bugfix regression test)" {
 
 test "getAll" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
     try headers.append("foo", "baz");
     try headers.append("bar", "qux");
     const all = headers.getAll("foo");
     defer allocator.free(all);
-    try std.testing.expectEqualSlices([]const u8, all, &[_][]const u8{ "bar", "baz" });
+    try std.testing.expectEqualDeep(all, &[_][]const u8{ "bar", "baz" });
 }
 
-test "append too many headers" {
+test "add too many headers" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
-    for (0..25) |_| try headers.append("foo", "bar");
+    for (0..10) |_| try headers.append("foo", "bar");
 
     try std.testing.expectError(error.JetzigTooManyHeaders, headers.append("foo", "bar"));
 }
 
 test "case-insensitive matching" {
     const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
+    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("Content-Type", "bar");
-    try std.testing.expectEqualStrings(headers.getFirstValue("content-type").?, "bar");
-}
-
-test "iterator" {
-    const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
-    defer headers.deinit();
-
-    try headers.append("foo", "bar");
-
-    var it = headers.iterator();
-    while (it.next()) |header| {
-        try std.testing.expectEqualStrings("foo", header.name);
-        try std.testing.expectEqualStrings("bar", header.value);
-        break;
-    } else {
-        try std.testing.expect(false);
-    }
-}
-
-test "remove" {
-    const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
-    defer headers.deinit();
-    try headers.append("foo", "baz");
-    try headers.append("foo", "qux");
-    try headers.append("bar", "quux");
-    headers.remove("Foo"); // Headers are case-insensitive.
-    try std.testing.expect(headers.getFirstValue("foo") == null);
-    try std.testing.expectEqualStrings(headers.getFirstValue("bar").?, "quux");
-}
-
-test "stdHeaders" {
-    const allocator = std.testing.allocator;
-    var headers = Headers.init(allocator);
-    defer headers.deinit();
-
-    try headers.append("foo", "bar");
-    try headers.append("baz", "qux");
-
-    var std_headers = try headers.stdHeaders();
-    defer std_headers.deinit(allocator);
-
-    try std.testing.expectEqualStrings("foo", std_headers.items[0].name);
-    try std.testing.expectEqualStrings("bar", std_headers.items[0].value);
-    try std.testing.expectEqualStrings("baz", std_headers.items[1].name);
-    try std.testing.expectEqualStrings("qux", std_headers.items[1].value);
+    try std.testing.expectEqualStrings(headers.get("content-type").?, "bar");
 }

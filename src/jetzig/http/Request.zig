@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const httpz = @import("httpz");
+
 const jetzig = @import("../../jetzig.zig");
 
 const Request = @This();
@@ -14,14 +16,15 @@ path: jetzig.http.Path,
 method: Method,
 headers: jetzig.http.Headers,
 server: *jetzig.http.Server,
-std_http_request: std.http.Server.Request,
+httpz_request: *httpz.Request,
+httpz_response: *httpz.Response,
 response: *jetzig.http.Response,
 status_code: jetzig.http.status_codes.StatusCode = .not_found,
 response_data: *jetzig.data.Data,
 query_params: ?*jetzig.http.Query = null,
 query_body: ?*jetzig.http.Query = null,
-cookies: *jetzig.http.Cookies = undefined,
-session: *jetzig.http.Session = undefined,
+_cookies: ?*jetzig.http.Cookies = null,
+_session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
 processed: bool = false,
 layout: ?[]const u8 = null,
@@ -90,20 +93,18 @@ pub fn init(
     allocator: std.mem.Allocator,
     server: *jetzig.http.Server,
     start_time: i128,
-    std_http_request: std.http.Server.Request,
+    httpz_request: *httpz.Request,
+    httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
 ) !Request {
-    const method = switch (std_http_request.head.method) {
+    const method = switch (httpz_request.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
         .POST => Method.POST,
         .HEAD => Method.HEAD,
         .PUT => Method.PUT,
-        .CONNECT => Method.CONNECT,
         .OPTIONS => Method.OPTIONS,
-        .TRACE => Method.TRACE,
-        _ => return error.JetzigUnsupportedHttpMethod,
     };
 
     const response_data = try allocator.create(jetzig.data.Data);
@@ -111,13 +112,14 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = jetzig.http.Path.init(std_http_request.head.target),
+        .path = jetzig.http.Path.init(httpz_request.url.raw),
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator),
+        .headers = jetzig.http.Headers.init(allocator, &httpz_request.headers),
         .server = server,
         .response = response,
         .response_data = response_data,
-        .std_http_request = std_http_request,
+        .httpz_request = httpz_request,
+        .httpz_response = httpz_response,
         .start_time = start_time,
         .store = .{ .store = server.store, .allocator = allocator },
         .cache = .{ .store = server.cache, .allocator = allocator },
@@ -132,63 +134,37 @@ pub fn deinit(self: *Request) void {
     if (self.processed) self.allocator.free(self.body);
 }
 
-/// Process request, read body if present, parse headers (TODO)
+/// Process request, read body if present.
 pub fn process(self: *Request) !void {
-    var headers_it = self.std_http_request.iterateHeaders();
-    var cookie: ?[]const u8 = null;
-
-    while (headers_it.next()) |header| {
-        try self.headers.append(header.name, header.value);
-        if (std.mem.eql(u8, header.name, "Cookie")) cookie = header.value;
-    }
-
-    self.cookies = try self.allocator.create(jetzig.http.Cookies);
-    self.cookies.* = jetzig.http.Cookies.init(
-        self.allocator,
-        cookie orelse "",
-    );
-    try self.cookies.parse();
-
-    self.session = try self.allocator.create(jetzig.http.Session);
-    self.session.* = jetzig.http.Session.init(self.allocator, self.cookies, self.server.options.secret);
-    self.session.parse() catch |err| {
-        switch (err) {
-            error.JetzigInvalidSessionCookie => {
-                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
-                try self.session.reset();
-            },
-            else => return err,
-        }
-    };
-
-    const reader = try self.std_http_request.reader();
-    self.body = try reader.readAllAlloc(self.allocator, jetzig.config.get(usize, "max_bytes_request_body"));
+    self.body = self.httpz_request.body() orelse "";
     self.processed = true;
 }
 
+pub const CallbackState = struct {
+    arena: *std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
+};
+
+pub fn responseCompleteCallback(ptr: *anyopaque) void {
+    var state: *CallbackState = @ptrCast(@alignCast(ptr));
+    state.arena.deinit();
+    state.allocator.destroy(state.arena);
+    state.allocator.destroy(state);
+}
+
 /// Set response headers, write response payload, and finalize the response.
-pub fn respond(self: *Request) !void {
+pub fn respond(
+    self: *Request,
+    state: *CallbackState,
+) !void {
     if (!self.processed) unreachable;
 
-    var cookie_it = self.cookies.headerIterator();
-    while (try cookie_it.next()) |header| {
-        // FIXME: Skip setting cookies that are already present ?
-        try self.response.headers.append("Set-Cookie", header);
-    }
+    try self.setCookieHeaders();
 
-    var std_response_headers = try self.response.headers.stdHeaders();
-    defer std_response_headers.deinit(self.allocator);
-
-    try self.std_http_request.respond(
-        self.response.content,
-        .{
-            .keep_alive = false,
-            .status = switch (self.response.status_code) {
-                inline else => |tag| @field(std.http.Status, @tagName(tag)),
-            },
-            .extra_headers = std_response_headers.items,
-        },
-    );
+    const status = jetzig.http.status_codes.get(self.response.status_code);
+    self.httpz_response.status = try status.getCodeInt();
+    self.httpz_response.body = self.response.content;
+    self.httpz_response.callback(responseCompleteCallback, @ptrCast(state));
 }
 
 /// Render a response. This function can only be called once per request (repeat calls will
@@ -226,8 +202,15 @@ pub fn redirect(
 
     self.response_data.reset();
 
-    self.response.headers.remove("Location");
-    self.response.headers.append("Location", location) catch @panic("OOM");
+    self.response.headers.append("Location", location) catch |err| {
+        switch (err) {
+            error.JetzigTooManyHeaders => std.debug.print(
+                "Header limit reached. Unable to add redirect header.\n",
+                .{},
+            ),
+            else => @panic("OOM"),
+        }
+    };
 
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
@@ -315,7 +298,7 @@ pub fn queryParams(self: *Request) !*jetzig.data.Value {
     return self.query_params.?.data.value.?;
 }
 
-// Parses request body as params if present, otherwise delegates to `queryParams`.
+// Parse request body as params if present, otherwise delegate to `queryParams`.
 fn parseQuery(self: *Request) !*jetzig.data.Value {
     if (self.body.len == 0) return try self.queryParams();
     if (self.query_body) |parsed| return parsed.data.value.?;
@@ -332,7 +315,46 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
     return self.query_body.?.data.value.?;
 }
 
-/// Creates a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
+/// Parse `Cookie` header into separate cookies.
+pub fn cookies(self: *Request) !*jetzig.http.Cookies {
+    if (self._cookies) |capture| return capture;
+
+    const cookie = self.httpz_request.headers.get("cookie");
+
+    const local_cookies = try self.allocator.create(jetzig.http.Cookies);
+    local_cookies.* = jetzig.http.Cookies.init(
+        self.allocator,
+        cookie orelse "",
+    );
+    try local_cookies.parse();
+
+    self._cookies = local_cookies;
+
+    return local_cookies;
+}
+
+/// Parse cookies, decrypt Jetzig cookie (`jetzig.http.Session.cookie_name`) and return a mutable
+/// `jetzig.http.Session`.
+pub fn session(self: *Request) !*jetzig.http.Session {
+    if (self._session) |capture| return capture;
+
+    const local_session = try self.allocator.create(jetzig.http.Session);
+    local_session.* = jetzig.http.Session.init(self.allocator, try self.cookies(), self.server.options.secret);
+    local_session.parse() catch |err| {
+        switch (err) {
+            error.JetzigInvalidSessionCookie => {
+                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
+                try local_session.reset();
+            },
+            else => return err,
+        }
+    };
+
+    self._session = local_session;
+    return local_session;
+}
+
+/// Create a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`
 /// Call `Job.put(...)` to set job params.
 /// Call `Job.background()` to run the job outside of the request/response flow.
 /// e.g.:
@@ -415,6 +437,14 @@ const RequestMail = struct {
     }
 };
 
+/// Create a new email from the mailer named `name` (`app/mailers/<name>.zig`). Pass delivery
+/// params to override defaults defined my mailer (`to`, `from`, `subject`, etc.).
+/// Must call `deliver` on the returned `RequestMail` to send the email.
+/// Example:
+/// ```zig
+/// const mail = request.mail("welcome", .{ .to = &.{"hello@jetzig.dev"} });
+/// try mail.deliver(.background, .{});
+/// ```
 pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParams) RequestMail {
     return .{
         .request = self,
@@ -435,33 +465,21 @@ fn extensionFormat(self: *const Request) ?jetzig.http.Request.Format {
 }
 
 pub fn acceptHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
-    const acceptHeader = self.getHeader("Accept");
-
-    if (acceptHeader) |item| {
-        if (std.mem.eql(u8, item, "text/html")) return .HTML;
-        if (std.mem.eql(u8, item, "application/json")) return .JSON;
+    if (self.httpz_request.headers.get("accept")) |value| {
+        if (std.mem.eql(u8, value, "text/html")) return .HTML;
+        if (std.mem.eql(u8, value, "application/json")) return .JSON;
     }
 
     return null;
 }
 
 pub fn contentTypeHeaderFormat(self: *const Request) ?jetzig.http.Request.Format {
-    const acceptHeader = self.getHeader("content-type");
-
-    if (acceptHeader) |item| {
-        if (std.mem.eql(u8, item, "text/html")) return .HTML;
-        if (std.mem.eql(u8, item, "application/json")) return .JSON;
+    if (self.httpz_request.headers.get("content-type")) |value| {
+        if (std.mem.eql(u8, value, "text/html")) return .HTML;
+        if (std.mem.eql(u8, value, "application/json")) return .JSON;
     }
 
     return null;
-}
-
-pub fn hash(self: *Request) ![]const u8 {
-    return try std.fmt.allocPrint(
-        self.allocator,
-        "{s}-{s}-{s}",
-        .{ @tagName(self.method), self.path, @tagName(self.requestFormat()) },
-    );
 }
 
 pub fn fmtMethod(self: *const Request, colorized: bool) []const u8 {
@@ -506,6 +524,17 @@ pub fn setResponse(
         .HTML, .UNKNOWN => "text/html",
         .JSON => "application/json",
     };
+}
+
+fn setCookieHeaders(self: *Request) !void {
+    const local_cookies = self._cookies orelse return;
+    if (!local_cookies.modified) return;
+
+    var cookie_it = local_cookies.headerIterator();
+    while (try cookie_it.next()) |header| {
+        // FIXME: Skip setting cookies that are already present ?
+        try self.response.headers.append("Set-Cookie", header);
+    }
 }
 
 // Determine if a given route matches the current request.

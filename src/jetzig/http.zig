@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const Server = @import("http/Server.zig");
 pub const Request = @import("http/Request.zig");

@@ -16,5 +16,6 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
         }
     }
 
+    try request.response.headers.append("foobar", "hello");
     return request.render(.ok);
 }

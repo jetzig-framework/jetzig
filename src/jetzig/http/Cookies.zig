@@ -6,6 +6,7 @@ allocator: std.mem.Allocator,
 cookie_string: []const u8,
 buf: std.ArrayList(u8),
 cookies: std.StringArrayHashMap(*Cookie),
+modified: bool = false,
 
 const Self = @This();
 
@@ -38,6 +39,8 @@ pub fn get(self: *Self, key: []const u8) ?*Cookie {
 }
 
 pub fn put(self: *Self, key: []const u8, value: Cookie) !void {
+    self.modified = true;
+
     if (self.cookies.fetchSwapRemove(key)) |entry| {
         self.allocator.free(entry.key);
         self.allocator.free(entry.value.value);
