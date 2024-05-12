@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const jetzig = @import("../../jetzig.zig");
 
 const buffer_size = jetzig.config.get(usize, "log_message_buffer_len");
+const max_pool_len = jetzig.config.get(usize, "max_log_pool_len");
 
 const List = std.DoublyLinkedList(Event);
 const Buffer = [buffer_size]u8;
@@ -41,8 +42,8 @@ const Event = struct {
 pub fn init(allocator: std.mem.Allocator) LogQueue {
     return .{
         .allocator = allocator,
-        .node_allocator = std.heap.MemoryPool(List.Node).init(allocator),
-        .buffer_allocator = std.heap.MemoryPool(Buffer).init(allocator),
+        .node_allocator = initPool(allocator, List.Node),
+        .buffer_allocator = initPool(allocator, Buffer),
         .list = List{},
         .condition = std.Thread.Condition{},
         .condition_mutex = std.Thread.Mutex{},
@@ -57,11 +58,6 @@ pub fn init(allocator: std.mem.Allocator) LogQueue {
 pub fn deinit(self: *LogQueue) void {
     self.node_pool.deinit();
     self.buffer_pool.deinit();
-
-    while (self.list.popFirst()) |node| {
-        if (node.data.ptr) |ptr| self.allocator.free(ptr);
-        self.allocator.destroy(node.data.message);
-    }
 
     self.buffer_allocator.deinit();
     self.node_allocator.deinit();
@@ -211,7 +207,12 @@ pub const Reader = struct {
                 if (self.queue.writer.position < self.queue.buffer_pool.items.len) {
                     self.queue.buffer_pool.items[self.queue.writer.position] = event.message;
                 } else {
-                    try self.queue.buffer_pool.append(event.message); // TODO: Prevent unlimited inflation
+                    if (self.queue.buffer_pool.items.len >= max_pool_len) {
+                        self.queue.buffer_allocator.destroy(@alignCast(event.message));
+                        self.queue.writer.position += 1;
+                    } else {
+                        try self.queue.buffer_pool.append(event.message);
+                    }
                 }
             }
 
@@ -253,12 +254,21 @@ fn popFirst(self: *LogQueue) !?Event {
         if (self.position < self.node_pool.items.len) {
             self.node_pool.items[self.position] = node;
         } else {
-            try self.node_pool.append(node); // TODO: Set a maximum here to avoid never-ending inflation.
+            if (self.node_pool.items.len >= max_pool_len) {
+                self.node_allocator.destroy(node);
+                self.position += 1;
+            } else {
+                try self.node_pool.append(node);
+            }
         }
         return value;
     } else {
         return null;
     }
+}
+
+fn initPool(allocator: std.mem.Allocator, T: type) std.heap.MemoryPool(T) {
+    return std.heap.MemoryPool(T).initPreheated(allocator, max_pool_len) catch @panic("OOM");
 }
 
 fn writeWindows(file: std.fs.File, writer: anytype, event: Event) !void {

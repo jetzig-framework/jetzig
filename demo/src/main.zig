@@ -37,6 +37,12 @@ pub const jetzig_options = struct {
     // performance. Log messages should aim to fit in the message buffer.
     // pub const log_message_buffer_len: usize = 4096;
 
+    // Maximum log pool size. When a log buffer is no longer required it is returned to a pool
+    // for recycling. When logging i/o is slow, a high volume of requests will result in this
+    // pool growing. When the pool size reaches the maximum value defined here, log events are
+    // freed instead of recycled.
+    // pub const max_log_pool_len: usize = 256;
+
     // Path relative to cwd() to serve public content from. Symlinks are not followed.
     // pub const public_content_path = "public";
 
