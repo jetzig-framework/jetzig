@@ -16,6 +16,7 @@ pub const markdown = @import("jetzig/markdown.zig");
 pub const jobs = @import("jetzig/jobs.zig");
 pub const mail = @import("jetzig/mail.zig");
 pub const kv = @import("jetzig/kv.zig");
+pub const tracing = @import("jetzig/tracing.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -166,6 +167,16 @@ pub const config = struct {
 
     /// Force email delivery in development mode (instead of printing email body to logger).
     pub const force_development_email_delivery = false;
+
+    /// This option makes the tracing module log the frames to analyze performance.
+    pub const tracing_enabled = false;
+
+
+    // This option makes the tracing module select a backend to log, by default it uses the jetzig logger.
+    pub const tracing_backend : tracing.TracingBackend = .log;
+
+    // This options makes the tracing module log to a certain folder, by default is the current folder.
+    pub const tracing_folder : tracing.TracingLazyPath = .cwd;
 
     /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
     pub fn get(T: type, comptime key: []const u8) T {
