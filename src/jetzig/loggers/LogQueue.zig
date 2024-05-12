@@ -21,6 +21,8 @@ buffer_pool: std.ArrayList(*Buffer),
 position: usize,
 stdout_is_tty: bool = undefined,
 stderr_is_tty: bool = undefined,
+stdout_colorize: bool = undefined,
+stderr_colorize: bool = undefined,
 state: enum { pending, ready } = .pending,
 
 const LogQueue = @This();
@@ -79,6 +81,8 @@ pub fn setFiles(self: *LogQueue, stdout_file: std.fs.File, stderr_file: std.fs.F
     };
     self.stdout_is_tty = stdout_file.isTty();
     self.stderr_is_tty = stderr_file.isTty();
+    self.stdout_colorize = std.io.tty.detectConfig(stdout_file) != .no_color;
+    self.stderr_colorize = std.io.tty.detectConfig(stderr_file) != .no_color;
     self.state = .ready;
 }
 

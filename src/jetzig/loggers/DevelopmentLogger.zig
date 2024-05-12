@@ -44,16 +44,14 @@ pub fn log(
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    const colorized = switch (level) {
-        .TRACE, .DEBUG, .INFO => self.stdout_colorized,
-        .WARN, .ERROR, .FATAL => self.stderr_colorized,
-    };
-    const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
+    var level_buf: [16]u8 = undefined;
+    const formatted_level = try colorizedLogLevel(level, &level_buf, self.log_queue.reader.stdout_file);
+
     const target = jetzig.loggers.logTarget(level);
 
     try self.log_queue.print(
         "{s: >5} [{s}] {s}\n",
-        .{ level_formatted, iso8601, output },
+        .{ formatted_level, iso8601, output },
         target,
     );
 }
@@ -87,8 +85,11 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
+    var level_buf: [16]u8 = undefined;
+    const formatted_level = try colorizedLogLevel(.INFO, &level_buf, self.log_queue.reader.stdout_file);
+
     try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
-        if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO),
+        formatted_level,
         iso8601,
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
@@ -97,13 +98,13 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     }, .stdout);
 }
 
-fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
+fn colorizedLogLevel(comptime level: LogLevel, buf: []u8, file: std.fs.File) ![]const u8 {
     return switch (level) {
-        .TRACE => jetzig.colors.white(@tagName(level)),
-        .DEBUG => jetzig.colors.cyan(@tagName(level)),
-        .INFO => jetzig.colors.blue(@tagName(level) ++ " "), // Keep logs neatly aligned
-        .WARN => jetzig.colors.yellow(@tagName(level) ++ " "), // "
-        .ERROR => jetzig.colors.red(@tagName(level)),
-        .FATAL => jetzig.colors.red(@tagName(level)),
+        .TRACE => jetzig.colors.colorize(.white, buf, @tagName(level), file),
+        .DEBUG => jetzig.colors.colorize(.cyan, buf, @tagName(level), file),
+        .INFO => jetzig.colors.colorize(.blue, buf, @tagName(level) ++ " ", file),
+        .WARN => jetzig.colors.colorize(.yellow, buf, @tagName(level) ++ " ", file),
+        .ERROR => jetzig.colors.colorize(.red, buf, @tagName(level), file),
+        .FATAL => jetzig.colors.colorize(.red, buf, @tagName(level), file),
     };
 }

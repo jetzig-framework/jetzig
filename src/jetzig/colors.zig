@@ -5,7 +5,7 @@ const builtin = @import("builtin");
 const types = @import("types.zig");
 
 const codes = .{
-    .escape = "\x1B[",
+    .escape = "\x1b[",
     .reset = "0;0",
     .black = "0;30",
     .red = "0;31",
@@ -16,6 +16,17 @@ const codes = .{
     .cyan = "0;36",
     .white = "0;37",
 };
+
+pub fn colorize(color: std.io.tty.Color, buf: []u8, input: []const u8, target: std.fs.File) ![]const u8 {
+    const config = std.io.tty.detectConfig(target);
+    var stream = std.io.fixedBufferStream(buf);
+    const writer = stream.writer();
+    try config.setColor(writer, color);
+    try writer.writeAll(input);
+    try config.setColor(writer, .white);
+
+    return stream.getWritten();
+}
 
 fn wrap(comptime attribute: []const u8, comptime message: []const u8) []const u8 {
     if (builtin.os.tag == .windows) {

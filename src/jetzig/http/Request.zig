@@ -437,6 +437,14 @@ const RequestMail = struct {
     }
 };
 
+/// Create a new email from the mailer named `name` (`app/mailers/<name>.zig`). Pass delivery
+/// params to override defaults defined my mailer (`to`, `from`, `subject`, etc.).
+/// Must call `deliver` on the returned `RequestMail` to send the email.
+/// Example:
+/// ```zig
+/// const mail = request.mail("welcome", .{ .to = &.{"hello@jetzig.dev"} });
+/// try mail.deliver(.background, .{});
+/// ```
 pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParams) RequestMail {
     return .{
         .request = self,
