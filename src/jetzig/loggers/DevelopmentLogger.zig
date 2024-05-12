@@ -8,28 +8,23 @@ const Timestamp = jetzig.types.Timestamp;
 const LogLevel = jetzig.loggers.LogLevel;
 
 allocator: std.mem.Allocator,
-stdout: std.fs.File,
-stderr: std.fs.File,
 stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
-mutex: std.Thread.Mutex,
+log_queue: *jetzig.loggers.LogQueue,
 
 /// Initialize a new Development Logger.
 pub fn init(
     allocator: std.mem.Allocator,
     level: LogLevel,
-    stdout: std.fs.File,
-    stderr: std.fs.File,
+    log_queue: *jetzig.loggers.LogQueue,
 ) DevelopmentLogger {
     return .{
         .allocator = allocator,
         .level = level,
-        .stdout = stdout,
-        .stderr = stderr,
-        .stdout_colorized = stdout.isTty(),
-        .stderr_colorized = stderr.isTty(),
-        .mutex = std.Thread.Mutex{},
+        .log_queue = log_queue,
+        .stdout_colorized = log_queue.stdout_is_tty,
+        .stderr_colorized = log_queue.stderr_is_tty,
     };
 }
 
@@ -45,40 +40,28 @@ pub fn log(
     const output = try std.fmt.allocPrint(self.allocator, message, args);
     defer self.allocator.free(output);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    const colorized = switch (level) {
-        .TRACE, .DEBUG, .INFO => self.stdout_colorized,
-        .WARN, .ERROR, .FATAL => self.stderr_colorized,
-    };
-    const file = switch (level) {
-        .TRACE, .DEBUG, .INFO => self.stdout,
-        .WARN, .ERROR, .FATAL => self.stderr,
-    };
-    const writer = file.writer();
-    const level_formatted = if (colorized) colorizedLogLevel(level) else @tagName(level);
+    const target = jetzig.loggers.logTarget(level);
+    const formatted_level = colorizedLogLevel(level);
 
-    @constCast(self).mutex.lock();
-    defer @constCast(self).mutex.unlock();
-
-    try writer.print("{s: >5} [{s}] {s}\n", .{ level_formatted, iso8601, output });
-
-    if (!file.isTty()) try file.sync();
+    try self.log_queue.print(
+        "{s: >5} [{s}] {s}\n",
+        .{ formatted_level, iso8601, output },
+        target,
+    );
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.
 pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) !void {
-    const formatted_duration = if (self.stdout_colorized)
-        try jetzig.colors.duration(self.allocator, jetzig.util.duration(request.start_time))
-    else
-        try std.fmt.allocPrint(
-            self.allocator,
-            "{}",
-            .{std.fmt.fmtDurationSigned(jetzig.util.duration(request.start_time))},
-        );
-    defer self.allocator.free(formatted_duration);
+    var duration_buf: [256]u8 = undefined;
+    const formatted_duration = try jetzig.colors.duration(
+        &duration_buf,
+        jetzig.util.duration(request.start_time),
+        self.stdout_colorized,
+    );
 
     const status: jetzig.http.status_codes.TaggedStatusCode = switch (request.response.status_code) {
         inline else => |status_code| @unionInit(
@@ -93,17 +76,23 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     else
         status.getFormatted(.{});
 
-    const message = try std.fmt.allocPrint(self.allocator, "[{s}/{s}/{s}] {s}", .{
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
+
+    const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
+
+    try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
+        formatted_level,
+        iso8601,
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
         formatted_status,
         request.path.path,
-    });
-    defer self.allocator.free(message);
-    try self.log(.INFO, "{s}", .{message});
+    }, .stdout);
 }
 
-fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
+inline fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
     return switch (level) {
         .TRACE => jetzig.colors.white(@tagName(level)),
         .DEBUG => jetzig.colors.cyan(@tagName(level)),

@@ -2,8 +2,6 @@
 
 _Jetzig_ is a web framework written in 100% pure [Zig](https://ziglang.org) :lizard: for _Linux_, _OS X_, _Windows_, and any _OS_ that can compile _Zig_ code.
 
-The framework is under active development and is currently in an alpha state.
-
 Official website: [jetzig.dev](https://www.jetzig.dev/)
 
 _Jetzig_ aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
@@ -13,7 +11,7 @@ Join us on Discord ! [https://discord.gg/eufqssz7X6](https://discord.gg/eufqssz7
 If you are interested in _Jetzig_ you will probably find these tools interesting too:
 
 * [Zap](https://github.com/zigzap/zap)
-* [http.zig](https://github.com/karlseguin/http.zig)
+* [http.zig](https://github.com/karlseguin/http.zig) (_Jetzig_'s backend)
 * [tokamak](https://github.com/cztomsik/tokamak)
 * [zig-router](https://github.com/Cloudef/zig-router)
 * [zig-webui](https://github.com/webui-dev/zig-webui/)

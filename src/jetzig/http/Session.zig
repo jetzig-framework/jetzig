@@ -28,6 +28,7 @@ pub fn init(
     };
 }
 
+/// Parse session cookie.
 pub fn parse(self: *Self) !void {
     if (self.cookies.get(cookie_name)) |cookie| {
         try self.parseSessionCookie(cookie.value);
@@ -36,6 +37,7 @@ pub fn parse(self: *Self) !void {
     }
 }
 
+/// Reset session to an empty state.
 pub fn reset(self: *Self) !void {
     self.data.reset();
     _ = try self.data.object();
@@ -43,12 +45,14 @@ pub fn reset(self: *Self) !void {
     try self.save();
 }
 
+/// Free allocated memory.
 pub fn deinit(self: *Self) void {
     if (self.state != .parsed) return;
 
     self.data.deinit();
 }
 
+/// Get a value from the session.
 pub fn get(self: *Self, key: []const u8) !?*jetzig.data.Value {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
@@ -58,6 +62,7 @@ pub fn get(self: *Self, key: []const u8) !?*jetzig.data.Value {
     };
 }
 
+/// Put a value into the session.
 pub fn put(self: *Self, key: []const u8, value: *jetzig.data.Value) !void {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 

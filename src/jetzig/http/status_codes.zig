@@ -178,6 +178,12 @@ pub const TaggedStatusCode = union(StatusCode) {
         };
     }
 
+    pub fn getCodeInt(self: Self) !u16 {
+        return switch (self) {
+            inline else => |capture| try std.fmt.parseInt(u16, capture.code, 10),
+        };
+    }
+
     pub fn getMessage(self: Self) []const u8 {
         return switch (self) {
             inline else => |capture| capture.message,

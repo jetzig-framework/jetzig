@@ -11,6 +11,7 @@ const LogMessage = struct {
     timestamp: []const u8,
     message: []const u8,
 };
+
 const RequestLogMessage = struct {
     level: []const u8,
     timestamp: []const u8,
@@ -21,24 +22,19 @@ const RequestLogMessage = struct {
 };
 
 allocator: std.mem.Allocator,
-stdout: std.fs.File,
-stderr: std.fs.File,
+log_queue: *jetzig.loggers.LogQueue,
 level: LogLevel,
-mutex: std.Thread.Mutex,
 
 /// Initialize a new JSON Logger.
 pub fn init(
     allocator: std.mem.Allocator,
     level: LogLevel,
-    stdout: std.fs.File,
-    stderr: std.fs.File,
+    log_queue: *jetzig.loggers.LogQueue,
 ) JsonLogger {
     return .{
         .allocator = allocator,
         .level = level,
-        .stdout = stdout,
-        .stderr = stderr,
-        .mutex = std.Thread.Mutex{},
+        .log_queue = log_queue,
     };
 }
 
@@ -54,24 +50,16 @@ pub fn log(
     const output = try std.fmt.allocPrint(self.allocator, message, args);
     defer self.allocator.free(output);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    const file = self.getFile(level);
-    const writer = file.writer();
     const log_message = LogMessage{ .level = @tagName(level), .timestamp = iso8601, .message = output };
 
     const json = try std.json.stringifyAlloc(self.allocator, log_message, .{ .whitespace = .minified });
     defer self.allocator.free(json);
 
-    @constCast(self).mutex.lock();
-    defer @constCast(self).mutex.unlock();
-
-    try writer.writeAll(json);
-    try writer.writeByte('\n');
-
-    if (!file.isTty()) try file.sync(); // Make configurable ?
+    try self.log_queue.print("{s}\n", .{json}, jetzig.loggers.logTarget(level));
 }
 
 /// Log a one-liner including response status code, path, method, duration, etc.
@@ -80,9 +68,9 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
 
     const duration = jetzig.util.duration(request.start_time);
 
-    const timestamp = Timestamp.init(std.time.timestamp(), self.allocator);
-    const iso8601 = try timestamp.iso8601();
-    defer self.allocator.free(iso8601);
+    const timestamp = Timestamp.init(std.time.timestamp());
+    var timestamp_buf: [256]u8 = undefined;
+    const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
     const status = switch (request.response.status_code) {
         inline else => |status_code| @unionInit(
@@ -91,6 +79,7 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
             .{},
         ),
     };
+
     const message = RequestLogMessage{
         .level = @tagName(level),
         .timestamp = iso8601,
@@ -99,19 +88,17 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
         .path = request.path.path,
         .duration = duration,
     };
-    const json = try std.json.stringifyAlloc(self.allocator, message, .{ .whitespace = .minified });
-    defer self.allocator.free(json);
 
-    const file = self.getFile(level);
-    const writer = file.writer();
+    var buf: [4096]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    std.json.stringify(message, .{ .whitespace = .minified }, stream.writer()) catch |err| {
+        switch (err) {
+            error.NoSpaceLeft => {}, // TODO: Spill to heap
+            else => return err,
+        }
+    };
 
-    @constCast(self).mutex.lock();
-    defer @constCast(self).mutex.unlock();
-
-    try writer.writeAll(json);
-    try writer.writeByte('\n');
-
-    if (!file.isTty()) try file.sync(); // Make configurable ?
+    try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
 }
 
 fn getFile(self: JsonLogger, level: LogLevel) std.fs.File {

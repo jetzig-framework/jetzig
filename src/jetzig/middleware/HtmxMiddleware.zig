@@ -15,7 +15,7 @@ pub fn init(request: *jetzig.http.Request) !*Self {
 /// content rendered directly by the view function.
 pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
     _ = self;
-    if (request.getHeader("HX-Target")) |target| {
+    if (request.headers.get("HX-Target")) |target| {
         try request.server.logger.DEBUG(
             "[middleware-htmx] htmx request detected, disabling layout. (#{s})",
             .{target},
@@ -29,10 +29,9 @@ pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
 pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     _ = self;
     if (response.status_code != .moved_permanently and response.status_code != .found) return;
-    if (request.headers.getFirstValue("HX-Request") == null) return;
+    if (request.headers.get("HX-Request") == null) return;
 
-    if (response.headers.getFirstValue("Location")) |location| {
-        response.headers.remove("Location");
+    if (response.headers.get("Location")) |location| {
         response.status_code = .ok;
         request.response_data.reset();
         try response.headers.append("HX-Redirect", location);
