@@ -12,7 +12,7 @@ pub const jetzig_options = struct {
     pub const middleware: []const type = &.{
         // htmx middleware skips layouts when `HX-Target` header is present and issues
         // `HX-Redirect` instead of a regular HTTP redirect when `request.redirect` is called.
-        // jetzig.middleware.HtmxMiddleware,
+        jetzig.middleware.HtmxMiddleware,
         // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
         // middleware system.
         // @import("app/middleware/DemoMiddleware.zig"),

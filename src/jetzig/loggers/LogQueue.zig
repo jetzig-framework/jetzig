@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const jetzig = @import("../../jetzig.zig");
 
@@ -81,8 +82,10 @@ pub fn setFiles(self: *LogQueue, stdout_file: std.fs.File, stderr_file: std.fs.F
     };
     self.stdout_is_tty = stdout_file.isTty();
     self.stderr_is_tty = stderr_file.isTty();
+
     self.stdout_colorize = std.io.tty.detectConfig(stdout_file) != .no_color;
     self.stderr_colorize = std.io.tty.detectConfig(stderr_file) != .no_color;
+
     self.state = .ready;
 }
 
@@ -164,6 +167,8 @@ pub const Reader = struct {
 
             var stdout_written = false;
             var stderr_written = false;
+            var file: std.fs.File = undefined;
+            var colorize = false;
 
             while (try self.queue.popFirst()) |event| {
                 self.queue.writer.mutex.lock();
@@ -172,10 +177,18 @@ pub const Reader = struct {
                 const writer = switch (event.target) {
                     .stdout => blk: {
                         stdout_written = true;
+                        if (builtin.os.tag == .windows) {
+                            file = self.stdout_file;
+                            colorize = self.queue.stdout_colorize;
+                        }
                         break :blk stdout_writer;
                     },
                     .stderr => blk: {
                         stderr_written = true;
+                        if (builtin.os.tag == .windows) {
+                            file = self.stderr_file;
+                            colorize = self.queue.stderr_colorize;
+                        }
                         break :blk stderr_writer;
                     },
                 };
@@ -187,7 +200,11 @@ pub const Reader = struct {
                     continue;
                 }
 
-                try writer.writeAll(event.message[0..event.len]);
+                if (builtin.os.tag == .windows and colorize) {
+                    try writeWindows(file, writer, event);
+                } else {
+                    try writer.writeAll(event.message[0..event.len]);
+                }
 
                 self.queue.writer.position -= 1;
 
@@ -241,6 +258,35 @@ fn popFirst(self: *LogQueue) !?Event {
         return value;
     } else {
         return null;
+    }
+}
+
+fn writeWindows(file: std.fs.File, writer: anytype, event: Event) !void {
+    var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
+    const config: std.io.tty.Config = if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(
+        file.handle,
+        &info,
+    ) != std.os.windows.TRUE)
+        .no_color
+    else
+        .{ .windows_api = .{
+            .handle = file.handle,
+            .reset_attributes = info.wAttributes,
+        } };
+
+    var it = std.mem.tokenizeSequence(u8, event.message[0..event.len], "\x1b[");
+    while (it.next()) |token| {
+        if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
+            if (index > 0 and index + 1 < token.len) {
+                if (jetzig.colors.codes_map.get(token[0..index])) |color| {
+                    try config.setColor(writer, color);
+                    try writer.writeAll(token[index + 1 ..]);
+                    continue;
+                }
+            }
+        }
+        // Fallback
+        try writer.writeAll(token);
     }
 }
 

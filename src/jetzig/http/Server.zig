@@ -107,6 +107,8 @@ fn processNextRequest(
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
 ) !void {
+    const start_time = std.time.nanoTimestamp();
+
     const state = try self.allocator.create(jetzig.http.Request.CallbackState);
     const arena = try self.allocator.create(std.heap.ArenaAllocator);
     arena.* = std.heap.ArenaAllocator.init(self.allocator);
@@ -119,8 +121,6 @@ fn processNextRequest(
     errdefer state.arena.deinit();
 
     const allocator = state.arena.allocator();
-
-    const start_time = std.time.nanoTimestamp();
 
     var response = try jetzig.http.Response.init(allocator, httpz_response);
     var request = try jetzig.http.Request.init(
