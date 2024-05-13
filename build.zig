@@ -173,8 +173,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     while (try walker.next()) |entry| {
         if (entry.kind == .file) {
-            if (!std.mem.eql(u8, ".zig", std.fs.path.extension(entry.path))) continue;
-
             const stat = try src_dir.statFile(entry.path);
             const src_data = try src_dir.readFileAlloc(b.allocator, entry.path, @intCast(stat.size));
             defer b.allocator.free(src_data);
