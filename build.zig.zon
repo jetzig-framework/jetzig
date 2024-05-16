@@ -15,7 +15,7 @@
             .hash = "122079edca9ea46ebb5ce8f05ea2c58ee957cf2d73fcfd9a0fd6a50f65879f3bf88f",
         },
         .args = .{
-            .url = "https://github.com/MasterQ32/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
+            .url = "https://github.com/ikskuh/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
             .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
         },
         .smtp_client = .{
