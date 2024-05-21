@@ -3,28 +3,28 @@
     .version = "0.0.0",
     .dependencies = .{
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/557ab8a29c0f7b5d096070cde2858cf27da8b0f1.tar.gz",
-            .hash = "1220482f07f2bbaef335f20d6890c15a1e14739950b784232bc69182423520e058a5",
+            .url = "https://github.com/jetzig-framework/zmd/archive/a197906b017d2a2d6c1896d77c04a74b13ddfa7f.tar.gz",
+            .hash = "12203b56c2e17a2fd62ea3d3d9be466f43921a3aef88b381cf58f41251815205fdb5",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/ef04bf3579e176f9fa3a02effc4ffcbbb5d080d8.tar.gz",
-            .hash = "12209bd490ef2c841d607a6260be9cc40e20dc76786cb99d0fcd72cfef4a253a840d",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/918b74353c5680b54b435dcacd67268b23ffa129.tar.gz",
+            .hash = "1220bf01968a822771a33bb51e37ff8ee13d21437f95ec55150ffa7c6a9fb1dfcbc5",
         },
         .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/6fc375b1ece563ae6d16849bb7c0441ff2883a04.tar.gz",
-            .hash = "122079edca9ea46ebb5ce8f05ea2c58ee957cf2d73fcfd9a0fd6a50f65879f3bf88f",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/78bcdcc6b0cbd3ca808685c64554a15701f13250.tar.gz",
+            .hash = "12201944769794b2f18e3932ec3d5031066d0ccb3293cf7c3fb1f5b269e56b76c57e",
         },
         .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/01d72b9a0128c474aeeb9019edd48605fa6d95f7.tar.gz",
-            .hash = "12208a1de366740d11de525db7289345949f5fd46527db3f89eecc7bb49b012c0732",
+            .url = "https://github.com/ikskuh/zig-args/archive/872272205d95bdba33798c94e72c5387a31bc806.tar.gz",
+            .hash = "1220fe6ae56b668cc4a033282b5f227bfbb46a67ede6d84e9f9493fea9de339b5f37",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/964152ad4e19dc1d22f6def6f659c86df60e7832.tar.gz",
             .hash = "1220d4f1c2472769b0d689ea878f41f0a66cb07f28569a138aea2c0a648a5c90dd4e",
         },
         .httpz = .{
-            .url = "https://github.com/karlseguin/http.zig/archive/34f1aa8a1486478414e876f65364a501d73c8a76.tar.gz",
-            .hash = "12205404dd8bdd98c659e844385154eb28116c1be073103fc94739bc99fa912323e8",
+            .url = "https://github.com/karlseguin/http.zig/archive/4ed728d21999ffcb11cc0b0604dcebc9e02cfc17.tar.gz",
+            .hash = "122010547ef8bbc781372311b66ce72b297c4e61e3423437825da076055ff9c07bb4",
         },
     },
 

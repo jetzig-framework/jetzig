@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) !void {
 
     const lib = b.addStaticLibrary(.{
         .name = "jetzig",
-        .root_source_file = .{ .path = "src/jetzig.zig" },
+        .root_source_file = b.path("src/jetzig.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) !void {
 
     const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
 
-    const jetzig_module = b.addModule("jetzig", .{ .root_source_file = .{ .path = "src/jetzig.zig" } });
+    const jetzig_module = b.addModule("jetzig", .{ .root_source_file = b.path("src/jetzig.zig") });
     jetzig_module.addImport("mime_types", mime_module);
     lib.root_module.addImport("jetzig", jetzig_module);
 
@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
     const main_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/tests.zig" },
+        .root_source_file = b.path("src/tests.zig"),
         .target = target,
         .optimize = optimize,
     });
