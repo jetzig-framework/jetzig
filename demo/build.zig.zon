@@ -7,8 +7,8 @@
             .path = "../",
         },
         .iguanas = .{
-            .url = "https://github.com/jetzig-framework/iguanas/archive/89c2abf29de0bc31054a9a6feac5a6a83bab0459.tar.gz",
-            .hash = "12202fd319a5ab4e124b00e8ddea474d07c19c4e005d77b6c29fc44860904ea01a5c",
+            .url = "https://github.com/jetzig-framework/iguanas/archive/045f34b3455fb5bbec8cbf81fdc5d19ee54bd625.tar.gz",
+            .hash = "12207f8cca149669f7c4bdc02103f6194189a312bbaae97b54e6dc3fb8483d6107bf",
         },
     },
     .paths = .{
