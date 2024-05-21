@@ -45,7 +45,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         \\<html>
         \\  <head></head>
         \\  <body>
-        \\    <main>{zmpl.content}</main>
+        \\    <main>{{zmpl.content}}</main>
         \\  </body>
         \\</html>
         \\
