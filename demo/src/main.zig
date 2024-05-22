@@ -169,5 +169,8 @@ pub fn main() !void {
     const app = try jetzig.init(allocator);
     defer app.deinit();
 
+    // Example custom route:
+    // app.route(.GET, "/custom/:id/foo/bar", @import("app/views/custom/foo.zig"), .bar);
+
     try app.start(routes, .{});
 }

@@ -9,9 +9,10 @@ const App = @This();
 
 environment: jetzig.Environment,
 allocator: std.mem.Allocator,
+custom_routes: std.ArrayList(jetzig.views.Route),
 
-pub fn deinit(self: App) void {
-    _ = self;
+pub fn deinit(self: *const App) void {
+    @constCast(self).custom_routes.deinit();
 }
 
 // Not used yet, but allows us to add new options to `start()` without breaking
@@ -31,30 +32,32 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     var routes = std.ArrayList(*jetzig.views.Route).init(self.allocator);
 
     for (routes_module.routes) |const_route| {
-        var route = try self.allocator.create(jetzig.views.Route);
-        route.* = .{
+        var var_route = try self.allocator.create(jetzig.views.Route);
+        var_route.* = .{
             .name = const_route.name,
             .action = const_route.action,
             .view_name = const_route.view_name,
             .uri_path = const_route.uri_path,
             .view = const_route.view,
-            .static_view = const_route.static_view,
             .static = const_route.static,
-            .render = const_route.render,
-            .renderStatic = const_route.renderStatic,
             .layout = const_route.layout,
             .template = const_route.template,
             .json_params = const_route.json_params,
         };
 
-        try route.initParams(self.allocator);
-        try routes.append(route);
+        try var_route.initParams(self.allocator);
+        try routes.append(var_route);
     }
 
     defer routes.deinit();
-    defer for (routes.items) |route| {
-        route.deinitParams();
-        self.allocator.destroy(route);
+    defer for (routes.items) |var_route| {
+        var_route.deinitParams();
+        self.allocator.destroy(var_route);
+    };
+
+    defer for (self.custom_routes.items) |custom_route| {
+        self.allocator.free(custom_route.view_name);
+        self.allocator.free(custom_route.template);
     };
 
     var store = try jetzig.kv.Store.init(
@@ -105,6 +108,7 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         self.allocator,
         server_options,
         routes.items,
+        self.custom_routes.items,
         &routes_module.jobs,
         &routes_module.mailers,
         &mime_map,
@@ -150,4 +154,42 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
             },
         }
     };
+}
+
+pub fn route(
+    self: *const App,
+    comptime method: jetzig.http.Request.Method,
+    comptime path: []const u8,
+    comptime module: type,
+    comptime action: std.meta.DeclEnum(module),
+) void {
+    const member = @tagName(action);
+    const viewFn = @field(module, member);
+    const module_name = comptime std.mem.trimLeft(u8, @typeName(module), "app.views.");
+
+    var template: [module_name.len + 1 + member.len]u8 = undefined;
+    @memcpy(&template, module_name ++ "/" ++ member);
+    std.mem.replaceScalar(u8, &template, '.', '/');
+
+    var view_name: [module_name.len]u8 = undefined;
+    @memcpy(&view_name, module_name);
+    std.mem.replaceScalar(u8, &view_name, '.', '/');
+
+    @constCast(self).custom_routes.append(.{
+        .name = member,
+        .action = .custom,
+        .method = method,
+        .view_name = self.allocator.dupe(u8, &view_name) catch @panic("OOM"),
+        .uri_path = path,
+        .view = comptime switch (isIncludeId(path)) {
+            true => .{ .custom = .{ .with_id = viewFn } },
+            false => .{ .custom = .{ .without_id = viewFn } },
+        },
+        .template = self.allocator.dupe(u8, &template) catch @panic("OOM"),
+        .json_params = &.{},
+    }) catch @panic("OOM");
+}
+
+inline fn isIncludeId(comptime path: []const u8) bool {
+    return std.mem.containsAtLeast(u8, path, 1, "/:");
 }

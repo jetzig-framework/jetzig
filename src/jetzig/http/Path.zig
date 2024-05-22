@@ -7,6 +7,7 @@
 /// * Extension (".json", ".html", etc.)
 /// * Query (everything after first "?" character)
 const std = @import("std");
+const jetzig = @import("../../jetzig.zig");
 
 path: []const u8,
 base_path: []const u8,
@@ -36,6 +37,21 @@ pub fn init(path: []const u8) Self {
 /// No-op - no allocations currently performed.
 pub fn deinit(self: *Self) void {
     _ = self;
+}
+
+/// For a given route with a possible `:id` placeholder, return the matching URL segment for that
+/// placeholder. e.g. route with path `/foo/:id/bar` and request path `/foo/1234/bar` returns
+/// `"1234"`.
+pub fn resourceId(self: Self, route: jetzig.views.Route) []const u8 {
+    var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
+    var base_path_it = std.mem.splitScalar(u8, self.base_path, '/');
+
+    while (route_uri_path_it.next()) |route_uri_path_segment| {
+        const base_path_segment = base_path_it.next() orelse return self.resource_id;
+        if (std.mem.startsWith(u8, route_uri_path_segment, ":")) return base_path_segment;
+    }
+
+    return self.resource_id;
 }
 
 // Extract `"/foo/bar/baz"` from:
