@@ -191,5 +191,6 @@ pub fn init(allocator: std.mem.Allocator) !App {
     return .{
         .environment = environment,
         .allocator = allocator,
+        .custom_routes = std.ArrayList(views.Route).init(allocator),
     };
 }

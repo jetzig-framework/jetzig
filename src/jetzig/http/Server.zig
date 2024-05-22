@@ -20,6 +20,7 @@ allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
 options: ServerOptions,
 routes: []*jetzig.views.Route,
+custom_routes: []jetzig.views.Route,
 job_definitions: []const jetzig.JobDefinition,
 mailer_definitions: []const jetzig.MailerDefinition,
 mime_map: *jetzig.http.mime.MimeMap,
@@ -35,6 +36,7 @@ pub fn init(
     allocator: std.mem.Allocator,
     options: ServerOptions,
     routes: []*jetzig.views.Route,
+    custom_routes: []jetzig.views.Route,
     job_definitions: []const jetzig.JobDefinition,
     mailer_definitions: []const jetzig.MailerDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
@@ -47,6 +49,7 @@ pub fn init(
         .logger = options.logger,
         .options = options,
         .routes = routes,
+        .custom_routes = custom_routes,
         .job_definitions = job_definitions,
         .mailer_definitions = mailer_definitions,
         .mime_map = mime_map,
@@ -163,7 +166,7 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
         return;
     }
 
-    const route = try self.matchRoute(request, false);
+    const route = self.matchCustomRoute(request) orelse try self.matchRoute(request, false);
 
     switch (request.requestFormat()) {
         .HTML => try self.renderHTML(request, route),
@@ -182,7 +185,7 @@ fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
 fn renderHTML(
     self: *Server,
     request: *jetzig.http.Request,
-    route: ?*jetzig.views.Route,
+    route: ?jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
         if (zmpl.findPrefixed("views", matched_route.template)) |template| {
@@ -217,7 +220,7 @@ fn renderHTML(
 fn renderJSON(
     self: *Server,
     request: *jetzig.http.Request,
-    route: ?*jetzig.views.Route,
+    route: ?jetzig.views.Route,
 ) !void {
     if (route) |matched_route| {
         var rendered = try self.renderView(matched_route, request, null);
@@ -254,14 +257,14 @@ pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 }
 
 fn renderView(
     self: *Server,
-    route: *jetzig.views.Route,
+    route: jetzig.views.Route,
     request: *jetzig.http.Request,
     template: ?zmpl.Template,
 ) !RenderedView {
     // View functions return a `View` to encourage users to return from a view function with
     // `return request.render(.ok)`, but the actual rendered view is stored in
     // `request.rendered_view`.
-    _ = route.render(route.*, request) catch |err| {
+    _ = route.render(route, request) catch |err| {
         try self.logger.ERROR("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
@@ -299,7 +302,7 @@ fn renderTemplateWithLayout(
     request: *jetzig.http.Request,
     template: zmpl.Template,
     view: jetzig.views.View,
-    route: *jetzig.views.Route,
+    route: jetzig.views.Route,
 ) ![]const u8 {
     try addTemplateConstants(view, route);
 
@@ -321,9 +324,15 @@ fn renderTemplateWithLayout(
     } else return try template.render(view.data);
 }
 
-fn addTemplateConstants(view: jetzig.views.View, route: *const jetzig.views.Route) !void {
+fn addTemplateConstants(view: jetzig.views.View, route: jetzig.views.Route) !void {
     try view.data.addConst("jetzig_view", view.data.string(route.view_name));
-    try view.data.addConst("jetzig_action", view.data.string(@tagName(route.action)));
+
+    const action = switch (route.action) {
+        .custom => route.name,
+        else => |tag| @tagName(tag),
+    };
+
+    try view.data.addConst("jetzig_action", view.data.string(action));
 }
 
 fn isBadRequest(err: anyerror) bool {
@@ -421,7 +430,7 @@ fn renderErrorView(
                 switch (request.requestFormat()) {
                     .HTML, .UNKNOWN => {
                         if (zmpl.findPrefixed("views", route.template)) |template| {
-                            try addTemplateConstants(view, route);
+                            try addTemplateConstants(view, route.*);
                             return .{ .view = view, .content = try template.render(request.response_data) };
                         }
                     },
@@ -490,14 +499,22 @@ fn logStackTrace(
     try self.logger.ERROR("{s}\n", .{buf.items});
 }
 
-fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?*jetzig.views.Route {
+fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {
+    for (self.custom_routes) |custom_route| {
+        if (custom_route.match(request)) return custom_route;
+    }
+
+    return null;
+}
+
+fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?jetzig.views.Route {
     for (self.routes) |route| {
         // .index routes always take precedence.
-        if (route.static == static and route.action == .index and try request.match(route.*)) return route;
+        if (route.static == static and route.action == .index and try request.match(route.*)) return route.*;
     }
 
     for (self.routes) |route| {
-        if (route.static == static and try request.match(route.*)) return route;
+        if (route.static == static and try request.match(route.*)) return route.*;
     }
 
     return null;
@@ -574,7 +591,7 @@ fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8
     const matched_route = try self.matchRoute(request, true);
 
     if (matched_route) |route| {
-        const static_path = try staticPath(request, route.*);
+        const static_path = try staticPath(request, route);
 
         if (static_path) |capture| {
             return static_dir.readFileAlloc(

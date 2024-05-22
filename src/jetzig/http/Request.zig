@@ -241,7 +241,7 @@ pub fn setLayout(self: *Request, layout: ?[]const u8) void {
 
 /// Derive a layout name from the current request if defined, otherwise from the route (if
 /// defined).
-pub fn getLayout(self: *Request, route: *jetzig.views.Route) ?[]const u8 {
+pub fn getLayout(self: *Request, route: jetzig.views.Route) ?[]const u8 {
     if (self.layout_disabled) return null;
     if (self.layout) |capture| return capture;
     if (route.layout) |capture| return capture;
