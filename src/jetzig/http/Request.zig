@@ -141,23 +141,8 @@ pub fn process(self: *Request) !void {
     self.processed = true;
 }
 
-pub const CallbackState = struct {
-    arena: *std.heap.ArenaAllocator,
-    allocator: std.mem.Allocator,
-};
-
-pub fn responseCompleteCallback(ptr: *anyopaque) void {
-    var state: *CallbackState = @ptrCast(@alignCast(ptr));
-    state.arena.deinit();
-    state.allocator.destroy(state.arena);
-    state.allocator.destroy(state);
-}
-
 /// Set response headers, write response payload, and finalize the response.
-pub fn respond(
-    self: *Request,
-    state: *CallbackState,
-) !void {
+pub fn respond(self: *Request) !void {
     if (!self.processed) unreachable;
 
     try self.setCookieHeaders();
@@ -165,7 +150,6 @@ pub fn respond(
     const status = jetzig.http.status_codes.get(self.response.status_code);
     self.httpz_response.status = try status.getCodeInt();
     self.httpz_response.body = self.response.content;
-    self.httpz_response.callback(responseCompleteCallback, @ptrCast(state));
 }
 
 /// Render a response. This function can only be called once per request (repeat calls will
