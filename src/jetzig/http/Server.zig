@@ -166,6 +166,17 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
         return;
     }
 
+    if (matchMiddlewareRoute(request)) |route| {
+        if (route.content) |content| {
+            const rendered: RenderedView = .{
+                .view = .{ .data = request.response_data, .status_code = route.status },
+                .content = content,
+            };
+            request.setResponse(rendered, .{ .content_type = route.content_type });
+            return;
+        } else unreachable; // In future a MiddlewareRoute might provide a render function etc.
+    }
+
     const route = self.matchCustomRoute(request) orelse try self.matchRoute(request, false);
 
     switch (request.requestFormat()) {
@@ -196,19 +207,21 @@ fn renderHTML(
             };
             return request.setResponse(rendered, .{});
         } else {
-            // Try rendering without a template to see if we get a redirect.
+            // Try rendering without a template to see if we get a redirect or a template
+            // assigned in a view.
             const rendered = self.renderView(matched_route, request, null) catch |err| {
                 if (isUnhandledError(err)) return err;
                 const rendered_error = try self.renderInternalServerError(request, err);
                 return request.setResponse(rendered_error, .{});
             };
 
-            return if (request.redirected)
+            return if (request.redirected or request.dynamic_assigned_template != null)
                 request.setResponse(rendered, .{})
             else
                 request.setResponse(try self.renderNotFound(request), .{});
         }
     } else {
+        // If no matching route found, try to render a Markdown file in views directory.
         if (try self.renderMarkdown(request)) |rendered| {
             return request.setResponse(rendered, .{});
         } else {
@@ -259,7 +272,7 @@ fn renderView(
     self: *Server,
     route: jetzig.views.Route,
     request: *jetzig.http.Request,
-    template: ?zmpl.Template,
+    maybe_template: ?zmpl.Template,
 ) !RenderedView {
     // View functions return a `View` to encourage users to return from a view function with
     // `return request.render(.ok)`, but the actual rendered view is stored in
@@ -270,6 +283,11 @@ fn renderView(
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
+
+    const template: ?zmpl.Template = if (request.dynamic_assigned_template) |request_template|
+        zmpl.findPrefixed("views", request_template) orelse maybe_template
+    else
+        maybe_template;
 
     if (request.rendered_multiple) return error.JetzigMultipleRenderError;
 
@@ -502,6 +520,20 @@ fn logStackTrace(
 fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {
     for (self.custom_routes) |custom_route| {
         if (custom_route.match(request)) return custom_route;
+    }
+
+    return null;
+}
+
+fn matchMiddlewareRoute(request: *const jetzig.http.Request) ?jetzig.middleware.MiddlewareRoute {
+    const middlewares = jetzig.config.get([]const type, "middleware");
+
+    inline for (middlewares) |middleware| {
+        if (@hasDecl(middleware, "routes")) {
+            inline for (middleware.routes) |route| {
+                if (route.match(request)) return route;
+            }
+        }
     }
 
     return null;

@@ -11,6 +11,7 @@ pub const RenderStaticFn = *const fn (Route, *jetzig.http.StaticRequest) anyerro
 pub const ViewWithoutId = *const fn (*jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
 pub const ViewWithId = *const fn (id: []const u8, *jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
 const StaticViewWithoutId = *const fn (*jetzig.http.StaticRequest, *jetzig.data.Data) anyerror!jetzig.views.View;
+pub const ViewWithArgs = *const fn ([]const []const u8, *jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
 const StaticViewWithId = *const fn (id: []const u8, *jetzig.http.StaticRequest, *jetzig.data.Data) anyerror!jetzig.views.View;
 
 pub const DynamicViewType = union(Action) {
@@ -36,6 +37,7 @@ pub const StaticViewType = union(Action) {
 pub const CustomViewType = union(enum) {
     with_id: ViewWithId,
     without_id: ViewWithoutId,
+    with_args: ViewWithArgs,
 };
 
 pub const ViewType = union(enum) {
@@ -87,7 +89,10 @@ pub fn match(self: Route, request: *const jetzig.http.Request) bool {
 
     while (uri_path_it.next()) |expected_segment| {
         const actual_segment = request_path_it.next() orelse return false;
-        if (std.mem.startsWith(u8, expected_segment, ":")) continue;
+        if (std.mem.startsWith(u8, expected_segment, ":")) {
+            if (std.mem.endsWith(u8, expected_segment, "*")) return true;
+            continue;
+        }
         if (!std.mem.eql(u8, expected_segment, actual_segment)) return false;
     }
 
@@ -100,6 +105,11 @@ fn renderFn(self: Route, request: *jetzig.http.Request) anyerror!jetzig.views.Vi
         .custom => |view_type| switch (view_type) {
             .with_id => |view| return try view(request.path.resourceId(self), request, request.response_data),
             .without_id => |view| return try view(request, request.response_data),
+            .with_args => |view| return try view(
+                try request.path.resourceArgs(self, request.allocator),
+                request,
+                request.response_data,
+            ),
         },
         // We only end up here if a static route is defined but its output is not found in the
         // file system (e.g. if it was manually deleted after build). This should be avoidable by

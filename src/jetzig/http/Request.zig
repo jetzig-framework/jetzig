@@ -27,6 +27,7 @@ _cookies: ?*jetzig.http.Cookies = null,
 _session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
 processed: bool = false,
+dynamic_assigned_template: ?[]const u8 = null,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
 rendered: bool = false,
@@ -511,6 +512,21 @@ pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) !
         }, .{}),
         .HTML, .UNKNOWN => status.getFormatted(.{ .linebreak = true }),
     };
+}
+
+/// Override default template name for a matched route.
+pub fn setTemplate(self: *Request, name: []const u8) void {
+    self.dynamic_assigned_template = name;
+}
+
+pub fn joinPaths(self: *const Request, paths: []const []const []const u8) ![]const u8 {
+    var buf = std.ArrayList([]const u8).init(self.allocator);
+    defer buf.deinit();
+
+    for (paths) |subpaths| {
+        for (subpaths) |path| try buf.append(path);
+    }
+    return try std.mem.join(self.allocator, "/", buf.items);
 }
 
 pub fn setResponse(

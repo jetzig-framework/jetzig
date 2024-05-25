@@ -44,7 +44,9 @@ pub const View = views.View;
 /// A route definition. Generated at build type by `Routes.zig`.
 pub const Route = views.Route;
 
-const root = @import("root");
+/// A middleware route definition. Allows middleware to define custom routes in order to serve
+/// content.
+pub const MiddlewareRoute = middleware.MiddlewareRoute;
 
 /// An asynchronous job that runs outside of the request/response flow. Create via `Request.job`
 /// and set params with `Job.put`, then call `Job.schedule()` to add to the
@@ -60,6 +62,8 @@ pub const MailerDefinition = mail.MailerDefinition;
 /// A generic logger type. Provides all standard log levels as functions (`INFO`, `WARN`,
 /// `ERROR`, etc.). Note that all log functions are CAPITALIZED.
 pub const Logger = loggers.Logger;
+
+const root = @import("root");
 
 /// Global configuration. Override these values by defining in `src/main.zig` with:
 /// ```zig

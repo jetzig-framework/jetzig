@@ -54,6 +54,30 @@ pub fn resourceId(self: Self, route: jetzig.views.Route) []const u8 {
     return self.resource_id;
 }
 
+pub fn resourceArgs(self: Self, route: jetzig.views.Route, allocator: std.mem.Allocator) ![]const []const u8 {
+    var args = std.ArrayList([]const u8).init(allocator);
+    var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
+    var path_it = std.mem.splitScalar(u8, self.base_path, '/');
+
+    var matched = false;
+
+    while (path_it.next()) |path_segment| {
+        const route_uri_path_segment = route_uri_path_it.next();
+        if (!matched and
+            route_uri_path_segment != null and
+            std.mem.startsWith(u8, route_uri_path_segment.?, ":") and
+            std.mem.endsWith(u8, route_uri_path_segment.?, "*"))
+        {
+            matched = true;
+        }
+        if (matched) {
+            try args.append(path_segment);
+        }
+    }
+
+    return try args.toOwnedSlice();
+}
+
 // Extract `"/foo/bar/baz"` from:
 // * `"/foo/bar/baz"`
 // * `"/foo/bar/baz.html"`
