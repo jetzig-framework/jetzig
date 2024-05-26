@@ -24,7 +24,6 @@ pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     const params = try request.params();
     try root.put("param", params.get("foo").?);
 
-    std.debug.print("{}\n", .{params});
     return request.render(.ok);
 }
 

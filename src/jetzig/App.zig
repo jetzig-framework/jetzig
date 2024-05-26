@@ -181,15 +181,25 @@ pub fn route(
         .method = method,
         .view_name = self.allocator.dupe(u8, &view_name) catch @panic("OOM"),
         .uri_path = path,
-        .view = comptime switch (isIncludeId(path)) {
-            true => .{ .custom = .{ .with_id = viewFn } },
-            false => .{ .custom = .{ .without_id = viewFn } },
+        .layout = if (@hasDecl(module, "layout")) module.layout else null,
+        .view = comptime switch (viewType(path)) {
+            .with_id => .{ .custom = .{ .with_id = viewFn } },
+            .with_args => .{ .custom = .{ .with_args = viewFn } },
+            .without_id => .{ .custom = .{ .without_id = viewFn } },
         },
         .template = self.allocator.dupe(u8, &template) catch @panic("OOM"),
         .json_params = &.{},
     }) catch @panic("OOM");
 }
 
-inline fn isIncludeId(comptime path: []const u8) bool {
-    return std.mem.containsAtLeast(u8, path, 1, "/:");
+inline fn viewType(path: []const u8) enum { with_id, without_id, with_args } {
+    var it = std.mem.tokenizeSequence(u8, path, "/");
+    while (it.next()) |segment| {
+        if (std.mem.startsWith(u8, segment, ":")) {
+            if (std.mem.endsWith(u8, segment, "*")) return .with_args;
+            return .with_id;
+        }
+    }
+
+    return .without_id;
 }
