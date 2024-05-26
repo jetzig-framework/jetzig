@@ -81,7 +81,14 @@ pub fn listen(self: *Server) !void {
         .{
             .port = self.options.port,
             .address = self.options.bind,
-            .thread_pool = .{ .count = @intCast(try std.Thread.getCpuCount()) },
+            .thread_pool = .{
+                .count = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount()),
+            },
+            .workers = .{
+                .count = jetzig.config.get(u16, "worker_count"),
+                .max_conn = jetzig.config.get(u16, "max_connections"),
+                .retain_allocated_bytes = jetzig.config.get(usize, "arena_size"),
+            },
         },
         Dispatcher{ .server = self },
     );
@@ -112,18 +119,7 @@ fn processNextRequest(
 ) !void {
     const start_time = std.time.nanoTimestamp();
 
-    const state = try self.allocator.create(jetzig.http.Request.CallbackState);
-    const arena = try self.allocator.create(std.heap.ArenaAllocator);
-    arena.* = std.heap.ArenaAllocator.init(self.allocator);
-    state.* = .{
-        .arena = arena,
-        .allocator = self.allocator,
-    };
-
-    // Regular arena deinit occurs in jetzig.http.Request.responseCompletCallback
-    errdefer state.arena.deinit();
-
-    const allocator = state.arena.allocator();
+    const allocator = httpz_request.arena;
 
     var response = try jetzig.http.Response.init(allocator, httpz_response);
     var request = try jetzig.http.Request.init(
@@ -144,7 +140,7 @@ fn processNextRequest(
 
     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
 
-    try request.respond(state);
+    try request.respond();
 
     try jetzig.http.middleware.afterResponse(&middleware_data, &request);
     jetzig.http.middleware.deinit(&middleware_data, &request);

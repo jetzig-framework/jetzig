@@ -56,6 +56,8 @@ pub fn log(
 
 /// Log a one-liner including response status code, path, method, duration, etc.
 pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) !void {
+    if (@intFromEnum(LogLevel.INFO) < @intFromEnum(self.level)) return;
+
     var duration_buf: [256]u8 = undefined;
     const formatted_duration = try jetzig.colors.duration(
         &duration_buf,

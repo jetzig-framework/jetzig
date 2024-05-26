@@ -98,6 +98,19 @@ pub const config = struct {
     /// freed instead of recycled.
     pub const max_log_pool_len: usize = 256;
 
+    /// Number of request threads. Defaults to number of detected CPUs.
+    pub const thread_count: ?u16 = null;
+
+    /// Number of response worker threads.
+    pub const worker_count: u16 = 4;
+
+    /// Total number of connections managed by worker threads.
+    pub const max_connections: u16 = 512;
+
+    /// The size of each item in the available memory pool used by requests for rendering.
+    /// Total retained allocation: `worker_count * max_connections`.
+    pub const arena_size: usize = 1024 * 1024;
+
     /// Path relative to cwd() to serve public content from. Symlinks are not followed.
     pub const public_content_path = "public";
 

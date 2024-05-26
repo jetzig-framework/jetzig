@@ -115,6 +115,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
+
+    if (optimize != .Debug) exe.linkLibC();
+
     const jetzig_dep = b.dependency(
         "jetzig",
         .{ .optimize = optimize, .target = target },

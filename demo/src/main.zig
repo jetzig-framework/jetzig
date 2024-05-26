@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const jetzig = @import("jetzig");
 const zmd = @import("zmd");
@@ -163,8 +164,8 @@ pub const jetzig_options = struct {
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const allocator = gpa.allocator();
+    const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
+    defer if (builtin.mode == .Debug) std.debug.assert(gpa.deinit() == .ok);
 
     const app = try jetzig.init(allocator);
     defer app.deinit();
