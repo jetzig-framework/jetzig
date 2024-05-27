@@ -101,15 +101,20 @@ pub const config = struct {
     /// Number of request threads. Defaults to number of detected CPUs.
     pub const thread_count: ?u16 = null;
 
+    /// Per-thread stack memory to use before spilling into request arena (possibly with allocations).
+    pub const buffer_size: usize = 64 * 1024;
+
+    /// The pre-heated size of each item in the available memory pool used by requests for
+    /// rendering. Total retained allocation: `worker_count * max_connections`. Requests
+    /// requiring more memory will allocate per-request, leaving `arena_size` bytes pre-allocated
+    /// for the next request.
+    pub const arena_size: usize = 1024 * 1024;
+
     /// Number of response worker threads.
     pub const worker_count: u16 = 4;
 
     /// Total number of connections managed by worker threads.
     pub const max_connections: u16 = 512;
-
-    /// The size of each item in the available memory pool used by requests for rendering.
-    /// Total retained allocation: `worker_count * max_connections`.
-    pub const arena_size: usize = 1024 * 1024;
 
     /// Path relative to cwd() to serve public content from. Symlinks are not followed.
     pub const public_content_path = "public";

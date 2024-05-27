@@ -70,7 +70,7 @@ const Dispatcher = struct {
 
     pub fn handle(self: Dispatcher, request: *httpz.Request, response: *httpz.Response) void {
         self.server.processNextRequest(request, response) catch |err| {
-            self.server.errorHandlerFn(request, response, err);
+            self.server.errorHandlerFn(request, response, err) catch {};
         };
     }
 };
@@ -83,6 +83,7 @@ pub fn listen(self: *Server) !void {
             .address = self.options.bind,
             .thread_pool = .{
                 .count = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount()),
+                .buffer_size = jetzig.config.get(usize, "buffer_size"),
             },
             .workers = .{
                 .count = jetzig.config.get(u16, "worker_count"),
@@ -105,10 +106,13 @@ pub fn listen(self: *Server) !void {
     return try httpz_server.listen();
 }
 
-pub fn errorHandlerFn(self: *Server, request: *httpz.Request, response: *httpz.Response, err: anyerror) void {
+pub fn errorHandlerFn(self: *Server, request: *httpz.Request, response: *httpz.Response, err: anyerror) !void {
     if (isBadHttpError(err)) return;
 
     self.logger.ERROR("Encountered error: {s} {s}", .{ @errorName(err), request.url.raw }) catch {};
+    const stack = @errorReturnTrace();
+    if (stack) |capture| self.logStackTrace(capture, .{ .httpz = request }) catch {};
+
     response.body = "500 Internal Server Error";
 }
 
@@ -119,11 +123,9 @@ fn processNextRequest(
 ) !void {
     const start_time = std.time.nanoTimestamp();
 
-    const allocator = httpz_request.arena;
-
-    var response = try jetzig.http.Response.init(allocator, httpz_response);
+    var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
     var request = try jetzig.http.Request.init(
-        allocator,
+        httpz_request.arena,
         self,
         start_time,
         httpz_request,
@@ -135,15 +137,24 @@ fn processNextRequest(
 
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
-    try self.renderResponse(&request);
-    try request.response.headers.append("Content-Type", response.content_type);
+    if (request.middleware_rendered) |_| { // Request processing ends when a middleware renders or redirects.
+        if (request.redirect_state) |state| {
+            try request.renderRedirect(state);
+        } else if (request.rendered_view) |rendered| {
+            // TODO: Allow middleware to set content
+            request.setResponse(.{ .view = rendered, .content = "" }, .{});
+        }
+        try request.response.headers.append("Content-Type", response.content_type);
+        try request.respond();
+    } else {
+        try self.renderResponse(&request);
+        try request.response.headers.append("Content-Type", response.content_type);
+        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+        jetzig.http.middleware.deinit(&middleware_data, &request);
 
-    try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
-
-    try request.respond();
-
-    try jetzig.http.middleware.afterResponse(&middleware_data, &request);
-    jetzig.http.middleware.deinit(&middleware_data, &request);
+        try jetzig.http.middleware.afterResponse(&middleware_data, &request);
+        try request.respond();
+    }
 
     try self.logger.logRequest(&request);
 }
@@ -180,6 +191,8 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
         .JSON => try self.renderJSON(request, route),
         .UNKNOWN => try self.renderHTML(request, route),
     }
+
+    if (request.redirect_state) |state| return try request.renderRedirect(state);
 }
 
 fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
@@ -388,7 +401,7 @@ fn renderInternalServerError(self: *Server, request: *jetzig.http.Request, err: 
     try self.logger.ERROR("Encountered Error: {s}", .{@errorName(err)});
 
     const stack = @errorReturnTrace();
-    if (stack) |capture| try self.logStackTrace(capture, request);
+    if (stack) |capture| try self.logStackTrace(capture, .{ .jetzig = request });
 
     const status = .internal_server_error;
     return try self.renderError(request, status);
@@ -436,7 +449,7 @@ fn renderErrorView(
                     .{@errorName(err)},
                 );
                 const stack = @errorReturnTrace();
-                if (stack) |capture| try self.logStackTrace(capture, request);
+                if (stack) |capture| try self.logStackTrace(capture, .{ .jetzig = request });
                 return try renderDefaultError(request, status_code);
             };
 
@@ -503,14 +516,18 @@ fn renderDefaultError(
 fn logStackTrace(
     self: Server,
     stack: *std.builtin.StackTrace,
-    request: *jetzig.http.Request,
+    request: union(enum) { jetzig: *const jetzig.http.Request, httpz: *const httpz.Request },
 ) !void {
-    try self.logger.ERROR("\nStack Trace:\n{}", .{stack});
-    var buf = std.ArrayList(u8).init(request.allocator);
+    const allocator = switch (request) {
+        .jetzig => |capture| capture.allocator,
+        .httpz => |capture| capture.arena,
+    };
+
+    var buf = std.ArrayList(u8).init(allocator);
     defer buf.deinit();
     const writer = buf.writer();
     try stack.format("", .{}, writer);
-    try self.logger.ERROR("{s}\n", .{buf.items});
+    if (buf.items.len > 0) try self.logger.ERROR("{s}\n", .{buf.items});
 }
 
 fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {

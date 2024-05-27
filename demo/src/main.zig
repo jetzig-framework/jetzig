@@ -16,39 +16,55 @@ pub const jetzig_options = struct {
         jetzig.middleware.HtmxMiddleware,
         // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
         // middleware system.
-        // @import("app/middleware/DemoMiddleware.zig"),
+        @import("app/middleware/DemoMiddleware.zig"),
     };
 
     // Maximum bytes to allow in request body.
-    // pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
+    pub const max_bytes_request_body: usize = std.math.pow(usize, 2, 16);
 
     // Maximum filesize for `public/` content.
-    // pub const max_bytes_public_content: usize = std.math.pow(usize, 2, 20);
+    pub const max_bytes_public_content: usize = std.math.pow(usize, 2, 20);
 
     // Maximum filesize for `static/` content (applies only to apps using `jetzig.http.StaticRequest`).
-    // pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 18);
+    pub const max_bytes_static_content: usize = std.math.pow(usize, 2, 18);
 
     // Maximum length of a header name. There is no limit imposed by the HTTP specification but
     // AWS load balancers reference 40 as a limit so we use that as a baseline:
     // https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_HttpHeaderConditionConfig.html
     // This can be increased if needed.
-    // pub const max_bytes_header_name: u16 = 40;
+    pub const max_bytes_header_name: u16 = 40;
 
     // Log message buffer size. Log messages exceeding this size spill to heap with degraded
     // performance. Log messages should aim to fit in the message buffer.
-    // pub const log_message_buffer_len: usize = 4096;
+    pub const log_message_buffer_len: usize = 4096;
 
     // Maximum log pool size. When a log buffer is no longer required it is returned to a pool
     // for recycling. When logging i/o is slow, a high volume of requests will result in this
     // pool growing. When the pool size reaches the maximum value defined here, log events are
     // freed instead of recycled.
-    // pub const max_log_pool_len: usize = 256;
+    pub const max_log_pool_len: usize = 256;
+
+    // Number of request threads. Defaults to number of detected CPUs.
+    pub const thread_count: ?u16 = null;
+
+    // Number of response worker threads.
+    pub const worker_count: u16 = 4;
+
+    // Total number of connections managed by worker threads.
+    pub const max_connections: u16 = 512;
+
+    // Per-thread stack memory to use before spilling into request arena (possibly with allocations).
+    pub const buffer_size: usize = 64 * 1024;
+
+    // The size of each item in the available memory pool used by requests for rendering.
+    // Total retained allocation: `worker_count * max_connections`.
+    pub const arena_size: usize = 1024 * 1024;
 
     // Path relative to cwd() to serve public content from. Symlinks are not followed.
-    // pub const public_content_path = "public";
+    pub const public_content_path = "public";
 
     // HTTP buffer. Must be large enough to store all headers. This should typically not be modified.
-    // pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
+    pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
 
     // The number of worker threads to spawn on startup for processing Jobs (NOT the number of
     // HTTP server worker threads).
@@ -56,7 +72,7 @@ pub const jetzig_options = struct {
 
     // Duration before looking for more Jobs when the queue is found to be empty, in
     // milliseconds.
-    // pub const job_worker_sleep_interval_ms: usize = 10;
+    pub const job_worker_sleep_interval_ms: usize = 10;
 
     /// Key-value store options. Set backend to `.file` to use a file-based store.
     /// When using `.file` backend, you must also set `.file_options`.
@@ -108,7 +124,7 @@ pub const jetzig_options = struct {
     // };
 
     /// Force email delivery in development mode (instead of printing email body to logger).
-    // pub const force_development_email_delivery = false;
+    pub const force_development_email_delivery = false;
 
     // Set custom fragments for rendering markdown templates. Any values will fall back to
     // defaults provided by Zmd (https://github.com/jetzig-framework/zmd/blob/main/src/zmd/html.zig).
