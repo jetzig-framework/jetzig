@@ -33,6 +33,12 @@ pub fn init(request: *jetzig.http.Request) !*DemoMiddleware {
 /// Any calls to `request.render` or `request.redirect` will prevent further processing of the
 /// request, including any other middleware in the chain.
 pub fn afterRequest(self: *DemoMiddleware, request: *jetzig.http.Request) !void {
+    // Middleware can invoke `request.redirect` or `request.render`. All request processing stops
+    // and the response is immediately returned if either of these two functions are called
+    // during middleware processing.
+    // _ = request.redirect("/foobar", .moved_permanently);
+    // _ = request.render(.unauthorized);
+
     try request.server.logger.DEBUG(
         "[DemoMiddleware:afterRequest] my_custom_value: {s}",
         .{self.my_custom_value},

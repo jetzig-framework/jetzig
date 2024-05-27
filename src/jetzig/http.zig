@@ -14,3 +14,7 @@ pub const status_codes = @import("http/status_codes.zig");
 pub const StatusCode = status_codes.StatusCode;
 pub const middleware = @import("http/middleware.zig");
 pub const mime = @import("http/mime.zig");
+
+pub const SimplifiedRequest = struct {
+    location: ?[]const u8,
+};

@@ -5,7 +5,7 @@ const builtin = @import("builtin");
 const types = @import("types.zig");
 
 // Must be consistent with `std.io.tty.Color` for Windows compatibility.
-const codes = .{
+pub const codes = .{
     .escape = "\x1b[",
     .black = "30m",
     .red = "31m",

@@ -84,12 +84,22 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
 
     const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
 
-    try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}] {s}\n", .{
+    try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}]{s}{s}{s}{s}{s}{s}{s}{s}{s}{s} {s}\n", .{
         formatted_level,
         iso8601,
         formatted_duration,
         request.fmtMethod(self.stdout_colorized),
         formatted_status,
+        if (request.middleware_rendered) |_| " [" ++ jetzig.colors.codes.escape ++ jetzig.colors.codes.magenta else "",
+        if (request.middleware_rendered) |middleware| middleware.name else "",
+        if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.white ++ ":" else "",
+        if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.blue else "",
+        if (request.middleware_rendered) |middleware| middleware.action else "",
+        if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.white ++ ":" else "",
+        if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.bright_cyan else "",
+        if (request.middleware_rendered) |_| if (request.redirected) "redirect" else "render" else "",
+        if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.reset else "",
+        if (request.middleware_rendered) |_| "]" else "",
         request.path.path,
     }, .stdout);
 }

@@ -26,12 +26,16 @@ query_body: ?*jetzig.http.Query = null,
 _cookies: ?*jetzig.http.Cookies = null,
 _session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
-processed: bool = false,
+state: enum { initial, processed } = .initial,
+response_started: bool = false,
 dynamic_assigned_template: ?[]const u8 = null,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
 rendered: bool = false,
 redirected: bool = false,
+redirect_state: ?RedirectState = null,
+middleware_rendered: ?struct { name: []const u8, action: []const u8 } = null,
+middleware_rendered_during_response: bool = false,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 start_time: i128,
@@ -132,18 +136,18 @@ pub fn deinit(self: *Request) void {
     self.cookies.deinit();
     self.allocator.destroy(self.cookies);
     self.allocator.destroy(self.session);
-    if (self.processed) self.allocator.free(self.body);
+    if (self.state != .initial) self.allocator.free(self.body);
 }
 
 /// Process request, read body if present.
 pub fn process(self: *Request) !void {
     self.body = self.httpz_request.body() orelse "";
-    self.processed = true;
+    self.state = .processed;
 }
 
 /// Set response headers, write response payload, and finalize the response.
 pub fn respond(self: *Request) !void {
-    if (!self.processed) unreachable;
+    if (self.state == .initial) unreachable;
 
     try self.setCookieHeaders();
 
@@ -158,6 +162,7 @@ pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) 
     if (self.rendered) self.rendered_multiple = true;
 
     self.rendered = true;
+    if (self.response_started) self.middleware_rendered_during_response = true;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
 }
@@ -179,15 +184,23 @@ pub fn redirect(
 
     self.rendered = true;
     self.redirected = true;
+    if (self.response_started) self.middleware_rendered_during_response = true;
 
     const status_code = switch (redirect_status) {
         .moved_permanently => jetzig.http.status_codes.StatusCode.moved_permanently,
         .found => jetzig.http.status_codes.StatusCode.found,
     };
 
+    self.redirect_state = .{ .location = location, .status_code = status_code };
+    return .{ .data = self.response_data, .status_code = status_code };
+}
+
+const RedirectState = struct { location: []const u8, status_code: jetzig.http.status_codes.StatusCode };
+
+pub fn renderRedirect(self: *Request, state: RedirectState) !void {
     self.response_data.reset();
 
-    self.response.headers.append("Location", location) catch |err| {
+    self.response.headers.append("Location", state.location) catch |err| {
         switch (err) {
             error.JetzigTooManyHeaders => std.debug.print(
                 "Header limit reached. Unable to add redirect header.\n",
@@ -197,8 +210,32 @@ pub fn redirect(
         }
     };
 
-    self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
-    return self.rendered_view.?;
+    const view = .{ .data = self.response_data, .status_code = state.status_code };
+    const status = jetzig.http.status_codes.get(state.status_code);
+    const maybe_template = jetzig.zmpl.findPrefixed("views", status.getCode());
+    self.rendered_view = view;
+
+    var root = try self.response_data.root(.object);
+    try root.put("location", self.response_data.string(state.location));
+    const content = switch (self.requestFormat()) {
+        .HTML, .UNKNOWN => if (maybe_template) |template| blk: {
+            try view.data.addConst("jetzig_view", view.data.string("internal"));
+            try view.data.addConst("jetzig_action", view.data.string(@tagName(state.status_code)));
+            break :blk try template.render(self.response_data);
+        } else try std.fmt.allocPrint(self.allocator, "Redirecting to {s}", .{state.location}),
+        .JSON => blk: {
+            break :blk try std.json.stringifyAlloc(
+                self.allocator,
+                .{ .location = state.location, .status = .{
+                    .message = status.getMessage(),
+                    .code = status.getCode(),
+                } },
+                .{},
+            );
+        },
+    };
+
+    self.setResponse(.{ .view = view, .content = content }, .{});
 }
 
 /// Infer the current format (JSON or HTML) from the request in this order:
@@ -246,7 +283,7 @@ pub fn getHeader(self: *const Request, key: []const u8) ?[]const u8 {
 /// otherwise the parsed JSON request body will take precedence and query parameters will be
 /// ignored.
 pub fn params(self: *Request) !*jetzig.data.Value {
-    if (!self.processed) unreachable;
+    if (self.state == .initial) unreachable;
 
     switch (self.requestFormat()) {
         .JSON => {
@@ -489,7 +526,7 @@ pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) !
 
     return switch (self.requestFormat()) {
         .JSON => try std.json.stringifyAlloc(self.allocator, .{
-            .@"error" = .{
+            .status = .{
                 .message = status.getMessage(),
                 .code = status.getCode(),
             },
