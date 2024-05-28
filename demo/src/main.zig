@@ -14,6 +14,8 @@ pub const jetzig_options = struct {
         // htmx middleware skips layouts when `HX-Target` header is present and issues
         // `HX-Redirect` instead of a regular HTTP redirect when `request.redirect` is called.
         jetzig.middleware.HtmxMiddleware,
+        // gzip middleware compresses every request to decrease transfer size
+        jetzig.middleware.GzipMiddleware,
         // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
         // middleware system.
         @import("app/middleware/DemoMiddleware.zig"),
