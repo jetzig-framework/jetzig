@@ -125,7 +125,7 @@ fn processNextRequest(
 
     var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
     var request = try jetzig.http.Request.init(
-        httpz_request.arena,
+        httpz_response.arena,
         self,
         start_time,
         httpz_request,
