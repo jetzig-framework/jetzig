@@ -2,6 +2,7 @@ const std = @import("std");
 const jetzig = @import("../jetzig.zig");
 
 pub const HtmxMiddleware = @import("middleware/HtmxMiddleware.zig");
+pub const GzipMiddleware = @import("middleware/Gzip.zig");
 
 const RouteOptions = struct {
     content: ?[]const u8 = null,
