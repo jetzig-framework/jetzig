@@ -8,7 +8,7 @@ const Environment = @This();
 
 allocator: std.mem.Allocator,
 
-pub const EnvironmentName = enum { development, production };
+pub const EnvironmentName = enum { development, production, testing };
 
 const Options = struct {
     help: bool = false,
@@ -170,6 +170,7 @@ fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u1
 
 fn resolveLogLevel(level: ?jetzig.loggers.LogLevel, environment: EnvironmentName) jetzig.loggers.LogLevel {
     return level orelse switch (environment) {
+        .testing => .DEBUG,
         .development => .DEBUG,
         .production => .INFO,
     };

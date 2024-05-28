@@ -33,7 +33,6 @@ pub fn build(b: *std.Build) !void {
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
 
     const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
-
     const jetzig_module = b.addModule("jetzig", .{ .root_source_file = b.path("src/jetzig.zig") });
     jetzig_module.addImport("mime_types", mime_module);
     lib.root_module.addImport("jetzig", jetzig_module);
@@ -165,8 +164,10 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         mailers_path,
     );
     try generate_routes.generateRoutes();
-    const write_files = b.addWriteFiles();
-    const routes_file = write_files.add("routes.zig", generate_routes.buffer.items);
+    const routes_write_files = b.addWriteFiles();
+    const routes_file = routes_write_files.add("routes.zig", generate_routes.buffer.items);
+    const tests_write_files = b.addWriteFiles();
+    const tests_file = tests_write_files.add("tests.zig", generate_routes.buffer.items);
     const routes_module = b.createModule(.{ .root_source_file = routes_file });
 
     var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
@@ -183,7 +184,8 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
             const relpath = try std.fs.path.join(b.allocator, &[_][]const u8{ "src", entry.path });
             defer b.allocator.free(relpath);
 
-            _ = write_files.add(relpath, src_data);
+            _ = routes_write_files.add(relpath, src_data);
+            _ = tests_write_files.add(relpath, src_data);
         }
     }
 
@@ -196,12 +198,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     exe.root_module.addImport("routes", routes_module);
 
-    var it = exe.root_module.import_table.iterator();
-    while (it.next()) |import| {
-        routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
-        exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
-    }
-
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
@@ -210,6 +206,28 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     run_static_routes_cmd.expectExitCode(0);
     exe.step.dependOn(&run_static_routes_cmd.step);
+
+    const exe_unit_tests = b.addTest(.{
+        .root_source_file = tests_file,
+        .target = target,
+        .optimize = optimize,
+        .test_runner = jetzig_dep.path("src/test_runner.zig"),
+    });
+    exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
+    exe_unit_tests.root_module.addImport("__jetzig_project", &exe.root_module);
+
+    var it = exe.root_module.import_table.iterator();
+    while (it.next()) |import| {
+        routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
+        exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
+        exe_unit_tests.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
+    }
+
+    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+
+    const test_step = b.step("jetzig:test", "Run tests");
+    test_step.dependOn(&run_exe_unit_tests.step);
+    exe_unit_tests.root_module.addImport("routes", routes_module);
 }
 
 fn generateMarkdownFragments(b: *std.Build) ![]const u8 {

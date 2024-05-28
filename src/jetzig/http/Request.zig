@@ -132,10 +132,14 @@ pub fn init(
 }
 
 pub fn deinit(self: *Request) void {
-    self.session.deinit();
-    self.cookies.deinit();
-    self.allocator.destroy(self.cookies);
-    self.allocator.destroy(self.session);
+    if (self._session) |*capture| {
+        capture.*.deinit();
+        self.allocator.destroy(capture.*);
+    }
+    if (self._cookies) |*capture| {
+        capture.*.deinit();
+        self.allocator.destroy(capture.*);
+    }
     if (self.state != .initial) self.allocator.free(self.body);
 }
 

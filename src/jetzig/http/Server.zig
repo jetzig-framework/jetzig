@@ -111,12 +111,12 @@ pub fn errorHandlerFn(self: *Server, request: *httpz.Request, response: *httpz.R
 
     self.logger.ERROR("Encountered error: {s} {s}", .{ @errorName(err), request.url.raw }) catch {};
     const stack = @errorReturnTrace();
-    if (stack) |capture| self.logStackTrace(capture, .{ .httpz = request }) catch {};
+    if (stack) |capture| self.logStackTrace(capture, request.arena) catch {};
 
     response.body = "500 Internal Server Error";
 }
 
-fn processNextRequest(
+pub fn processNextRequest(
     self: *Server,
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
@@ -442,6 +442,12 @@ fn renderErrorView(
             _ = route.render(route.*, request) catch |err| {
                 if (isUnhandledError(err)) return err;
                 try self.logger.logError(err);
+                try self.logger.ERROR(
+                    "Unexepected error occurred while rendering error page: {s}",
+                    .{@errorName(err)},
+                );
+                const stack = @errorReturnTrace();
+                if (stack) |capture| try self.logStackTrace(capture, request.allocator);
                 return try renderDefaultError(request, status_code);
             };
 
@@ -508,13 +514,8 @@ fn renderDefaultError(
 fn logStackTrace(
     self: Server,
     stack: *std.builtin.StackTrace,
-    request: union(enum) { jetzig: *const jetzig.http.Request, httpz: *const httpz.Request },
+    allocator: std.mem.Allocator,
 ) !void {
-    const allocator = switch (request) {
-        .jetzig => |capture| capture.allocator,
-        .httpz => |capture| capture.arena,
-    };
-
     var buf = std.ArrayList(u8).init(allocator);
     defer buf.deinit();
     const writer = buf.writer();
@@ -657,19 +658,12 @@ fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]cons
     };
 
     for (route.params.items, 0..) |static_params, index| {
-        const expected_params = try static_params.getValue("params");
+        const expected_params = static_params.get("params");
         switch (route.action) {
             .index, .post => {},
             inline else => {
-                const id = try static_params.getValue("id");
-                if (id == null) return error.JetzigRouteError; // `routes.zig` is incoherent.
-                switch (id.?.*) {
-                    .string => |capture| {
-                        if (!std.mem.eql(u8, capture.value, request.path.resource_id)) continue;
-                    },
-                    // `routes.zig` is incoherent.
-                    inline else => return error.JetzigRouteError,
-                }
+                const id = static_params.getT(.string, "id") orelse return error.JetzigRouteError;
+                if (!std.mem.eql(u8, id, request.path.resource_id)) continue;
             },
         }
         if (expected_params != null and !expected_params.?.eql(params)) continue;

@@ -22,3 +22,15 @@ pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
 
     return request.render(.ok);
 }
+
+test "index" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    _ = try app.request(.POST, "/cache", .{ .params = .{ .message = "test message" } });
+
+    const response = try app.request(.GET, "/cache", .{});
+    try response.expectBodyContains(
+        \\  <span>Cached value: test message</span>
+    );
+}

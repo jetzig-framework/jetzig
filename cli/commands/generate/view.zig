@@ -68,6 +68,10 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         try writeTemplate(allocator, cwd, args[0], action);
     }
 
+    for (actions.items) |action| {
+        try writeTest(allocator, writer, args[0], action);
+    }
+
     var dir = try cwd.openDir("src/app/views", .{});
     defer dir.close();
 
@@ -141,6 +145,44 @@ fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !v
     try writer.writeAll(function);
 }
 
+// Write a view function to the output buffer.
+fn writeTest(allocator: std.mem.Allocator, writer: anytype, name: []const u8, action: Action) !void {
+    const action_upper = try std.ascii.allocUpperString(allocator, @tagName(action.method));
+    defer allocator.free(action_upper);
+
+    const test_body = try std.fmt.allocPrint(
+        allocator,
+        \\
+        \\test "{s}" {{
+        \\    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+        \\    defer app.deinit();
+        \\
+        \\    const response = try app.request(.{s}, "/{s}{s}", .{{}});
+        \\    try response.expectStatus({s});
+        \\}}
+        \\
+    ,
+        .{
+            @tagName(action.method),
+            switch (action.method) {
+                .index, .get => "GET",
+                .put, .patch, .delete, .post => action_upper,
+            },
+            name,
+            switch (action.method) {
+                .index, .post => "",
+                .get, .put, .patch, .delete => "/example-id",
+            },
+            switch (action.method) {
+                .index, .get => ".ok",
+                .post => ".created",
+                .put, .patch, .delete => ".ok",
+            },
+        },
+    );
+    defer allocator.free(test_body);
+    try writer.writeAll(test_body);
+}
 // Output static params example. Only invoked if one or more static routes are created.
 fn writeStaticParams(allocator: std.mem.Allocator, actions: []Action, writer: anytype) !void {
     try writer.writeAll(

@@ -11,6 +11,7 @@ mailers_path: []const u8,
 buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
+module_paths: std.ArrayList([]const u8),
 data: *jetzig.data.Data,
 
 const Routes = @This();
@@ -107,6 +108,7 @@ pub fn init(
         .buffer = std.ArrayList(u8).init(allocator),
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
+        .module_paths = std.ArrayList([]const u8).init(allocator),
         .data = data,
     };
 }
@@ -154,6 +156,24 @@ pub fn generateRoutes(self: *Routes) !void {
     try self.writeJobs(writer);
     try writer.writeAll(
         \\};
+        \\
+    );
+
+    try writer.writeAll(
+        \\test {
+        \\
+    );
+
+    for (self.module_paths.items) |module_path| {
+        try writer.print(
+            \\    _ = @import("{s}");
+            \\
+        , .{module_path});
+    }
+
+    try writer.writeAll(
+        \\    @import("std").testing.refAllDeclsRecursive(@This());
+        \\}
         \\
     );
 
@@ -272,6 +292,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
     );
 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
+    try self.module_paths.append(try self.allocator.dupe(u8, module_path));
 
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
         full_name,
@@ -325,7 +346,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
                 const decl = self.ast.simpleVarDecl(asNodeIndex(index));
                 if (self.isStaticParamsDecl(decl)) {
                     self.data.reset();
-                    const params = try self.data.object();
+                    const params = try self.data.root(.object);
                     try self.parseStaticParamsDecl(decl, params);
                     static_params = self.data.value;
                 }
@@ -340,7 +361,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
         if (static_params) |capture| {
             if (capture.get(static_route.name)) |params| {
-                for (params.array.array.items) |item| { // XXX: Use public interface for Data.Array here ?
+                for (params.items(.array)) |item| {
                     const json = try item.toJson();
                     var encoded_buf = std.ArrayList(u8).init(self.allocator);
                     defer encoded_buf.deinit();
@@ -399,19 +420,19 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
     const main_token = self.ast.nodes.items(.main_token)[node];
     const field_name = self.ast.tokenSlice(main_token - 3);
 
-    const params_array = try self.data.createArray();
+    const params_array = try self.data.array();
     try params.put(field_name, params_array);
 
     for (array.ast.elements) |element| {
         const elem = self.ast.nodes.items(.tag)[element];
         switch (elem) {
             .struct_init_dot, .struct_init_dot_two, .struct_init_dot_two_comma => {
-                const route_params = try self.data.createObject();
+                const route_params = try self.data.object();
                 try params_array.append(route_params);
                 try self.parseStruct(element, route_params);
             },
             .array_init_dot, .array_init_dot_two, .array_init_dot_comma, .array_init_dot_two_comma => {
-                const route_params = try self.data.createObject();
+                const route_params = try self.data.object();
                 try params_array.append(route_params);
                 try self.parseField(element, route_params);
             },
@@ -420,7 +441,7 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
                 const string_value = self.ast.tokenSlice(string_token);
 
                 // Strip quotes: `"foo"` -> `foo`
-                try params_array.append(self.data.string(string_value[1 .. string_value.len - 1]));
+                try params_array.append(string_value[1 .. string_value.len - 1]);
             },
             .number_literal => {
                 const number_token = self.ast.nodes.items(.main_token)[element];
@@ -445,7 +466,7 @@ fn parseField(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
             try self.parseArray(node, params);
         },
         .struct_init_dot, .struct_init_dot_two, .struct_init_dot_two_comma => {
-            const nested_params = try self.data.createObject();
+            const nested_params = try self.data.object();
             const main_token = self.ast.nodes.items(.main_token)[node];
             const field_name = self.ast.tokenSlice(main_token - 3);
             try params.put(field_name, nested_params);
@@ -460,7 +481,7 @@ fn parseField(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
             try params.put(
                 field_name,
                 // strip outer quotes
-                self.data.string(field_value[1 .. field_value.len - 1]),
+                field_value[1 .. field_value.len - 1],
             );
         },
         .number_literal => {
