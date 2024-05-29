@@ -70,6 +70,12 @@ pub const Logger = union(enum) {
         }
     }
 
+    pub fn logError(self: *const Logger, err: anyerror) !void {
+        switch (self.*) {
+            inline else => |*logger| try logger.logError(err),
+        }
+    }
+
     pub fn log(
         self: *const Logger,
         comptime level: LogLevel,

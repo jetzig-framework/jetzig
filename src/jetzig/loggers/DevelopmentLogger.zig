@@ -104,6 +104,19 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     }, .stdout);
 }
 
+pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
+    if (@errorReturnTrace()) |stack| {
+        try self.log(.ERROR, "\nStack Trace:\n{}", .{stack});
+        var buf = std.ArrayList(u8).init(self.allocator);
+        defer buf.deinit();
+        const writer = buf.writer();
+        try stack.format("", .{}, writer);
+        try self.logger.ERROR("{s}\n", .{buf.items});
+    }
+
+    try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
+}
+
 inline fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
     return switch (level) {
         .TRACE => jetzig.colors.white(@tagName(level)),

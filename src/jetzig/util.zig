@@ -33,6 +33,27 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
     return ptr;
 }
 
+pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
+    _ = options; // Allow setting compression options later if needed.
+    var compressed = std.ArrayList(u8).init(allocator);
+    var content_reader = std.io.fixedBufferStream(content);
+    try std.compress.gzip.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
+    return try compressed.toOwnedSlice();
+}
+
+pub fn deflate(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
+    _ = options; // Allow setting compression options later if needed.
+    var compressed = std.ArrayList(u8).init(allocator);
+    var content_reader = std.io.fixedBufferStream(content);
+    try std.compress.flate.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
+    return try compressed.toOwnedSlice();
+}
+
+// Strip leading and trailing whitespace from a u8 slice.
+pub inline fn strip(input: []const u8) []const u8 {
+    return std.mem.trim(u8, input, &std.ascii.whitespace);
+}
+
 /// Generate a secure random string of `len` characters (for cryptographic purposes).
 pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

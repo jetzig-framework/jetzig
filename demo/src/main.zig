@@ -11,14 +11,9 @@ pub const jetzig_options = struct {
     /// Middleware chain. Add any custom middleware here, or use middleware provided in
     /// `jetzig.middleware` (e.g. `jetzig.middleware.HtmxMiddleware`).
     pub const middleware: []const type = &.{
-        // htmx middleware skips layouts when `HX-Target` header is present and issues
-        // `HX-Redirect` instead of a regular HTTP redirect when `request.redirect` is called.
-        jetzig.middleware.HtmxMiddleware,
-        // Compression middleware compresses every request to decrease transfer size
-        jetzig.middleware.CompressionMiddleware,
-        // Demo middleware included with new projects. Remove once you are familiar with Jetzig's
-        // middleware system.
-        @import("app/middleware/DemoMiddleware.zig"),
+        // jetzig.middleware.HtmxMiddleware,
+        // jetzig.middleware.CompressionMiddleware,
+        // @import("app/middleware/DemoMiddleware.zig"),
     };
 
     // Maximum bytes to allow in request body.
