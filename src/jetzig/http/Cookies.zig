@@ -22,11 +22,14 @@ pub const CookieOptions = struct {
 
     /// Builds a cookie string
     pub fn allocPrint(self: CookieOptions, allocator: std.mem.Allocator, cookie_name: []const u8, cookie_value: []const u8) ![]const u8 {
-        var cookie_string = std.ArrayList(u8).init(allocator);
         // add cookie name, cookie value, path, and domain regardless of cookie options
-        const standard_components = try std.fmt.allocPrint(allocator, "{s}={s}; path={s}; domain={s};", .{ cookie_name, cookie_value, self.path, self.domain });
-        defer allocator.free(standard_components);
-        try cookie_string.appendSlice(standard_components);
+        const standard_components = try std.fmt.allocPrint(allocator, "{s}={s}; path={s}; domain={s};", .{
+            cookie_name,
+            cookie_value,
+            self.path,
+            self.domain,
+        });
+        var cookie_string = std.ArrayList(u8).fromOwnedSlice(allocator, standard_components);
         // secure is required if samesite is set to none
         var require_secure = false;
         var buf: [256]u8 = undefined;
