@@ -186,6 +186,12 @@ pub const config = struct {
         .password = null,
     };
 
+    /// HTTP cookie configuration
+    pub const cookie_options: http.Cookies.CookieOptions = .{
+        .domain = "localhost",
+        .path = "/",
+    };
+
     /// Force email delivery in development mode (instead of printing email body to logger).
     pub const force_development_email_delivery = false;
 

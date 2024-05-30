@@ -10,6 +10,56 @@ modified: bool = false,
 
 const Self = @This();
 
+pub const CookieOptions = struct {
+    domain: []const u8 = "localhost",
+    path: []const u8 = "/",
+    same_site: ?enum { strict, lax, none } = null,
+    secure: bool = false,
+    expires: ?i64 = null, // if used, set to time in seconds to be added to std.time.timestamp()
+    http_only: bool = false,
+    max_age: ?i64 = null,
+    partitioned: bool = false,
+
+    /// Builds a cookie string
+    pub fn allocPrint(self: CookieOptions, allocator: std.mem.Allocator, cookie_name: []const u8, cookie_value: []const u8) ![]const u8 {
+        var cookie_string = std.ArrayList(u8).init(allocator);
+        // add cookie name, cookie value, path, and domain regardless of cookie options
+        const standard_components = try std.fmt.allocPrint(allocator, "{s}={s}; path={s}; domain={s};", .{ cookie_name, cookie_value, self.path, self.domain });
+        defer allocator.free(standard_components);
+        try cookie_string.appendSlice(standard_components);
+        // secure is required if samesite is set to none
+        var require_secure = false;
+        var buf: [256]u8 = undefined;
+        if (self.same_site) |same_site| {
+            if (same_site == .none) {
+                require_secure = true;
+            }
+            const kv_pair = try std.fmt.bufPrint(&buf, "{s}={s};", .{ "samesite", @tagName(same_site) });
+            try cookie_string.appendSlice(kv_pair);
+        }
+        if (self.secure or require_secure) {
+            try cookie_string.appendSlice("secure;");
+        }
+        if (self.expires) |expires| {
+            const kv_pair = try std.fmt.bufPrint(&buf, "{s}={d};", .{ "expires", std.time.timestamp() + expires });
+            try cookie_string.appendSlice(kv_pair);
+        }
+        if (self.max_age) |max_age| {
+            const kv_pair = try std.fmt.bufPrint(&buf, "{s}={d};", .{ "max-age", max_age });
+            try cookie_string.appendSlice(kv_pair);
+        }
+        if (self.http_only) {
+            try cookie_string.appendSlice("httponly;");
+        }
+        if (self.partitioned) {
+            try cookie_string.appendSlice("partitioned;");
+        }
+        return cookie_string.toOwnedSlice();
+    }
+};
+
+const cookie_options = jetzig.config.get(CookieOptions, "cookie_options");
+
 pub const Cookie = struct {
     value: []const u8,
 };
@@ -62,11 +112,7 @@ pub const HeaderIterator = struct {
 
     pub fn next(self: *HeaderIterator) !?[]const u8 {
         if (self.cookies_iterator.next()) |*item| {
-            return try std.fmt.allocPrint(
-                self.allocator,
-                "{s}={s}; path=/; domain=localhost", // TODO: Add all options, remove hardcoded domain
-                .{ item.key_ptr.*, item.value_ptr.*.value },
-            );
+            return try cookie_options.allocPrint(self.allocator, item.key_ptr.*, item.value_ptr.*.value);
         } else {
             return null;
         }
