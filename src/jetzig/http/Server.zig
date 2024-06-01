@@ -398,10 +398,7 @@ fn isBadHttpError(err: anyerror) bool {
 fn renderInternalServerError(self: *Server, request: *jetzig.http.Request, err: anyerror) !RenderedView {
     request.response_data.reset();
 
-    try self.logger.ERROR("Encountered Error: {s}", .{@errorName(err)});
-
-    const stack = @errorReturnTrace();
-    if (stack) |capture| try self.logStackTrace(capture, .{ .jetzig = request });
+    try self.logger.logError(err);
 
     const status = .internal_server_error;
     return try self.renderError(request, status);
@@ -444,12 +441,7 @@ fn renderErrorView(
 
             _ = route.render(route.*, request) catch |err| {
                 if (isUnhandledError(err)) return err;
-                try self.logger.ERROR(
-                    "Unexepected error occurred while rendering error page: {s}",
-                    .{@errorName(err)},
-                );
-                const stack = @errorReturnTrace();
-                if (stack) |capture| try self.logStackTrace(capture, .{ .jetzig = request });
+                try self.logger.logError(err);
                 return try renderDefaultError(request, status_code);
             };
 

@@ -82,7 +82,7 @@ fn isPath(dir: std.fs.Dir, sub_path: []const u8, path_type: enum { file, dir }) 
 }
 
 // Strip leading and trailing whitespace from a u8 slice.
-pub fn strip(input: []const u8) []const u8 {
+pub inline fn strip(input: []const u8) []const u8 {
     return std.mem.trim(u8, input, &std.ascii.whitespace);
 }
 

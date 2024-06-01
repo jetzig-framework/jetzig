@@ -101,6 +101,10 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
     try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
 }
 
+pub fn logError(self: *const JsonLogger, err: anyerror) !void {
+    try self.log(.ERROR, "Encountered error: {s}", .{@errorName(err)});
+}
+
 fn getFile(self: JsonLogger, level: LogLevel) std.fs.File {
     return switch (level) {
         .TRACE, .DEBUG, .INFO => self.stdout,
