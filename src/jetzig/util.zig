@@ -70,7 +70,3 @@ pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const 
 pub fn duration(start_time: i128) i64 {
     return @intCast(std.time.nanoTimestamp() - start_time);
 }
-
-pub inline fn strip(string: []const u8) []const u8 {
-    return std.mem.trim(u8, string, &std.ascii.whitespace);
-}
