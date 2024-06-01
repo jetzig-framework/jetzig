@@ -59,6 +59,10 @@ pub fn getFirstValue(self: *const Headers, name: []const u8) ?[]const u8 {
     return self.get(name);
 }
 
+pub fn count(self: Headers) usize {
+    return self.httpz_headers.len;
+}
+
 /// Add `name` and `value` to headers.
 pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
     if (self.httpz_headers.len >= self.httpz_headers.keys.len) return error.JetzigTooManyHeaders;
@@ -73,6 +77,46 @@ pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
 
     try self.new_headers.append(header);
     self.httpz_headers.add(header.name, header.value);
+}
+
+const Iterator = struct {
+    position: usize = 0,
+    headers: Headers,
+    filter_name: ?[]const u8 = null,
+
+    pub fn next(self: *Iterator) ?Header {
+        const header_count = self.headers.count();
+        if (self.position >= header_count) {
+            return null;
+        }
+        const start = self.position;
+
+        var buf: [jetzig.config.get(u16, "max_bytes_header_name")]u8 = undefined;
+        const filter_name = if (self.filter_name) |name| std.ascii.lowerString(&buf, name) else null;
+
+        for (start..header_count) |index| {
+            const key = self.headers.httpz_headers.keys[start + index];
+            const value = self.headers.httpz_headers.values[start + index];
+            self.position += 1;
+            if (filter_name) |name| {
+                if (std.mem.eql(u8, name, key)) {
+                    return .{ .name = key, .value = value };
+                }
+            } else {
+                return .{ .name = key, .value = value };
+            }
+        }
+
+        return null;
+    }
+};
+
+pub fn getAllIterator(self: Headers, name: []const u8) Iterator {
+    return .{ .headers = self, .filter_name = name };
+}
+
+pub fn iterator(self: Headers) Iterator {
+    return .{ .headers = self };
 }
 
 test "append (deprecated)" {

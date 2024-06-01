@@ -44,8 +44,9 @@ pub fn beforeResponse(request: *jetzig.http.Request, response: *jetzig.http.Resp
 }
 
 fn detectEncoding(request: *const jetzig.http.Request) ?Encoding {
-    for (request.headers.getAll("Accept-Encoding")) |encodings| {
-        var it = std.mem.tokenizeScalar(u8, encodings, ',');
+    var headers_it = request.headers.getAllIterator("Accept-Encoding");
+    while (headers_it.next()) |header| {
+        var it = std.mem.tokenizeScalar(u8, header.value, ',');
         while (it.next()) |param| {
             inline for (@typeInfo(Encoding).Enum.fields) |field| {
                 if (std.mem.eql(u8, field.name, jetzig.util.strip(param))) {
