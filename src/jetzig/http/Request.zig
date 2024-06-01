@@ -567,11 +567,9 @@ fn setCookieHeaders(self: *Request) !void {
     const local_cookies = self._cookies orelse return;
     if (!local_cookies.modified) return;
 
-    var cookie_it = local_cookies.headerIterator();
-    while (try cookie_it.next()) |header| {
-        // FIXME: Skip setting cookies that are already present ?
-        try self.response.headers.append("Set-Cookie", header);
-    }
+    var buf: [4096]u8 = undefined;
+    var header_it = local_cookies.headerIterator(&buf);
+    while (try header_it.next()) |header| try self.response.headers.append("Set-Cookie", header);
 }
 
 // Determine if a given route matches the current request.

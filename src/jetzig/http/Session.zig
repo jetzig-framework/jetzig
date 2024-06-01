@@ -85,7 +85,7 @@ fn save(self: *Self) !void {
     defer self.allocator.free(encrypted);
     const encoded = try jetzig.util.base64Encode(self.allocator, encrypted);
     defer self.allocator.free(encoded);
-    try self.cookies.put(cookie_name, .{ .value = encoded });
+    try self.cookies.put(.{ .name = cookie_name, .value = encoded });
 }
 
 fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
