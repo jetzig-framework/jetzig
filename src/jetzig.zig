@@ -16,6 +16,7 @@ pub const markdown = @import("jetzig/markdown.zig");
 pub const jobs = @import("jetzig/jobs.zig");
 pub const mail = @import("jetzig/mail.zig");
 pub const kv = @import("jetzig/kv.zig");
+pub const testing = @import("jetzig/testing.zig");
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.

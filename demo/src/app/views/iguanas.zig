@@ -17,16 +17,29 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
 
     const params = try request.params();
 
-    const count = if (params.get("iguanas")) |param|
-        try std.fmt.parseInt(usize, param.string.value, 10)
-    else
-        10;
+    const count = params.getT(.integer, "iguanas") orelse 10;
 
-    const iguanas_slice = try iguanas.iguanas(request.allocator, count);
+    const iguanas_slice = try iguanas.iguanas(request.allocator, @intCast(count));
 
     for (iguanas_slice) |iguana| {
         try root.append(data.string(iguana));
     }
 
     return request.render(.ok);
+}
+
+test "index" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(.GET, "/iguanas", .{ .json = .{ .iguanas = 10 } });
+    try response.expectJson(".1", "iguana");
+    try response.expectJson(".2", "iguana");
+    try response.expectJson(".3", "iguana");
+    try response.expectJson(".4", "iguana");
+    try response.expectJson(".5", "iguana");
+    try response.expectJson(".6", "iguana");
+    try response.expectJson(".7", "iguana");
+    try response.expectJson(".8", "iguana");
+    try response.expectJson(".9", "iguana");
 }

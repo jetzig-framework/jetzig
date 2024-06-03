@@ -5,6 +5,7 @@ const update = @import("commands/update.zig");
 const generate = @import("commands/generate.zig");
 const server = @import("commands/server.zig");
 const bundle = @import("commands/bundle.zig");
+const tests = @import("commands/tests.zig");
 
 const Options = struct {
     help: bool = false,
@@ -21,6 +22,7 @@ const Options = struct {
             .generate = "Generate scaffolding",
             .server = "Run a development server",
             .bundle = "Create a deployment bundle",
+            .@"test" = "Run app tests",
             .help = "Print help and exit",
         },
     };
@@ -32,9 +34,11 @@ const Verb = union(enum) {
     generate: generate.Options,
     server: server.Options,
     bundle: bundle.Options,
+    @"test": tests.Options,
     g: generate.Options,
     s: server.Options,
     b: bundle.Options,
+    t: tests.Options,
 };
 
 /// Main entrypoint for `jetzig` executable. Parses command line args and generates a new
@@ -67,6 +71,7 @@ pub fn main() !void {
             \\  generate     Generate scaffolding.
             \\  server       Run a development server.
             \\  bundle       Create a deployment bundle.
+            \\  test         Run app tests.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
             \\
@@ -106,6 +111,13 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
                 .{ .help = options.options.help },
             ),
             .b, .bundle => |opts| bundle.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+            .t, .@"test" => |opts| tests.run(
                 allocator,
                 opts,
                 writer,

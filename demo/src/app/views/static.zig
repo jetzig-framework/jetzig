@@ -16,7 +16,7 @@
 ///
 /// ```console
 /// curl -H "Accept: application/json" \
-///      --data-bin '{"foo":"hello", "bar":"goodbye"}' \
+///      --data-binary '{"foo":"hello", "bar":"goodbye"}' \
 ///      --request GET \
 ///      'http://localhost:8080/static'
 /// ```
@@ -43,18 +43,18 @@ pub const static_params = .{
 };
 
 pub fn index(request: *jetzig.StaticRequest, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+    var root = try data.root(.object);
 
     const params = try request.params();
 
-    if (params.get("foo")) |foo| try root.put("foo", foo);
-    if (params.get("bar")) |foo| try root.put("bar", foo);
+    try root.put("foo", params.get("foo"));
+    try root.put("bar", params.get("bar"));
 
     return request.render(.ok);
 }
 
 pub fn get(id: []const u8, request: *jetzig.StaticRequest, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+    var root = try data.root(.object);
 
     const params = try request.params();
 
@@ -66,4 +66,60 @@ pub fn get(id: []const u8, request: *jetzig.StaticRequest, data: *jetzig.Data) !
     if (params.get("bar")) |bar| try root.put("bar", bar);
 
     return request.render(.created);
+}
+
+test "index json" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(
+        .GET,
+        "/static.json",
+        .{ .json = .{ .foo = "hello", .bar = "goodbye" } },
+    );
+
+    try response.expectStatus(.ok);
+    try response.expectJson(".foo", "hello");
+    try response.expectJson(".bar", "goodbye");
+}
+
+test "get json" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(
+        .GET,
+        "/static/1.json",
+        .{ .json = .{ .foo = "hi", .bar = "bye" } },
+    );
+
+    try response.expectStatus(.ok);
+    try response.expectJson(".id", "id is '1'");
+}
+
+test "index html" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(
+        .GET,
+        "/static.html",
+        .{ .params = .{ .foo = "hello", .bar = "goodbye" } },
+    );
+
+    try response.expectStatus(.ok);
+    try response.expectBodyContains("hello");
+}
+
+test "get html" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(
+        .GET,
+        "/static/1.html",
+        .{ .params = .{ .foo = "hi", .bar = "bye" } },
+    );
+
+    try response.expectStatus(.ok);
 }

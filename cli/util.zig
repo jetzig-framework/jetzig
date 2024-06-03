@@ -96,6 +96,33 @@ pub fn isCamelCase(input: []const u8) bool {
     return true;
 }
 
+pub fn execCommand(allocator: std.mem.Allocator, argv: []const []const u8) !void {
+    std.debug.print("[exec]", .{});
+    for (argv) |arg| std.debug.print(" {s}", .{arg});
+    std.debug.print("\n", .{});
+
+    if (std.process.can_execv) {
+        return std.process.execv(allocator, argv);
+    } else {
+        var dir = try detectJetzigProjectDir();
+        defer dir.close();
+        const path = try dir.realpathAlloc(allocator, ".");
+        defer allocator.free(path);
+        try runCommandStreaming(allocator, path, argv);
+    }
+}
+
+pub fn runCommandStreaming(allocator: std.mem.Allocator, install_path: []const u8, argv: []const []const u8) !void {
+    var child = std.process.Child.init(argv, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = .Inherit;
+    child.stderr_behavior = .Inherit;
+    child.cwd = install_path;
+
+    try child.spawn();
+    _ = try child.wait();
+}
+
 /// Runs a command as a child process and verifies successful exit code.
 pub fn runCommand(allocator: std.mem.Allocator, install_path: []const u8, argv: []const []const u8) !void {
     const result = try std.process.Child.run(.{ .allocator = allocator, .argv = argv, .cwd = install_path });

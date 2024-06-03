@@ -1,3 +1,4 @@
+const std = @import("std");
 const jetzig = @import("jetzig");
 
 /// This example demonstrates usage of Jetzig's KV store.
@@ -28,4 +29,19 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     }
 
     return request.render(.ok);
+}
+
+test "index" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response1 = try app.request(.GET, "/kvstore.json", .{});
+    try response1.expectStatus(.ok);
+    try response1.expectJson(".stored_string", null);
+
+    const response2 = try app.request(.GET, "/kvstore.json", .{});
+    try response2.expectJson(".stored_string", "example-value");
+    try response2.expectJson(".popped", "hello");
+    try (try app.request(.GET, "/kvstore.json", .{})).expectJson(".popped", "goodbye");
+    try (try app.request(.GET, "/kvstore.json", .{})).expectJson(".popped", "hello again");
 }

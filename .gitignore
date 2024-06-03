@@ -3,3 +3,4 @@ zig-cache/
 *.core
 static/
 .jetzig
+.zig-cache/

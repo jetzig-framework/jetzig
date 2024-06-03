@@ -70,3 +70,18 @@ pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const 
 pub fn duration(start_time: i128) i64 {
     return @intCast(std.time.nanoTimestamp() - start_time);
 }
+
+/// Generate a random variable name with enough entropy to be considered unique.
+pub fn generateVariableName(buf: *[32]u8) []const u8 {
+    const first_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const any_chars = "0123456789" ++ first_chars;
+
+    for (0..3) |index| {
+        buf[index] = first_chars[std.crypto.random.intRangeAtMost(u8, 0, first_chars.len - 1)];
+    }
+
+    for (3..32) |index| {
+        buf[index] = any_chars[std.crypto.random.intRangeAtMost(u8, 0, any_chars.len - 1)];
+    }
+    return buf[0..32];
+}

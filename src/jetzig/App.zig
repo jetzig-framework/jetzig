@@ -29,28 +29,8 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     defer mime_map.deinit();
     try mime_map.build();
 
-    var routes = std.ArrayList(*jetzig.views.Route).init(self.allocator);
-
-    for (routes_module.routes) |const_route| {
-        var var_route = try self.allocator.create(jetzig.views.Route);
-        var_route.* = .{
-            .name = const_route.name,
-            .action = const_route.action,
-            .view_name = const_route.view_name,
-            .uri_path = const_route.uri_path,
-            .view = const_route.view,
-            .static = const_route.static,
-            .layout = const_route.layout,
-            .template = const_route.template,
-            .json_params = const_route.json_params,
-        };
-
-        try var_route.initParams(self.allocator);
-        try routes.append(var_route);
-    }
-
-    defer routes.deinit();
-    defer for (routes.items) |var_route| {
+    const routes = try createRoutes(self.allocator, &routes_module.routes);
+    defer for (routes) |var_route| {
         var_route.deinitParams();
         self.allocator.destroy(var_route);
     };
@@ -107,7 +87,7 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
     var server = jetzig.http.Server.init(
         self.allocator,
         server_options,
-        routes.items,
+        routes,
         self.custom_routes.items,
         &routes_module.jobs,
         &routes_module.mailers,
@@ -124,7 +104,7 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
         .{
             .logger = server.logger,
             .environment = server.options.environment,
-            .routes = routes.items,
+            .routes = routes,
             .jobs = &routes_module.jobs,
             .mailers = &routes_module.mailers,
             .store = &store,
@@ -202,4 +182,31 @@ inline fn viewType(path: []const u8) enum { with_id, without_id, with_args } {
     }
 
     return .without_id;
+}
+
+pub fn createRoutes(
+    allocator: std.mem.Allocator,
+    comptime_routes: []const jetzig.views.Route,
+) ![]*jetzig.views.Route {
+    var routes = std.ArrayList(*jetzig.views.Route).init(allocator);
+
+    for (comptime_routes) |const_route| {
+        var var_route = try allocator.create(jetzig.views.Route);
+        var_route.* = .{
+            .name = const_route.name,
+            .action = const_route.action,
+            .view_name = const_route.view_name,
+            .uri_path = const_route.uri_path,
+            .view = const_route.view,
+            .static = const_route.static,
+            .layout = const_route.layout,
+            .template = const_route.template,
+            .json_params = const_route.json_params,
+        };
+
+        try var_route.initParams(allocator);
+        try routes.append(var_route);
+    }
+
+    return try routes.toOwnedSlice();
 }

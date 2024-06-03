@@ -40,3 +40,11 @@ fn randomQuote(allocator: std.mem.Allocator) !Quote {
     const quotes = try std.json.parseFromSlice([]Quote, allocator, json, .{});
     return quotes.value[std.crypto.random.intRangeLessThan(usize, 0, quotes.value.len)];
 }
+
+test "get" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(.GET, "/quotes/initial", .{});
+    try response.expectBodyContains("If you can dream it, you can achieve it.");
+}
