@@ -227,6 +227,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const test_step = b.step("jetzig:test", "Run tests");
     test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&run_static_routes_cmd.step);
     exe_unit_tests.root_module.addImport("routes", routes_module);
 }
 
