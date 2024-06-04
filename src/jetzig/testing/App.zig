@@ -12,6 +12,8 @@ store: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 
+const initHook = jetzig.root.initHook;
+
 pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
     switch (jetzig.testing.state) {
         .ready => {},

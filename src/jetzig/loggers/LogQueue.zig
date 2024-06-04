@@ -170,23 +170,26 @@ pub const Reader = struct {
                 self.queue.writer.mutex.lock();
                 defer self.queue.writer.mutex.unlock();
 
-                const writer = switch (event.target) {
-                    .stdout => blk: {
+                switch (event.target) {
+                    .stdout => {
                         stdout_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stdout_file;
                             colorize = self.queue.stdout_colorize;
                         }
-                        break :blk stdout_writer;
                     },
-                    .stderr => blk: {
+                    .stderr => {
                         stderr_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stderr_file;
                             colorize = self.queue.stderr_colorize;
                         }
-                        break :blk stderr_writer;
                     },
+                }
+
+                const writer = switch (event.target) {
+                    .stdout => stdout_writer,
+                    .stderr => stderr_writer,
                 };
 
                 if (event.ptr) |ptr| {
@@ -196,11 +199,7 @@ pub const Reader = struct {
                     continue;
                 }
 
-                if (builtin.os.tag == .windows and colorize) {
-                    try writeWindows(file, writer, event);
-                } else {
-                    try writer.writeAll(event.message[0..event.len]);
-                }
+                try jetzig.util.writeAnsi(file, writer, event.message[0..event.len]);
 
                 self.queue.writer.position -= 1;
 
@@ -273,20 +272,14 @@ fn initPool(allocator: std.mem.Allocator, T: type) std.heap.MemoryPool(T) {
 
 fn writeWindows(file: std.fs.File, writer: anytype, event: Event) !void {
     var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-    _ = std.os.windows.kernel32.GetConsoleScreenBufferInfo(
-         file.handle,
-        &info
-    );
+    _ = std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info);
 
     var it = std.mem.tokenizeSequence(u8, event.message[0..event.len], "\x1b[");
     while (it.next()) |token| {
         if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
             if (index > 0 and index + 1 < token.len) {
                 if (jetzig.colors.windows_map.get(token[0..index])) |color| {
-                    try std.os.windows.SetConsoleTextAttribute(
-                        file.handle,
-                        color
-                    );
+                    try std.os.windows.SetConsoleTextAttribute(file.handle, color);
                     try writer.writeAll(token[index + 1 ..]);
                     continue;
                 }

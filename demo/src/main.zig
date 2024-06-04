@@ -175,16 +175,18 @@ pub const jetzig_options = struct {
     };
 };
 
+pub fn init(app: *jetzig.App) !void {
+    // Example custom route:
+    app.route(.GET, "/custom/:id/foo/bar", @import("app/views/custom/foo.zig"), .bar);
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
     defer if (builtin.mode == .Debug) std.debug.assert(gpa.deinit() == .ok);
 
-    const app = try jetzig.init(allocator);
+    var app = try jetzig.init(allocator);
     defer app.deinit();
-
-    // Example custom route:
-    // app.route(.GET, "/custom/:id/foo/bar", @import("app/views/custom/foo.zig"), .bar);
 
     try app.start(routes, .{});
 }

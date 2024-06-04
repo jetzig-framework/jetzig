@@ -10,6 +10,7 @@ const App = @This();
 environment: jetzig.Environment,
 allocator: std.mem.Allocator,
 custom_routes: std.ArrayList(jetzig.views.Route),
+initHook: ?*const fn (*App) anyerror!void,
 
 pub fn deinit(self: *const App) void {
     @constCast(self).custom_routes.deinit();
@@ -22,8 +23,10 @@ const AppOptions = struct {};
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
-pub fn start(self: App, routes_module: type, options: AppOptions) !void {
+pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     _ = options; // See `AppOptions`
+
+    if (self.initHook) |hook| try hook(@constCast(self));
 
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
     defer mime_map.deinit();
@@ -137,7 +140,7 @@ pub fn start(self: App, routes_module: type, options: AppOptions) !void {
 }
 
 pub fn route(
-    self: *const App,
+    self: *App,
     comptime method: jetzig.http.Request.Method,
     comptime path: []const u8,
     comptime module: type,
@@ -155,11 +158,11 @@ pub fn route(
     @memcpy(&view_name, module_name);
     std.mem.replaceScalar(u8, &view_name, '.', '/');
 
-    @constCast(self).custom_routes.append(.{
+    self.custom_routes.append(.{
         .name = member,
         .action = .custom,
         .method = method,
-        .view_name = self.allocator.dupe(u8, &view_name) catch @panic("OOM"),
+        .view_name = module_name,
         .uri_path = path,
         .layout = if (@hasDecl(module, "layout")) module.layout else null,
         .view = comptime switch (viewType(path)) {

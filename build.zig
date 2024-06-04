@@ -155,7 +155,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         &[_][]const u8{ root_path, "src", "app", "mailers" },
     );
 
-    var generate_routes = try Routes.init(
+    var routes = try Routes.init(
         b.allocator,
         root_path,
         templates_path,
@@ -163,11 +163,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         jobs_path,
         mailers_path,
     );
-    try generate_routes.generateRoutes();
+    const generated_routes = try routes.generateRoutes();
     const routes_write_files = b.addWriteFiles();
-    const routes_file = routes_write_files.add("routes.zig", generate_routes.buffer.items);
+    const routes_file = routes_write_files.add("routes.zig", generated_routes);
     const tests_write_files = b.addWriteFiles();
-    const tests_file = tests_write_files.add("tests.zig", generate_routes.buffer.items);
+    const tests_file = tests_write_files.add("tests.zig", generated_routes);
     const routes_module = b.createModule(.{ .root_source_file = routes_file });
 
     var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
@@ -229,6 +229,19 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     test_step.dependOn(&run_exe_unit_tests.step);
     test_step.dependOn(&run_static_routes_cmd.step);
     exe_unit_tests.root_module.addImport("routes", routes_module);
+
+    const routes_step = b.step("jetzig:routes", "List all routes in your app");
+    const exe_routes = b.addExecutable(.{
+        .name = "routes",
+        .root_source_file = jetzig_dep.path("src/routes.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_routes.root_module.addImport("jetzig", jetzig_module);
+    exe_routes.root_module.addImport("routes", routes_module);
+    exe_routes.root_module.addImport("app", &exe.root_module);
+    const run_routes_cmd = b.addRunArtifact(exe_routes);
+    routes_step.dependOn(&run_routes_cmd.step);
 }
 
 fn generateMarkdownFragments(b: *std.Build) ![]const u8 {

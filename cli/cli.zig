@@ -4,6 +4,7 @@ const init = @import("commands/init.zig");
 const update = @import("commands/update.zig");
 const generate = @import("commands/generate.zig");
 const server = @import("commands/server.zig");
+const routes = @import("commands/routes.zig");
 const bundle = @import("commands/bundle.zig");
 const tests = @import("commands/tests.zig");
 
@@ -21,6 +22,7 @@ const Options = struct {
             .update = "Update current project to latest version of Jetzig",
             .generate = "Generate scaffolding",
             .server = "Run a development server",
+            .routes = "List all routes in your app",
             .bundle = "Create a deployment bundle",
             .@"test" = "Run app tests",
             .help = "Print help and exit",
@@ -33,10 +35,12 @@ const Verb = union(enum) {
     update: update.Options,
     generate: generate.Options,
     server: server.Options,
+    routes: routes.Options,
     bundle: bundle.Options,
     @"test": tests.Options,
     g: generate.Options,
     s: server.Options,
+    r: routes.Options,
     b: bundle.Options,
     t: tests.Options,
 };
@@ -70,6 +74,7 @@ pub fn main() !void {
             \\  update       Update current project to latest version of Jetzig.
             \\  generate     Generate scaffolding.
             \\  server       Run a development server.
+            \\  routes       List all routes in your app.
             \\  bundle       Create a deployment bundle.
             \\  test         Run app tests.
             \\
@@ -104,6 +109,13 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
                 .{ .help = options.options.help },
             ),
             .s, .server => |opts| server.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+            .r, .routes => |opts| routes.run(
                 allocator,
                 opts,
                 writer,
