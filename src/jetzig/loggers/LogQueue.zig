@@ -273,23 +273,20 @@ fn initPool(allocator: std.mem.Allocator, T: type) std.heap.MemoryPool(T) {
 
 fn writeWindows(file: std.fs.File, writer: anytype, event: Event) !void {
     var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-    const config: std.io.tty.Config = if (std.os.windows.kernel32.GetConsoleScreenBufferInfo(
-        file.handle,
-        &info,
-    ) != std.os.windows.TRUE)
-        .no_color
-    else
-        .{ .windows_api = .{
-            .handle = file.handle,
-            .reset_attributes = info.wAttributes,
-        } };
+    _ = std.os.windows.kernel32.GetConsoleScreenBufferInfo(
+         file.handle,
+        &info
+    );
 
     var it = std.mem.tokenizeSequence(u8, event.message[0..event.len], "\x1b[");
     while (it.next()) |token| {
         if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
             if (index > 0 and index + 1 < token.len) {
-                if (jetzig.colors.codes_map.get(token[0..index])) |color| {
-                    try config.setColor(writer, color);
+                if (jetzig.colors.windows_map.get(token[0..index])) |color| {
+                    try std.os.windows.SetConsoleTextAttribute(
+                        file.handle,
+                        color
+                    );
                     try writer.writeAll(token[index + 1 ..]);
                     continue;
                 }
