@@ -119,6 +119,10 @@ fn runtimeWrap(allocator: std.mem.Allocator, attribute: []const u8, message: []c
     );
 }
 
+pub fn bold(comptime message: []const u8) []const u8 {
+    return codes.escape ++ codes.bold ++ message ++ codes.escape ++ codes.reset;
+}
+
 pub fn black(comptime message: []const u8) []const u8 {
     return wrap(codes.black, message);
 }

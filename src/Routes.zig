@@ -121,7 +121,7 @@ pub fn deinit(self: *Routes) void {
 }
 
 /// Generates the complete route set for the application
-pub fn generateRoutes(self: *Routes) !void {
+pub fn generateRoutes(self: *Routes) ![]const u8 {
     const writer = self.buffer.writer();
 
     try writer.writeAll(
@@ -177,6 +177,7 @@ pub fn generateRoutes(self: *Routes) !void {
         \\
     );
 
+    return try self.buffer.toOwnedSlice();
     // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
 }
 
@@ -270,6 +271,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         \\            .action = .{1s},
         \\            .view_name = "{2s}",
         \\            .view = jetzig.Route.ViewType{{ .{3s} = .{{ .{1s} = @import("{7s}").{1s} }} }},
+        \\            .path = "{7s}",
         \\            .static = {4s},
         \\            .uri_path = "{5s}",
         \\            .template = "{6s}",

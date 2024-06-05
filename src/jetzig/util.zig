@@ -1,4 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+const colors = @import("colors.zig");
 
 /// Compare two strings with case-insensitive matching.
 pub fn equalStringsCaseInsensitive(expected: []const u8, actual: []const u8) bool {
@@ -84,4 +87,31 @@ pub fn generateVariableName(buf: *[32]u8) []const u8 {
         buf[index] = any_chars[std.crypto.random.intRangeAtMost(u8, 0, any_chars.len - 1)];
     }
     return buf[0..32];
+}
+
+/// Write a string of bytes, possibly containing ANSI escape codes. Translate ANSI escape codes
+/// into Windows API console commands. Allow building an ANSI string and writing at once to a
+/// Windows console. In non-Windows environments, output ANSI bytes directly.
+pub fn writeAnsi(file: std.fs.File, writer: anytype, text: []const u8) !void {
+    if (builtin.os.tag != .windows) {
+        try writer.writeAll(text);
+    } else {
+        var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
+        _ = std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info);
+
+        var it = std.mem.tokenizeSequence(u8, text, "\x1b[");
+        while (it.next()) |token| {
+            if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
+                if (index > 0 and index + 1 < token.len) {
+                    if (colors.windows_map.get(token[0..index])) |color| {
+                        try std.os.windows.SetConsoleTextAttribute(file.handle, color);
+                        try writer.writeAll(token[index + 1 ..]);
+                        continue;
+                    }
+                }
+            }
+            // Fallback
+            try writer.writeAll(token);
+        }
+    }
 }

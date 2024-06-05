@@ -51,6 +51,7 @@ action: Action,
 method: jetzig.http.Request.Method = undefined, // Used by custom routes only
 view_name: []const u8,
 uri_path: []const u8,
+path: ?[]const u8 = null,
 view: ViewType,
 render: RenderFn = renderFn,
 renderStatic: RenderStaticFn = renderStaticFn,
