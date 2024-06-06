@@ -37,8 +37,8 @@ pub const static_params = .{
         .{ .params = .{ .foo = "hello", .bar = "goodbye" } },
     },
     .get = .{
-        .{ .id = "1", .params = .{ .foo = "hi", .bar = "bye" } },
-        .{ .id = "2", .params = .{ .foo = "hello", .bar = "goodbye" } },
+        .{ .id = "123", .params = .{ .foo = "hi", .bar = "bye" } },
+        .{ .id = "456", .params = .{ .foo = "hello", .bar = "goodbye" } },
     },
 };
 
@@ -58,8 +58,10 @@ pub fn get(id: []const u8, request: *jetzig.StaticRequest, data: *jetzig.Data) !
 
     const params = try request.params();
 
-    if (std.mem.eql(u8, id, "1")) {
-        try root.put("id", data.string("id is '1'"));
+    if (std.mem.eql(u8, id, "123")) {
+        try root.put("message", "id is '123'");
+    } else {
+        try root.put("message", "id is not '123'");
     }
 
     if (params.get("foo")) |foo| try root.put("foo", foo);
@@ -89,12 +91,12 @@ test "get json" {
 
     const response = try app.request(
         .GET,
-        "/static/1.json",
+        "/static/123.json",
         .{ .json = .{ .foo = "hi", .bar = "bye" } },
     );
 
     try response.expectStatus(.ok);
-    try response.expectJson(".id", "id is '1'");
+    try response.expectJson(".message", "id is '123'");
 }
 
 test "index html" {
@@ -108,7 +110,8 @@ test "index html" {
     );
 
     try response.expectStatus(.ok);
-    try response.expectBodyContains("hello");
+    try response.expectBodyContains("foo: hello");
+    try response.expectBodyContains("bar: goodbye");
 }
 
 test "get html" {
@@ -117,7 +120,7 @@ test "get html" {
 
     const response = try app.request(
         .GET,
-        "/static/1.html",
+        "/static/123.html",
         .{ .params = .{ .foo = "hi", .bar = "bye" } },
     );
 

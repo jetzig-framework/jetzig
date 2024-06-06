@@ -201,11 +201,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
-    exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
+    // exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
+    const static_outputs_path = run_static_routes_cmd.addOutputFileArg("static.zig");
+    const static_module = b.createModule(.{ .root_source_file = static_outputs_path });
+    exe.root_module.addImport("static", static_module);
+
     run_static_routes_cmd.expectExitCode(0);
-    exe.step.dependOn(&run_static_routes_cmd.step);
 
     const exe_unit_tests = b.addTest(.{
         .root_source_file = tests_file,
@@ -214,10 +217,13 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .test_runner = jetzig_dep.path("src/test_runner.zig"),
     });
     exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
+    exe_unit_tests.root_module.addImport("static", static_module);
     exe_unit_tests.root_module.addImport("__jetzig_project", &exe.root_module);
 
     var it = exe.root_module.import_table.iterator();
     while (it.next()) |import| {
+        if (std.mem.eql(u8, import.key_ptr.*, "static")) continue;
+
         routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_unit_tests.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
@@ -226,14 +232,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
     const test_step = b.step("jetzig:test", "Run tests");
-    test_step.dependOn(&run_exe_unit_tests.step);
     test_step.dependOn(&run_static_routes_cmd.step);
+    test_step.dependOn(&run_exe_unit_tests.step);
     exe_unit_tests.root_module.addImport("routes", routes_module);
 
     const routes_step = b.step("jetzig:routes", "List all routes in your app");
     const exe_routes = b.addExecutable(.{
         .name = "routes",
-        .root_source_file = jetzig_dep.path("src/routes.zig"),
+        .root_source_file = jetzig_dep.path("src/routes_exe.zig"),
         .target = target,
         .optimize = optimize,
     });

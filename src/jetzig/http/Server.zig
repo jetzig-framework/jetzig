@@ -29,6 +29,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
+decoded_static_route_params: []*jetzig.data.Value = &.{},
 
 const Server = @This();
 
@@ -76,6 +77,8 @@ const Dispatcher = struct {
 };
 
 pub fn listen(self: *Server) !void {
+    try self.decodeStaticParams();
+
     var httpz_server = try httpz.ServerCtx(Dispatcher, Dispatcher).init(
         self.allocator,
         .{
@@ -251,7 +254,7 @@ fn renderJSON(
         if (data.value) |_| {} else _ = try data.object();
 
         rendered.content = if (self.options.environment == .development)
-            try data.toPrettyJson()
+            try data.toJsonOptions(.{ .pretty = true, .color = false })
         else
             try data.toJson();
 
@@ -618,72 +621,72 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
 }
 
 fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8 {
-    var static_dir = std.fs.cwd().openDir("static", .{}) catch |err| {
-        switch (err) {
-            error.FileNotFound => return null,
-            else => return err,
-        }
-    };
-    defer static_dir.close();
-
+    const request_format = request.requestFormat();
     const matched_route = try self.matchRoute(request, true);
+    const params = try request.params();
 
     if (matched_route) |route| {
-        const static_path = try staticPath(request, route);
+        if (@hasDecl(jetzig.root, "static")) {
+            inline for (jetzig.root.static.compiled, 0..) |static_output, index| {
+                if (!@hasField(@TypeOf(static_output), "route_id")) continue;
 
-        if (static_path) |capture| {
-            return static_dir.readFileAlloc(
-                request.allocator,
-                capture,
-                jetzig.config.get(usize, "max_bytes_static_content"),
-            ) catch |err| {
-                switch (err) {
-                    error.FileNotFound => return null,
-                    else => return err,
+                if (std.mem.eql(u8, static_output.route_id, route.id)) {
+                    if (index < self.decoded_static_route_params.len) {
+                        if (matchStaticOutput(
+                            self.decoded_static_route_params[index].getT(.string, "id"),
+                            self.decoded_static_route_params[index].get("params"),
+                            route,
+                            request,
+                            params,
+                        )) return switch (request_format) {
+                            .HTML, .UNKNOWN => static_output.output.html,
+                            .JSON => static_output.output.json,
+                        };
+                    } else {
+                        return switch (request_format) {
+                            .HTML, .UNKNOWN => static_output.output.html,
+                            .JSON => static_output.output.json,
+                        };
+                    }
                 }
-            };
-        } else return null;
+            }
+        } else {
+            return null;
+        }
     }
 
     return null;
 }
 
-fn staticPath(request: *jetzig.http.Request, route: jetzig.views.Route) !?[]const u8 {
-    const params = try request.params();
-    defer params.deinit();
-
-    const extension = switch (request.requestFormat()) {
-        .HTML, .UNKNOWN => ".html",
-        .JSON => ".json",
-    };
-
-    for (route.params.items, 0..) |static_params, index| {
-        const expected_params = static_params.get("params");
-        switch (route.action) {
-            .index, .post => {},
-            inline else => {
-                const id = static_params.getT(.string, "id") orelse return error.JetzigRouteError;
-                if (!std.mem.eql(u8, id, request.path.resource_id)) continue;
-            },
+pub fn decodeStaticParams(self: *Server) !void {
+    // Store decoded static params (i.e. declared in views) for faster comparison at request time.
+    var decoded = std.ArrayList(*jetzig.data.Value).init(self.allocator);
+    for (jetzig.root.static.compiled) |compiled| {
+        if (compiled.output.params) |params| {
+            const data = try self.allocator.create(jetzig.data.Data);
+            data.* = jetzig.data.Data.init(self.allocator);
+            try data.fromJson(params);
+            try decoded.append(data.value.?);
         }
-        if (expected_params != null and !expected_params.?.eql(params)) continue;
-
-        const index_fmt = try std.fmt.allocPrint(request.allocator, "{}", .{index});
-        defer request.allocator.free(index_fmt);
-
-        return try std.mem.concat(
-            request.allocator,
-            u8,
-            &[_][]const u8{ route.name, "_", index_fmt, extension },
-        );
     }
 
-    switch (route.action) {
-        .index, .post => return try std.mem.concat(
-            request.allocator,
-            u8,
-            &[_][]const u8{ route.name, extension },
-        ),
-        else => return null,
-    }
+    self.decoded_static_route_params = try decoded.toOwnedSlice();
+}
+
+fn matchStaticOutput(
+    maybe_id: ?[]const u8,
+    maybe_params: ?*jetzig.data.Value,
+    route: jetzig.views.Route,
+    request: *const jetzig.http.Request,
+    params: *jetzig.data.Value,
+) bool {
+    return if (maybe_params) |expected_params| blk: {
+        break :blk switch (route.action) {
+            .index, .post => expected_params.count() == 0 or expected_params.eql(params),
+            inline else => if (maybe_id) |id|
+                std.mem.eql(u8, id, request.path.resource_id) and expected_params.eql(params)
+            else
+                false,
+        };
+    } else if (maybe_id) |id| std.mem.eql(u8, id, request.path.resource_id) else maybe_params == null;
 }

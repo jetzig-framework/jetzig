@@ -5,6 +5,7 @@ const jetzig = @import("jetzig");
 const zmd = @import("zmd");
 
 pub const routes = @import("routes");
+pub const static = @import("static");
 
 // Override default settings in `jetzig.config` here:
 pub const jetzig_options = struct {

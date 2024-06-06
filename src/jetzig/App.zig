@@ -159,6 +159,7 @@ pub fn route(
     std.mem.replaceScalar(u8, &view_name, '.', '/');
 
     self.custom_routes.append(.{
+        .id = "custom",
         .name = member,
         .action = .custom,
         .method = method,
@@ -196,6 +197,7 @@ pub fn createRoutes(
     for (comptime_routes) |const_route| {
         var var_route = try allocator.create(jetzig.views.Route);
         var_route.* = .{
+            .id = const_route.id,
             .name = const_route.name,
             .action = const_route.action,
             .view_name = const_route.view_name,

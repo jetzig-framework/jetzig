@@ -64,7 +64,7 @@ pub const MailerDefinition = mail.MailerDefinition;
 /// `ERROR`, etc.). Note that all log functions are CAPITALIZED.
 pub const Logger = loggers.Logger;
 
-const root = @import("root");
+pub const root = @import("root");
 
 /// Global configuration. Override these values by defining in `src/main.zig` with:
 /// ```zig

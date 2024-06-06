@@ -267,6 +267,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
 
     const output_template =
         \\        .{{
+        \\            .id = "{9s}",
         \\            .name = "{0s}",
         \\            .action = .{1s},
         \\            .view_name = "{2s}",
@@ -296,6 +297,8 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
     try self.module_paths.append(try self.allocator.dupe(u8, module_path));
 
+    var buf: [32]u8 = undefined;
+    const id = jetzig.util.generateVariableName(&buf);
     const output = try std.fmt.allocPrint(self.allocator, output_template, .{
         full_name,
         route.name,
@@ -306,6 +309,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         template,
         module_path,
         try std.mem.join(self.allocator, ", \n", route.params.items),
+        id,
     });
 
     defer self.allocator.free(output);
