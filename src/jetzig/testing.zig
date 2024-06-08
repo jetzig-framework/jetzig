@@ -12,10 +12,51 @@ const testing = @This();
 /// Pre-built mime map, assigned by Jetzig test runner.
 pub var mime_map: *jetzig.http.mime.MimeMap = undefined;
 pub var state: enum { initial, ready } = .initial;
+pub var logger: Logger = undefined;
 
 pub const secret = "secret-bytes-for-use-in-test-environment-only";
 
 pub const app = App.init;
+
+pub const Logger = struct {
+    allocator: std.mem.Allocator,
+    logs: std.AutoHashMap(usize, *LogCollection),
+    index: usize = 0,
+
+    pub const LogEvent = struct {
+        level: std.log.Level,
+        output: []const u8,
+    };
+
+    const LogCollection = std.ArrayList(LogEvent);
+
+    pub fn init(allocator: std.mem.Allocator) Logger {
+        return .{
+            .allocator = allocator,
+            .logs = std.AutoHashMap(usize, *LogCollection).init(allocator),
+        };
+    }
+
+    pub fn log(
+        self: *Logger,
+        comptime message_level: std.log.Level,
+        comptime scope: @Type(.EnumLiteral),
+        comptime format: []const u8,
+        args: anytype,
+    ) void {
+        _ = scope;
+        const output = std.fmt.allocPrint(self.allocator, format, args) catch @panic("OOM");
+        const log_event: LogEvent = .{ .level = message_level, .output = output };
+        if (self.logs.get(self.index)) |*item| {
+            item.*.append(log_event) catch @panic("OOM");
+        } else {
+            const array = self.allocator.create(LogCollection) catch @panic("OOM");
+            array.* = LogCollection.init(self.allocator);
+            array.append(log_event) catch @panic("OOM");
+            self.logs.put(self.index, array) catch @panic("OOM");
+        }
+    }
+};
 
 pub const TestResponse = struct {
     allocator: std.mem.Allocator,
@@ -56,15 +97,22 @@ pub fn expectStatus(comptime expected: jetzig.http.status_codes.StatusCode, resp
     const expected_code = try jetzig.http.status_codes.get(expected).getCodeInt();
 
     if (response.status != expected_code) {
-        log("Expected status: `{}`, actual status: `{}`", .{ expected_code, response.status });
+        logFailure(
+            "Expected status: " ++ jetzig.colors.green("{}") ++ ", actual status: " ++ jetzig.colors.red("{}"),
+            .{ expected_code, response.status },
+        );
         return error.JetzigExpectStatusError;
     }
 }
 
 pub fn expectBodyContains(expected: []const u8, response: TestResponse) !void {
     if (!std.mem.containsAtLeast(u8, response.body, 1, expected)) {
-        log(
-            "Expected content:\n========\n{s}\n========\n\nActual content:\n========\n{s}\n========",
+        logFailure(
+            "\nExpected content:\n" ++
+                jetzig.colors.red("{s}") ++
+                "\n\nActual content:\n" ++
+                jetzig.colors.green("{s}") ++
+                "\n",
             .{ expected, response.body },
         );
         return error.JetzigExpectBodyContainsError;
@@ -94,14 +142,14 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
     data.fromJson(response.body) catch |err| {
         switch (err) {
             error.SyntaxError => {
-                log("Expected JSON, encountered parser error.", .{});
+                logFailure("Expected JSON, encountered parser error.", .{});
                 return error.JetzigExpectJsonError;
             },
             else => return err,
         }
     };
 
-    const json_banner = "\n======|json|======\n{s}\n======|/json|=====\n";
+    const json_banner = "\n{s}";
 
     if (try data.getValue(std.mem.trimLeft(u8, expected_path, &.{'.'}))) |value| {
         switch (value.*) {
@@ -110,8 +158,8 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                     if (std.mem.eql(u8, string.value, expected_value)) return;
                 },
                 .Null => {
-                    log(
-                        "Expected null/non-existent value for `{s}`, found: `{s}`",
+                    logFailure(
+                        "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.cyan("{s}"),
                         .{ expected_path, string.value },
                     );
                     return error.JetzigExpectJsonError;
@@ -123,8 +171,8 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                     if (integer.value == expected_value) return;
                 },
                 .Null => {
-                    log(
-                        "Expected null/non-existent value for `{s}`, found: `{}`",
+                    logFailure(
+                        "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, integer.value },
                     );
                     return error.JetzigExpectJsonError;
@@ -136,8 +184,8 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                     if (float.value == expected_value) return;
                 },
                 .Null => {
-                    log(
-                        "Expected null/non-existent value for `{s}`, found: `{}`",
+                    logFailure(
+                        "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, float.value },
                     );
                     return error.JetzigExpectJsonError;
@@ -149,8 +197,8 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                     if (boolean.value == expected_value) return;
                 },
                 .Null => {
-                    log(
-                        "Expected null/non-existent value for `{s}`, found: `{}`",
+                    logFailure(
+                        "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, boolean.value },
                     );
                     return error.JetzigExpectJsonError;
@@ -173,9 +221,9 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             .string => |string| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
                     .Pointer, .Array => {
-                        log(
-                            "Expected `{s}` in `{s}`, found `{s}` in JSON:" ++ json_banner,
-                            .{ expected_value, expected_path, string.value, response.body },
+                        logFailure(
+                            "Expected \"" ++ jetzig.colors.red("{s}") ++ "\" in " ++ jetzig.colors.cyan("{s}") ++ ", found \"" ++ jetzig.colors.green("{s}") ++ "\nJSON:" ++ json_banner,
+                            .{ expected_value, expected_path, string.value, try jsonPretty(response) },
                         );
                     },
                     else => unreachable,
@@ -185,9 +233,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             => |integer| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
                     .Int, .ComptimeInt => {
-                        log(
-                            "Expected `{}` in `{s}`, found `{}` in JSON:" ++ json_banner,
-                            .{ expected_value, expected_path, integer.value, response.body },
+                        logFailure(
+                            "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
+
+                            .{ expected_value, expected_path, integer.value, try jsonPretty(response) },
                         );
                     },
                     else => unreachable,
@@ -196,9 +245,9 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             .float => |float| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
                     .Float, .ComptimeFloat => {
-                        log(
-                            "Expected `{}` in `{s}`, found `{}` in JSON:" ++ json_banner,
-                            .{ expected_value, expected_path, float.value, response.body },
+                        logFailure(
+                            "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
+                            .{ expected_value, expected_path, float.value, try jsonPretty(response) },
                         );
                     },
                     else => unreachable,
@@ -207,26 +256,26 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             .boolean => |boolean| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
                     .Bool => {
-                        log(
-                            "Expected `{}` in `{s}`, found `{}` in JSON:" ++ json_banner,
-                            .{ expected_value, expected_path, boolean.value, response.body },
+                        logFailure(
+                            "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
+                            .{ expected_value, expected_path, boolean.value, try jsonPretty(response) },
                         );
                     },
                     else => unreachable,
                 }
             },
             .Null => {
-                log(
-                    "Expected value in `{s}`, found `null` in JSON:" ++ json_banner,
-                    .{ expected_path, response.body },
+                logFailure(
+                    "Expected value in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("null") ++ "\nJSON:" ++ json_banner,
+                    .{ expected_path, try jsonPretty(response) },
                 );
             },
             else => unreachable,
         }
     } else {
-        log(
-            "Path not found: `{s}` in JSON: " ++ json_banner,
-            .{ expected_path, response.body },
+        logFailure(
+            "Path not found: `{s}`\nJSON: " ++ json_banner,
+            .{ expected_path, try jsonPretty(response) },
         );
     }
     return error.JetzigExpectJsonError;
@@ -244,6 +293,18 @@ pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestRespon
     return error.JetzigExpectJobError;
 }
 
-fn log(comptime message: []const u8, args: anytype) void {
-    std.debug.print("[jetzig.testing] " ++ message ++ "\n", args);
+// fn log(comptime message: []const u8, args: anytype) void {
+//     std.log.info("[jetzig.testing] " ++ message ++ "\n", args);
+// }
+
+fn logFailure(comptime message: []const u8, args: anytype) void {
+    std.log.err(message, args);
+}
+
+fn jsonPretty(response: TestResponse) ![]const u8 {
+    var data = jetzig.data.Data.init(response.allocator);
+    defer data.deinit();
+
+    try data.fromJson(response.body);
+    return try data.toJsonOptions(.{ .pretty = true, .color = true });
 }

@@ -1,6 +1,20 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const jetzig = @import("jetzig");
+pub const static = @import("static");
+
+pub const std_options = .{
+    .logFn = log,
+};
+
+pub fn log(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    jetzig.testing.logger.log(message_level, scope, format, args);
+}
 
 const Test = struct {
     name: []const u8,
@@ -8,7 +22,7 @@ const Test = struct {
     module: ?[]const u8 = null,
     leaked: bool = false,
     result: Result = .success,
-    stack_trace_buf: [4096]u8 = undefined,
+    stack_trace_buf: [8192]u8 = undefined,
     duration: usize = 0,
 
     pub const TestFn = *const fn () anyerror!void;
@@ -36,7 +50,7 @@ const Test = struct {
             .{ .function = test_fn.func, .name = test_fn.name };
     }
 
-    pub fn run(self: *Test) !void {
+    pub fn run(self: *Test, allocator: std.mem.Allocator) !void {
         std.testing.allocator_instance = .{};
         const start = std.time.nanoTimestamp();
 
@@ -45,7 +59,10 @@ const Test = struct {
                 error.SkipZigTest => self.result = .skipped,
                 else => self.result = .{ .failure = .{
                     .err = err,
-                    .trace = try self.formatStackTrace(@errorReturnTrace()),
+                    .trace = if (try self.formatStackTrace(@errorReturnTrace())) |trace|
+                        try allocator.dupe(u8, trace)
+                    else
+                        null,
                 } },
             }
         };
@@ -68,13 +85,17 @@ const Test = struct {
         const writer = stream.writer();
 
         switch (self.result) {
-            .success => try self.printPassed(writer),
-            .failure => |failure| try self.printFailure(failure, writer),
+            .success => {
+                try self.printPassed(writer);
+                if (self.leaked) try self.printLeaked(writer);
+                try self.printDuration(writer);
+            },
+            .failure => |failure| {
+                try self.printFailure(failure, writer);
+                if (self.leaked) try self.printLeaked(writer);
+            },
             .skipped => try self.printSkipped(writer),
         }
-        try self.printDuration(writer);
-
-        if (self.leaked) try self.printLeaked(writer);
 
         try writer.writeByte('\n');
     }
@@ -91,9 +112,33 @@ const Test = struct {
             jetzig.colors.red("[FAIL] ") ++ name_template ++ jetzig.colors.yellow("({s})"),
             .{ self.module orelse "tests", self.name, @errorName(failure.err) },
         );
+    }
 
+    fn printFailureDetail(self: Test, index: usize, failure: Failure, writer: anytype) !void {
+        try writer.print("\n", .{});
+
+        const count = " FAILURE: ".len + (self.module orelse "tests").len + ":".len + self.name.len + 1;
+
+        try writer.writeAll(jetzig.colors.red("┌"));
+        for (0..count) |_| try writer.writeAll(jetzig.colors.red("─"));
+        try writer.writeAll(jetzig.colors.red("┐"));
+
+        try writer.print(
+            jetzig.colors.red("\n│ FAILURE: ") ++ name_template ++ jetzig.colors.red("│") ++ "\n",
+            .{ self.module orelse "tests", self.name },
+        );
+        try writer.writeAll(jetzig.colors.red("├"));
+        for (0..count) |_| try writer.writeAll(jetzig.colors.red("─"));
+        try writer.writeAll(jetzig.colors.red("┘"));
+        try writer.writeByte('\n');
+
+        const maybe_log_events = jetzig.testing.logger.logs.get(index);
+        if (maybe_log_events) |log_events| {
+            for (log_events.items) |log_event| try indent(log_event.output, jetzig.colors.red("│ "), writer);
+        }
         if (failure.trace) |trace| {
-            try writer.print("{s}", .{trace});
+            try writer.writeAll(jetzig.colors.red("┆\n"));
+            try indent(trace, jetzig.colors.red("┆ "), writer);
         }
     }
 
@@ -132,11 +177,13 @@ pub fn main() !void {
 
     try std.io.getStdErr().writer().writeAll("\n[jetzig] Launching Test Runner...\n\n");
 
+    jetzig.testing.logger = jetzig.testing.Logger.init(allocator);
     jetzig.testing.state = .ready;
 
-    for (builtin.test_functions) |test_function| {
+    for (builtin.test_functions, 0..) |test_function, index| {
+        jetzig.testing.logger.index = index;
         var t = Test.init(test_function);
-        try t.run();
+        try t.run(allocator);
         try t.print(std.io.getStdErr());
         try tests.append(t);
     }
@@ -170,6 +217,13 @@ fn printSummary(tests: []const Test, start: i128) !void {
         false,
     );
 
+    for (tests, 0..) |t, index| {
+        switch (t.result) {
+            .success, .skipped => {},
+            .failure => |capture| try t.printFailureDetail(index, capture, writer),
+        }
+    }
+
     try writer.print(
         "\n {s}{s}{}" ++
             "\n {s}{s}{}" ++
@@ -198,5 +252,26 @@ fn printSummary(tests: []const Test, start: i128) !void {
         try writer.print(jetzig.colors.red("      FAIL   ") ++ "\n", .{});
         try writer.print(jetzig.colors.red("      ▔▔▔▔") ++ "\n", .{});
         std.process.exit(1);
+    }
+}
+
+fn indent(message: []const u8, comptime indent_sequence: []const u8, writer: anytype) !void {
+    var it = std.mem.tokenizeScalar(u8, message, '\n');
+    var color: ?[]const u8 = null;
+
+    const escape = jetzig.colors.codes.escape;
+
+    while (it.next()) |line| {
+        try writer.print(indent_sequence ++ "{s}{s}\n", .{ color orelse "", line });
+
+        // Preserve last color used in previous line (including reset) in case indent changes color.
+        if (std.mem.lastIndexOf(u8, line, escape)) |index| {
+            inline for (std.meta.fields(@TypeOf(jetzig.colors.codes))) |field| {
+                const code = @field(jetzig.colors.codes, field.name);
+                if (std.mem.startsWith(u8, line[index..], escape ++ code)) {
+                    color = escape ++ code;
+                }
+            }
+        }
     }
 }

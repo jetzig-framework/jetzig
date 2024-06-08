@@ -90,6 +90,8 @@ pub fn request(
         .job_queue = self.job_queue,
     };
 
+    try server.decodeStaticParams();
+
     var buf: [1024]u8 = undefined;
     var httpz_request = try stubbedRequest(allocator, &buf, method, path, options);
     var httpz_response = try stubbedResponse(allocator);

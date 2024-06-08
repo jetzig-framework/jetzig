@@ -1,6 +1,5 @@
 zig-out/
 zig-cache/
 *.core
-static/
 .jetzig
 .zig-cache/

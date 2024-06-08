@@ -2,7 +2,7 @@ const std = @import("std");
 const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
-const jetzig_options = @import("jetzig_app").jetzig_options;
+// const jetzig_options = @import("jetzig_app").jetzig_options;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -13,14 +13,27 @@ pub fn main() !void {
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    try compileStaticRoutes(allocator);
+    var it = try std.process.argsWithAllocator(allocator);
+    var index: usize = 0;
+    while (it.next()) |arg| : (index += 1) {
+        if (index == 0) continue;
+        const file = try std.fs.createFileAbsolute(arg, .{});
+        const writer = file.writer();
+        try compileStaticRoutes(allocator, writer);
+        file.close();
+        break;
+    }
 }
 
-fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
-    std.fs.cwd().deleteTree("static") catch {};
-
+fn compileStaticRoutes(allocator: std.mem.Allocator, writer: anytype) !void {
     var count: usize = 0;
 
+    try writer.writeAll(
+        \\const StaticOutput = struct { json: ?[]const u8 = null, html: ?[]const u8 = null, params: ?[]const u8 };
+        \\const Compiled = struct { route_id: []const u8, output: StaticOutput };
+        \\pub const compiled = [_]Compiled{
+        \\
+    );
     for (routes) |route| {
         if (!route.static) continue;
 
@@ -28,7 +41,7 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
             for (route.json_params, 0..) |json, index| {
                 var request = try jetzig.http.StaticRequest.init(allocator, json);
                 defer request.deinit();
-                try writeContent(allocator, route, &request, index, &count);
+                try writeContent(allocator, writer, route, &request, index, &count, json);
             }
         }
 
@@ -38,20 +51,27 @@ fn compileStaticRoutes(allocator: std.mem.Allocator) !void {
             .index, .post => {
                 var request = try jetzig.http.StaticRequest.init(allocator, "{}");
                 defer request.deinit();
-                try writeContent(allocator, route, &request, null, &count);
+                try writeContent(allocator, writer, route, &request, null, &count, null);
             },
             inline else => {},
         }
     }
+
+    try writer.writeAll(
+        \\};
+        \\
+    );
     std.debug.print("[jetzig] Compiled {} static output(s)\n", .{count});
 }
 
 fn writeContent(
     allocator: std.mem.Allocator,
+    writer: anytype,
     route: jetzig.views.Route,
     request: *jetzig.http.StaticRequest,
     index: ?usize,
     count: *usize,
+    params_json: ?[]const u8,
 ) !void {
     const index_suffix = if (index) |capture|
         try std.fmt.allocPrint(allocator, "_{}", .{capture})
@@ -62,35 +82,28 @@ fn writeContent(
     const view = try route.renderStatic(route, request);
     defer view.deinit();
 
-    var dir = try std.fs.cwd().makeOpenPath("static", .{});
-    defer dir.close();
-
-    const json_path = try std.mem.concat(
-        allocator,
-        u8,
-        &[_][]const u8{ route.name, index_suffix, ".json" },
-    );
-    defer allocator.free(json_path);
-
-    const json_file = try dir.createFile(json_path, .{ .truncate = true });
-    try json_file.writeAll(try view.data.toJson());
-    defer json_file.close();
-
     count.* += 1;
 
     const html_content = try renderZmplTemplate(allocator, route, view) orelse
         try renderMarkdown(allocator, route, view) orelse
         null;
-    const html_path = try std.mem.concat(
-        allocator,
-        u8,
-        &[_][]const u8{ route.name, index_suffix, ".html" },
+
+    try writer.print(
+        \\.{{ .route_id = "{s}", .output = StaticOutput{{ .json = "{s}", .html = "{s}", .params = {s}{s}{s} }} }},
+        \\
+        \\
+    ,
+        .{
+            route.id,
+            try zigEscape(allocator, try view.data.toJson()),
+            try zigEscape(allocator, html_content orelse ""),
+            if (params_json) |_| "\"" else "",
+            if (params_json) |params| try zigEscape(allocator, params) else "null",
+            if (params_json) |_| "\"" else "",
+        },
     );
+
     if (html_content) |content| {
-        defer allocator.free(html_path);
-        const html_file = try dir.createFile(html_path, .{ .truncate = true });
-        try html_file.writeAll(content);
-        defer html_file.close();
         allocator.free(content);
         count.* += 1;
     }
@@ -101,10 +114,7 @@ fn renderMarkdown(
     route: jetzig.views.Route,
     view: jetzig.views.View,
 ) !?[]const u8 {
-    const fragments = if (@hasDecl(jetzig_options, "markdown_fragments"))
-        jetzig_options.markdown_fragments
-    else
-        null;
+    const fragments = null;
     const path = try std.mem.join(allocator, "/", &[_][]const u8{ route.uri_path, @tagName(route.action) });
     defer allocator.free(path);
     const content = try jetzig.markdown.render(allocator, path, fragments) orelse return null;
@@ -152,4 +162,11 @@ fn renderZmplTemplate(
             return try template.render(view.data);
         }
     } else return null;
+}
+
+fn zigEscape(allocator: std.mem.Allocator, content: []const u8) ![]const u8 {
+    var buf = std.ArrayList(u8).init(allocator);
+    const writer = buf.writer();
+    try std.zig.stringEscape(content, "", .{}, writer);
+    return try buf.toOwnedSlice();
 }
