@@ -177,8 +177,9 @@ pub const jetzig_options = struct {
 };
 
 pub fn init(app: *jetzig.App) !void {
+    _ = app;
     // Example custom route:
-    app.route(.GET, "/custom/:id/foo/bar", @import("app/views/custom/foo.zig"), .bar);
+    // app.route(.GET, "/custom/:id/foo/bar", @import("app/views/custom/foo.zig"), .bar);
 }
 
 pub fn main() !void {
