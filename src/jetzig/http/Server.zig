@@ -642,11 +642,6 @@ fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8
                             .HTML, .UNKNOWN => static_output.output.html,
                             .JSON => static_output.output.json,
                         };
-                    } else {
-                        return switch (request_format) {
-                            .HTML, .UNKNOWN => static_output.output.html,
-                            .JSON => static_output.output.json,
-                        };
                     }
                 }
             }
@@ -659,34 +654,38 @@ fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8
 }
 
 pub fn decodeStaticParams(self: *Server) !void {
+    if (!@hasDecl(jetzig.root, "static")) return;
+
     // Store decoded static params (i.e. declared in views) for faster comparison at request time.
     var decoded = std.ArrayList(*jetzig.data.Value).init(self.allocator);
     for (jetzig.root.static.compiled) |compiled| {
-        if (compiled.output.params) |params| {
-            const data = try self.allocator.create(jetzig.data.Data);
-            data.* = jetzig.data.Data.init(self.allocator);
-            try data.fromJson(params);
-            try decoded.append(data.value.?);
-        }
+        const data = try self.allocator.create(jetzig.data.Data);
+        data.* = jetzig.data.Data.init(self.allocator);
+        try data.fromJson(compiled.output.params orelse "{}");
+        try decoded.append(data.value.?);
     }
 
     self.decoded_static_route_params = try decoded.toOwnedSlice();
 }
 
 fn matchStaticOutput(
-    maybe_id: ?[]const u8,
-    maybe_params: ?*jetzig.data.Value,
+    maybe_expected_id: ?[]const u8,
+    maybe_expected_params: ?*jetzig.data.Value,
     route: jetzig.views.Route,
     request: *const jetzig.http.Request,
     params: *jetzig.data.Value,
 ) bool {
-    return if (maybe_params) |expected_params| blk: {
+    return if (maybe_expected_params) |expected_params| blk: {
+        const params_match = expected_params.count() == 0 or expected_params.eql(params);
         break :blk switch (route.action) {
-            .index, .post => expected_params.count() == 0 or expected_params.eql(params),
-            inline else => if (maybe_id) |id|
-                std.mem.eql(u8, id, request.path.resource_id) and expected_params.eql(params)
+            .index, .post => params_match,
+            inline else => if (maybe_expected_id) |expected_id|
+                std.mem.eql(u8, expected_id, request.path.resource_id) and params_match
             else
                 false,
         };
-    } else if (maybe_id) |id| std.mem.eql(u8, id, request.path.resource_id) else maybe_params == null;
+    } else if (maybe_expected_id) |id|
+        std.mem.eql(u8, id, request.path.resource_id)
+    else
+        true; // We reached a params filter (possibly the default catch-all) with no params set.
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
+const markdown_fragments = @import("markdown_fragments");
 // const jetzig_options = @import("jetzig_app").jetzig_options;
 
 pub fn main() !void {
@@ -114,10 +115,9 @@ fn renderMarkdown(
     route: jetzig.views.Route,
     view: jetzig.views.View,
 ) !?[]const u8 {
-    const fragments = null;
     const path = try std.mem.join(allocator, "/", &[_][]const u8{ route.uri_path, @tagName(route.action) });
     defer allocator.free(path);
-    const content = try jetzig.markdown.render(allocator, path, fragments) orelse return null;
+    const content = try jetzig.markdown.render(allocator, path, markdown_fragments) orelse return null;
 
     if (route.layout) |layout_name| {
         try view.data.addConst("jetzig_view", view.data.string(route.name));

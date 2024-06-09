@@ -6,10 +6,6 @@
         .jetzig = .{
             .path = "../",
         },
-        .iguanas = .{
-            .url = "https://github.com/jetzig-framework/iguanas/archive/045f34b3455fb5bbec8cbf81fdc5d19ee54bd625.tar.gz",
-            .hash = "12207f8cca149669f7c4bdc02103f6194189a312bbaae97b54e6dc3fb8483d6107bf",
-        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

@@ -64,8 +64,8 @@ pub fn get(id: []const u8, request: *jetzig.StaticRequest, data: *jetzig.Data) !
         try root.put("message", "id is not '123'");
     }
 
-    if (params.get("foo")) |foo| try root.put("foo", foo);
-    if (params.get("bar")) |bar| try root.put("bar", bar);
+    try root.put("foo", params.get("foo"));
+    try root.put("bar", params.get("bar"));
 
     return request.render(.created);
 }

@@ -37,7 +37,7 @@ const Test = struct {
         trace: ?[]const u8,
     };
 
-    const name_template = jetzig.colors.blue("{s}") ++ ":" ++ jetzig.colors.cyan("{s}") ++ " ";
+    const name_template = jetzig.colors.blue("{s}") ++ jetzig.colors.yellow("->") ++ "\"" ++ jetzig.colors.cyan("{s}") ++ "\" ";
 
     pub fn init(test_fn: std.builtin.TestFn) Test {
         return if (std.mem.indexOf(u8, test_fn.name, ".test.")) |index|
@@ -117,7 +117,7 @@ const Test = struct {
     fn printFailureDetail(self: Test, index: usize, failure: Failure, writer: anytype) !void {
         try writer.print("\n", .{});
 
-        const count = " FAILURE: ".len + (self.module orelse "tests").len + ":".len + self.name.len + 1;
+        const count = " FAILURE: ".len + (self.module orelse "tests").len + ":".len + self.name.len + 4;
 
         try writer.writeAll(jetzig.colors.red("┌"));
         for (0..count) |_| try writer.writeAll(jetzig.colors.red("─"));

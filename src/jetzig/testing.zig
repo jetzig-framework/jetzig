@@ -222,7 +222,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 switch (@typeInfo(@TypeOf(expected_value))) {
                     .Pointer, .Array => {
                         logFailure(
-                            "Expected \"" ++ jetzig.colors.red("{s}") ++ "\" in " ++ jetzig.colors.cyan("{s}") ++ ", found \"" ++ jetzig.colors.green("{s}") ++ "\nJSON:" ++ json_banner,
+                            "Expected \"" ++ jetzig.colors.red("{s}") ++ "\" in " ++ jetzig.colors.cyan("{s}") ++ ", found \"" ++ jetzig.colors.green("{s}") ++ "\"\nJSON:" ++ json_banner,
                             .{ expected_value, expected_path, string.value, try jsonPretty(response) },
                         );
                     },

@@ -203,6 +203,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
     // exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
 
+    const markdown_fragments_write_files = b.addWriteFiles();
+    const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));
+    const markdown_fragments_module = b.createModule(.{ .root_source_file = path });
+    exe_static_routes.root_module.addImport("markdown_fragments", markdown_fragments_module);
+
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     const static_outputs_path = run_static_routes_cmd.addOutputFileArg("static.zig");
     const static_module = b.createModule(.{ .root_source_file = static_outputs_path });
@@ -218,7 +223,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     });
     exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
     exe_unit_tests.root_module.addImport("static", static_module);
-    exe_unit_tests.root_module.addImport("__jetzig_project", &exe.root_module);
 
     var it = exe.root_module.import_table.iterator();
     while (it.next()) |import| {
