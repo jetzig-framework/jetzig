@@ -598,11 +598,14 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
 
     var walker = try iterable_dir.walk(request.allocator);
     defer walker.deinit();
-
+    var path_buffer: [256]u8 = undefined;
     while (try walker.next()) |file| {
         if (file.kind != .file) continue;
-
-        if (std.mem.eql(u8, file.path, request.path.file_path[1..])) {
+        const file_path = if (builtin.os.tag == .windows) blk: {
+            _ = std.mem.replace(u8, file.path, std.fs.path.sep_str_windows, std.fs.path.sep_str_posix, &path_buffer);
+            break :blk path_buffer[0..file.path.len];
+        } else file.path;
+        if (std.mem.eql(u8, file_path, request.path.file_path[1..])) {
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file.path,
