@@ -93,6 +93,9 @@ pub fn listen(self: *Server) !void {
                 .max_conn = jetzig.config.get(u16, "max_connections"),
                 .retain_allocated_bytes = jetzig.config.get(usize, "arena_size"),
             },
+            .request = .{
+                .max_multiform_count = jetzig.config.get(usize, "max_multipart_form_fields"),
+            },
         },
         Dispatcher{ .server = self },
     );
@@ -626,7 +629,6 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
 fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8 {
     const request_format = request.requestFormat();
     const matched_route = try self.matchRoute(request, true);
-    const params = try request.params();
 
     if (matched_route) |route| {
         if (@hasDecl(jetzig.root, "static")) {
@@ -634,6 +636,8 @@ fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8
                 if (!@hasField(@TypeOf(static_output), "route_id")) continue;
 
                 if (std.mem.eql(u8, static_output.route_id, route.id)) {
+                    const params = try request.params();
+
                     if (index < self.decoded_static_route_params.len) {
                         if (matchStaticOutput(
                             self.decoded_static_route_params[index].getT(.string, "id"),

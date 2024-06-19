@@ -89,6 +89,9 @@ pub const config = struct {
     /// This can be increased if needed.
     pub const max_bytes_header_name: u16 = 40;
 
+    /// Maximum number of `multipart/form-data`-encoded fields to accept per request.
+    pub const max_multipart_form_fields: usize = 20;
+
     /// Log message buffer size. Log messages exceeding this size spill to heap with degraded
     /// performance. Log messages should aim to fit in the message buffer.
     pub const log_message_buffer_len: usize = 4096;
