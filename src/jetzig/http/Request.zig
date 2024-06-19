@@ -23,6 +23,8 @@ status_code: jetzig.http.status_codes.StatusCode = .not_found,
 response_data: *jetzig.data.Data,
 query_params: ?*jetzig.http.Query = null,
 query_body: ?*jetzig.http.Query = null,
+multipart: ?jetzig.http.MultipartQuery = null,
+parsed_multipart: ?*jetzig.data.Data = null,
 _cookies: ?*jetzig.http.Cookies = null,
 _session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
@@ -307,6 +309,16 @@ pub fn params(self: *Request) !*jetzig.data.Value {
     }
 }
 
+/// Retrieve a file from a `multipart/form-data`-encoded request body, if present.
+pub fn file(self: *Request, name: []const u8) !?jetzig.http.File {
+    _ = try self.parseQuery();
+    if (self.multipart) |multipart| {
+        return multipart.getFile(name);
+    } else {
+        return null;
+    }
+}
+
 /// Return a `*Value` representing request parameters. This function **always** returns the
 /// parsed query string and never the request body.
 pub fn queryParams(self: *Request) !*jetzig.data.Value {
@@ -328,6 +340,20 @@ pub fn queryParams(self: *Request) !*jetzig.data.Value {
 fn parseQuery(self: *Request) !*jetzig.data.Value {
     if (self.body.len == 0) return try self.queryParams();
     if (self.query_body) |parsed| return parsed.data.value.?;
+    if (self.parsed_multipart) |parsed| return parsed.value.?;
+
+    const maybe_multipart = self.httpz_request.multiFormData() catch |err| blk: {
+        switch (err) {
+            error.NotMultipartForm => break :blk null,
+            else => return err,
+        }
+    };
+
+    if (maybe_multipart) |multipart| {
+        self.multipart = jetzig.http.MultipartQuery{ .allocator = self.allocator, .key_value = multipart };
+        self.parsed_multipart = try self.multipart.?.params();
+        return self.parsed_multipart.?.value.?;
+    }
 
     const data = try self.allocator.create(jetzig.data.Data);
     data.* = jetzig.data.Data.init(self.allocator);
@@ -337,7 +363,9 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
         self.body,
         data,
     );
+
     try self.query_body.?.parse();
+
     return self.query_body.?.data.value.?;
 }
 

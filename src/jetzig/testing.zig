@@ -293,12 +293,13 @@ pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestRespon
     return error.JetzigExpectJobError;
 }
 
-// fn log(comptime message: []const u8, args: anytype) void {
-//     std.log.info("[jetzig.testing] " ++ message ++ "\n", args);
-// }
+pub const File = struct { filename: []const u8, content: []const u8 };
+pub fn file(comptime filename: []const u8, comptime content: []const u8) File {
+    return .{ .filename = filename, .content = content };
+}
 
 fn logFailure(comptime message: []const u8, args: anytype) void {
-    std.log.err(message, args);
+    std.log.err("[jetzig.testing] " ++ message, args);
 }
 
 fn jsonPretty(response: TestResponse) ![]const u8 {
