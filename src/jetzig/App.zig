@@ -18,14 +18,14 @@ pub fn deinit(self: *const App) void {
 
 // Not used yet, but allows us to add new options to `start()` without breaking
 // backward-compatibility.
-const AppOptions = struct {};
+const AppOptions = struct {
+    state: *anyopaque,
+};
 
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
 /// automatically created at build time. `templates` should be
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
-    _ = options; // See `AppOptions`
-
     if (self.initHook) |hook| try hook(@constCast(self));
 
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
@@ -98,6 +98,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         &store,
         &job_queue,
         &cache,
+        options.state,
     );
 
     var mutex = std.Thread.Mutex{};

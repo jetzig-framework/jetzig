@@ -43,6 +43,7 @@ rendered_view: ?jetzig.views.View = null,
 start_time: i128,
 store: RequestStore,
 cache: RequestStore,
+app_state: *anyopaque,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
 pub const RequestStore = struct {
@@ -103,6 +104,7 @@ pub fn init(
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
+    state: *anyopaque,
 ) !Request {
     const method = switch (httpz_request.method) {
         .DELETE => Method.DELETE,
@@ -130,6 +132,7 @@ pub fn init(
         .start_time = start_time,
         .store = .{ .store = server.store, .allocator = allocator },
         .cache = .{ .store = server.cache, .allocator = allocator },
+        .app_state = state,
     };
 }
 
