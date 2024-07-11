@@ -30,7 +30,7 @@ store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
-state: anyopaque,
+state: *anyopaque,
 
 const Server = @This();
 
