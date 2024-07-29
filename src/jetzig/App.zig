@@ -18,7 +18,7 @@ pub fn deinit(self: *const App) void {
 
 // Not used yet, but allows us to add new options to `start()` without breaking
 // backward-compatibility.
-const AppOptions = struct {
+pub const AppOptions = struct {
     state: *anyopaque,
 };
 

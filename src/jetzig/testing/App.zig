@@ -3,6 +3,8 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 const httpz = @import("httpz");
 
+const AppOptions = @import("../App.zig").AppOptions;
+
 const App = @This();
 
 allocator: std.mem.Allocator,
@@ -12,11 +14,12 @@ store: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 multipart_boundary: ?[]const u8 = null,
+app_options: AppOptions,
 
 const initHook = jetzig.root.initHook;
 
 /// Initialize a new test app.
-pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
+pub fn init(allocator: std.mem.Allocator, routes_module: type, app_options: AppOptions) !App {
     switch (jetzig.testing.state) {
         .ready => {},
         .initial => {
@@ -38,6 +41,7 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
         .store = try createStore(arena.allocator()),
         .cache = try createStore(arena.allocator()),
         .job_queue = try createStore(arena.allocator()),
+        .app_options = app_options,
     };
 }
 
@@ -74,12 +78,7 @@ const Param = struct {
 };
 
 /// Issue a request to the test server.
-pub fn request(
-    self: *App,
-    comptime method: jetzig.http.Request.Method,
-    comptime path: []const u8,
-    args: anytype,
-) !jetzig.testing.TestResponse {
+pub fn request(self: *App, comptime method: jetzig.http.Request.Method, comptime path: []const u8, args: anytype) !jetzig.testing.TestResponse {
     const options = buildOptions(self, args);
 
     const allocator = self.arena.allocator();
@@ -107,6 +106,7 @@ pub fn request(
         .store = self.store,
         .cache = self.cache,
         .job_queue = self.job_queue,
+        .state = self.app_options.state,
     };
 
     try server.decodeStaticParams();
