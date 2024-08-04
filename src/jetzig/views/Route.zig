@@ -14,6 +14,17 @@ const StaticViewWithoutId = *const fn (*jetzig.http.StaticRequest, *jetzig.data.
 pub const ViewWithArgs = *const fn ([]const []const u8, *jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
 const StaticViewWithId = *const fn (id: []const u8, *jetzig.http.StaticRequest, *jetzig.data.Data) anyerror!jetzig.views.View;
 
+pub const Formats = struct {
+    index: ?[]const ResponseFormat = null,
+    get: ?[]const ResponseFormat = null,
+    post: ?[]const ResponseFormat = null,
+    put: ?[]const ResponseFormat = null,
+    patch: ?[]const ResponseFormat = null,
+    delete: ?[]const ResponseFormat = null,
+    custom: ?[]const ResponseFormat = null,
+};
+const ResponseFormat = enum { html, json };
+
 pub const DynamicViewType = union(Action) {
     index: ViewWithoutId,
     get: ViewWithId,
@@ -61,6 +72,7 @@ template: []const u8,
 json_params: []const []const u8,
 params: std.ArrayList(*jetzig.data.Data) = undefined,
 id: []const u8,
+formats: ?Formats,
 
 /// Initializes a route's static params on server launch. Converts static params (JSON strings)
 /// to `jetzig.data.Data` values. Memory is owned by caller (`App.start()`).
@@ -99,6 +111,28 @@ pub fn match(self: Route, request: *const jetzig.http.Request) bool {
     }
 
     return true;
+}
+
+/// Return `true` if a format specification is defined for the current route/view function
+/// **and** the format is supported by the current view function, otherwise return `false`.
+pub fn validateFormat(self: Route, request: *const jetzig.http.Request) bool {
+    const formats = self.formats orelse return true;
+    const supported_formats = switch (self.action) {
+        .index => formats.index orelse return true,
+        .get => formats.get orelse return true,
+        .post => formats.post orelse return true,
+        .put => formats.put orelse return true,
+        .patch => formats.patch orelse return true,
+        .delete => formats.delete orelse return true,
+        .custom => formats.custom orelse return true,
+    };
+
+    const request_format = request.requestFormat();
+    for (supported_formats) |supported_format| {
+        if ((request_format == .HTML or request_format == .UNKNOWN) and supported_format == .html) return true;
+        if (request_format == .JSON and supported_format == .json) return true;
+    }
+    return false;
 }
 
 fn renderFn(self: Route, request: *jetzig.http.Request) anyerror!jetzig.views.View {
