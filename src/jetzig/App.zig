@@ -207,6 +207,7 @@ pub fn createRoutes(
             .layout = const_route.layout,
             .template = const_route.template,
             .json_params = const_route.json_params,
+            .formats = const_route.formats,
         };
 
         try var_route.initParams(allocator);

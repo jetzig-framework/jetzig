@@ -278,6 +278,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         \\            .template = "{6s}",
         \\            .layout = if (@hasDecl(@import("{7s}"), "layout")) @import("{7s}").layout else null,
         \\            .json_params = &[_][]const u8 {{ {8s} }},
+        \\            .formats = if (@hasDecl(@import("{7s}"), "formats")) @import("{7s}").formats else null,
         \\        }},
         \\
     ;

@@ -23,7 +23,7 @@ pub fn main() !void {
             .index => jetzig.colors.blue("{s: <7}"),
             .post => jetzig.colors.yellow("{s: <7}"),
             .put => jetzig.colors.magenta("{s: <7}"),
-            .patch => jetzig.colors.purple("{s: <7}"),
+            .patch => jetzig.colors.bright_magenta("{s: <7}"),
             .delete => jetzig.colors.red("{s: <7}"),
             .custom => unreachable,
         };

@@ -192,6 +192,12 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
 
     const route = self.matchCustomRoute(request) orelse try self.matchRoute(request, false);
 
+    if (route) |capture| {
+        if (!capture.validateFormat(request)) {
+            return request.setResponse(try self.renderNotFound(request), .{});
+        }
+    }
+
     switch (request.requestFormat()) {
         .HTML => try self.renderHTML(request, route),
         .JSON => try self.renderJSON(request, route),
