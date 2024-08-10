@@ -55,14 +55,18 @@ pub fn build(b: *std.Build) !void {
     const zmpl_module = zmpl_dep.module("zmpl");
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
+    const jetquery_dep = b.dependency("jetquery", .{ .target = target, .optimize = optimize });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
+    const pg_dep = b.dependency("pg", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
     b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
+    b.modules.put("pg", pg_dep.module("pg")) catch @panic("Out of memory");
+    jetquery_dep.module("jetquery").addImport("pg", pg_dep.module("pg"));
 
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
@@ -74,6 +78,7 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("args", zig_args_dep.module("args"));
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
     jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
+    jetzig_module.addImport("jetquery", jetquery_dep.module("jetquery"));
     jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
@@ -125,10 +130,12 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
     const zmd_module = jetzig_dep.module("zmd");
+    const pg_module = jetzig_dep.module("pg");
 
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
     exe.root_module.addImport("zmd", zmd_module);
+    exe.root_module.addImport("pg", pg_module);
 
     if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
         if (jetzig_runner) {
