@@ -14,9 +14,16 @@
             .url = "https://github.com/jetzig-framework/jetkv/archive/2b1130a48979ea2871c8cf6ca89c38b1e7062839.tar.gz",
             .hash = "12201d75d73aad5e1c996de4d5ae87a00e58479c8d469bc2eeb5fdeeac8857bc09af",
         },
+        .jetquery = .{
+            .path = "../jetquery",
+        },
         .args = .{
             .url = "https://github.com/ikskuh/zig-args/archive/0abdd6947a70e6d8cc83b66228cea614aa856206.tar.gz",
             .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
+        },
+        .pg = .{
+            .url = "https://github.com/karlseguin/pg.zig/archive/1b4011d4c8218c70471477e283608daf919bee3a.tar.gz",
+            .hash = "122086d9461b75535b630019374f8a068eff467e657a46d2bb577fe0a507f1cd2fca",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/8fcfad9ca2d9e446612c79f4e54050cfbe81b38d.tar.gz",
