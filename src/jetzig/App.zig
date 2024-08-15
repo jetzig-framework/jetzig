@@ -148,7 +148,7 @@ pub fn route(
 ) void {
     const member = @tagName(action);
     const viewFn = @field(module, member);
-    const module_name = comptime std.mem.trimLeft(u8, @typeName(module), "app.views.");
+    const module_name = @typeName(module)["app.views.".len..@typeName(module).len];
 
     var template: [module_name.len + 1 + member.len]u8 = undefined;
     @memcpy(&template, module_name ++ "/" ++ member);
