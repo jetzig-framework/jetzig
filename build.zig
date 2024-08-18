@@ -2,13 +2,13 @@ const std = @import("std");
 
 pub const Routes = @import("src/Routes.zig");
 pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
-pub const TemplateFn = @import("src/jetzig.zig").TemplateFn;
-pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
-pub const http = @import("src/jetzig/http.zig");
-pub const data = @import("src/jetzig/data.zig");
-pub const views = @import("src/jetzig/views.zig");
-pub const Route = views.Route;
-pub const Job = @import("src/jetzig.zig").Job;
+// pub const TemplateFn = @import("src/jetzig.zig").TemplateFn;
+// pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
+// pub const http = @import("src/jetzig/http.zig");
+// pub const data = @import("src/jetzig/data.zig");
+// pub const views = @import("src/jetzig/views.zig");
+// pub const Route = views.Route;
+// pub const Job = @import("src/jetzig.zig").Job;
 
 const zmpl_build = @import("zmpl");
 
@@ -155,39 +155,31 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         &[_][]const u8{ root_path, "src", "app", "mailers" },
     );
 
-    var routes = try Routes.init(
-        b.allocator,
+    const exe_routes_file = b.addExecutable(.{
+        .name = "routes",
+        .root_source_file = jetzig_dep.path("src/routes_file.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe_routes_file.root_module.addImport("jetzig", jetzig_module);
+    exe_routes_file.root_module.addImport("jetkv", jetzig_module);
+    exe_routes_file.root_module.addImport("httpz", jetzig_module);
+    exe_routes_file.root_module.addImport("zmpl", zmpl_module);
+
+    const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
+    const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
+    run_routes_file_cmd.addArgs(&.{
         root_path,
+        b.pathFromRoot("src"),
         templates_path,
         views_path,
         jobs_path,
         mailers_path,
-    );
-    const generated_routes = try routes.generateRoutes();
-    const routes_write_files = b.addWriteFiles();
-    const routes_file = routes_write_files.add("routes.zig", generated_routes);
-    const tests_write_files = b.addWriteFiles();
-    const tests_file = tests_write_files.add("tests.zig", generated_routes);
-    const routes_module = b.createModule(.{ .root_source_file = routes_file });
-
-    var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
-    defer src_dir.close();
-    var walker = try src_dir.walk(b.allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |entry| {
-        if (entry.kind == .file) {
-            const stat = try src_dir.statFile(entry.path);
-            const src_data = try src_dir.readFileAlloc(b.allocator, entry.path, @intCast(stat.size));
-            defer b.allocator.free(src_data);
-
-            const relpath = try std.fs.path.join(b.allocator, &[_][]const u8{ "src", entry.path });
-            defer b.allocator.free(relpath);
-
-            _ = routes_write_files.add(relpath, src_data);
-            _ = tests_write_files.add(relpath, src_data);
-        }
-    }
+    });
+    const routes_module = b.createModule(.{ .root_source_file = routes_file_path });
+    routes_module.addImport("jetzig", jetzig_module);
+    exe.root_module.addImport("routes", routes_module);
 
     const exe_static_routes = b.addExecutable(.{
         .name = "static",
@@ -196,12 +188,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .optimize = optimize,
     });
 
-    exe.root_module.addImport("routes", routes_module);
-
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
-    // exe_static_routes.root_module.addImport("jetzig_app", &exe.root_module);
 
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));
@@ -215,8 +204,19 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     run_static_routes_cmd.expectExitCode(0);
 
+    const run_tests_file_cmd = b.addRunArtifact(exe_routes_file);
+    const tests_file_path = run_tests_file_cmd.addOutputFileArg("tests.zig");
+    run_tests_file_cmd.addArgs(&.{
+        root_path,
+        b.pathFromRoot("src"),
+        templates_path,
+        views_path,
+        jobs_path,
+        mailers_path,
+    });
+
     const exe_unit_tests = b.addTest(.{
-        .root_source_file = tests_file,
+        .root_source_file = tests_file_path,
         .target = target,
         .optimize = optimize,
         .test_runner = jetzig_dep.path("src/test_runner.zig"),
@@ -238,6 +238,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const test_step = b.step("jetzig:test", "Run tests");
     test_step.dependOn(&run_static_routes_cmd.step);
     test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&run_tests_file_cmd.step);
     exe_unit_tests.root_module.addImport("routes", routes_module);
 
     const routes_step = b.step("jetzig:routes", "List all routes in your app");

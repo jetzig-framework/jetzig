@@ -79,7 +79,7 @@ const Dispatcher = struct {
 pub fn listen(self: *Server) !void {
     try self.decodeStaticParams();
 
-    var httpz_server = try httpz.ServerCtx(Dispatcher, Dispatcher).init(
+    var httpz_server = try httpz.Server(Dispatcher).init(
         self.allocator,
         .{
             .port = self.options.port,

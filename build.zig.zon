@@ -11,20 +11,20 @@
             .hash = "12207c30c6fbcb8c7519719fc47ff9d0acca72a3557ec671984d16260bdf1c832740",
         },
         .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/78bcdcc6b0cbd3ca808685c64554a15701f13250.tar.gz",
-            .hash = "12201944769794b2f18e3932ec3d5031066d0ccb3293cf7c3fb1f5b269e56b76c57e",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/cf1c611a9c406ccadb50b1bf7798e2b88c43fd2b.tar.gz",
+            .hash = "1220434169bfbfbb3a0bbe7073f9bcff5401979a967d25ba3915046f6ea44e40839d",
         },
         .args = .{
             .url = "https://github.com/ikskuh/zig-args/archive/03af1b6c5bfda9646a562c861055024daed5b238.tar.gz",
             .hash = "1220904d2fdcd970dd0d216211d092eb3ef6da01117163cc9393ab845a1d66c029d9",
         },
         .smtp_client = .{
-            .url = "https://github.com/karlseguin/smtp_client.zig/archive/48971bc919fe22d2bf6accb832b73ab53e534836.tar.gz",
-            .hash = "122024d52d160022a6fefdbebfd94ac664f637583c8a44c2a50d0ad12acca160cb17",
+            .url = "https://github.com/karlseguin/smtp_client.zig/archive/8fcfad9ca2d9e446612c79f4e54050cfbe81b38d.tar.gz",
+            .hash = "1220cebfcf6c63295819df92ec54abe62aad91b1d16666781194c29a7874bb7bbbda",
         },
         .httpz = .{
-            .url = "https://github.com/karlseguin/http.zig/archive/fbca868592dc83ee3ee3cad414c62afa266f4866.tar.gz",
-            .hash = "122089946af5ba1cdfae3f515f0fa1c96327f42a462515fbcecc719fe94fab38d9b8",
+            .url = "https://github.com/karlseguin/http.zig/archive/e1df408cd530d058a7e1652bd8dcfa7191ff776e.tar.gz",
+            .hash = "1220efbc744de6e13e57ab9fa6370ea9690601e55ba6ced74179c081a295c99fd422",
         },
     },
 
