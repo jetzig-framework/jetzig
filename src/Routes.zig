@@ -1,5 +1,5 @@
 const std = @import("std");
-const jetzig = @import("jetzig.zig");
+const jetzig = @import("jetzig");
 
 ast: std.zig.Ast = undefined,
 allocator: std.mem.Allocator,

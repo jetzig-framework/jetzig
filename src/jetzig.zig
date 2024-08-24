@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub const zmpl = @import("zmpl").zmpl;
 pub const zmd = @import("zmd").zmd;
-pub const jetkv = @import("jetkv");
+pub const jetkv = @import("jetkv").jetkv;
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");

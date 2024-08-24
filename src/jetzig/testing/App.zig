@@ -135,7 +135,7 @@ pub fn request(
     return .{
         .allocator = self.arena.allocator(),
         .status = httpz_response.status,
-        .body = try self.arena.allocator().dupe(u8, httpz_response.body orelse ""),
+        .body = try self.arena.allocator().dupe(u8, httpz_response.body),
         .headers = try headers.toOwnedSlice(),
         .jobs = try jobs.toOwnedSlice(),
     };
@@ -208,6 +208,7 @@ fn stubbedRequest(
     multipart_boundary: ?[]const u8,
     options: RequestOptions,
 ) !httpz.Request {
+    // TODO: Use httpz.testing
     var request_headers = try keyValue(allocator, 32);
     for (options.headers) |header| request_headers.add(header.name, header.value);
     if (options.json != null) {
@@ -256,6 +257,7 @@ fn stubbedRequest(
 }
 
 fn stubbedResponse(allocator: std.mem.Allocator) !httpz.Response {
+    // TODO: Use httpz.testing
     return .{
         .conn = undefined,
         .pos = 0,
@@ -265,9 +267,9 @@ fn stubbedResponse(allocator: std.mem.Allocator) !httpz.Response {
         .arena = allocator,
         .written = false,
         .chunked = false,
-        .disowned = false,
         .keepalive = false,
-        .body = null,
+        .body = "",
+        .buffer = .{ .pos = 0, .data = "" },
     };
 }
 
