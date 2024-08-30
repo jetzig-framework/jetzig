@@ -145,7 +145,7 @@ pub fn request(
 pub fn params(self: App, args: anytype) []Param {
     const allocator = self.arena.allocator();
     var array = std.ArrayList(Param).init(allocator);
-    inline for (@typeInfo(@TypeOf(args)).Struct.fields) |field| {
+    inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |field| {
         array.append(.{ .key = field.name, .value = @field(args, field.name) }) catch @panic("OOM");
     }
     return array.toOwnedSlice() catch @panic("OOM");
@@ -166,7 +166,7 @@ pub fn multipart(self: *App, comptime args: anytype) []const u8 {
     const boundary = jetzig.util.generateRandomString(&boundary_buf);
     self.multipart_boundary = boundary;
 
-    inline for (@typeInfo(@TypeOf(args)).Struct.fields, 0..) |field, index| {
+    inline for (@typeInfo(@TypeOf(args)).@"struct".fields, 0..) |field, index| {
         if (index > 0) tryWrite(writer, "\r\n");
         tryWrite(writer, "--");
         tryWrite(writer, boundary);
@@ -238,6 +238,8 @@ fn stubbedRequest(
             .path = path,
             .query = query,
         },
+        .route_data = null,
+        .middlewares = undefined,
         .address = undefined,
         .method = std.enums.nameCast(httpz.Method, @tagName(method)),
         .protocol = .HTTP11,
@@ -289,7 +291,7 @@ fn createStore(allocator: std.mem.Allocator) !*jetzig.kv.Store {
 
 fn buildOptions(app: *const App, args: anytype) RequestOptions {
     const fields = switch (@typeInfo(@TypeOf(args))) {
-        .Struct => |info| info.fields,
+        .@"struct" => |info| info.fields,
         else => @compileError("Expected struct, found `" ++ @tagName(@typeInfo(@TypeOf(args))) ++ "`"),
     };
 

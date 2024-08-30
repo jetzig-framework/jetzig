@@ -5,8 +5,8 @@
 
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/03af1b6c5bfda9646a562c861055024daed5b238.tar.gz",
-            .hash = "1220904d2fdcd970dd0d216211d092eb3ef6da01117163cc9393ab845a1d66c029d9",
+            .url = "https://github.com/ikskuh/zig-args/archive/0abdd6947a70e6d8cc83b66228cea614aa856206.tar.gz",
+            .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
         },
     },
     .paths = .{

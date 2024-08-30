@@ -598,7 +598,7 @@ fn asNodeIndex(index: usize) std.zig.Ast.Node.Index {
 }
 
 fn isActionFunctionName(name: []const u8) bool {
-    inline for (@typeInfo(jetzig.views.Route.Action).Enum.fields) |field| {
+    inline for (@typeInfo(jetzig.views.Route.Action).@"enum".fields) |field| {
         if (std.mem.eql(u8, field.name, name)) return true;
     }
 

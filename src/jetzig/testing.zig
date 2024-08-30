@@ -40,7 +40,7 @@ pub const Logger = struct {
     pub fn log(
         self: *Logger,
         comptime message_level: std.log.Level,
-        comptime scope: @Type(.EnumLiteral),
+        comptime scope: @Type(.enum_literal),
         comptime format: []const u8,
         args: anytype,
     ) void {
@@ -154,10 +154,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
     if (try data.getValue(std.mem.trimLeft(u8, expected_path, &.{'.'}))) |value| {
         switch (value.*) {
             .string => |string| switch (@typeInfo(@TypeOf(expected_value))) {
-                .Pointer, .Array => {
+                .pointer, .array => {
                     if (std.mem.eql(u8, string.value, expected_value)) return;
                 },
-                .Null => {
+                .null => {
                     logFailure(
                         "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.cyan("{s}"),
                         .{ expected_path, string.value },
@@ -167,10 +167,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 else => unreachable,
             },
             .integer => |integer| switch (@typeInfo(@TypeOf(expected_value))) {
-                .Int, .ComptimeInt => {
+                .int, .comptime_int => {
                     if (integer.value == expected_value) return;
                 },
-                .Null => {
+                .null => {
                     logFailure(
                         "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, integer.value },
@@ -180,10 +180,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 else => {},
             },
             .float => |float| switch (@typeInfo(@TypeOf(expected_value))) {
-                .Float, .ComptimeFloat => {
+                .float, .comptime_float => {
                     if (float.value == expected_value) return;
                 },
-                .Null => {
+                .null => {
                     logFailure(
                         "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, float.value },
@@ -193,10 +193,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 else => {},
             },
             .boolean => |boolean| switch (@typeInfo(@TypeOf(expected_value))) {
-                .Bool => {
+                .bool => {
                     if (boolean.value == expected_value) return;
                 },
-                .Null => {
+                .null => {
                     logFailure(
                         "Expected null/non-existent value for " ++ jetzig.colors.cyan("{s}") ++ ", found: " ++ jetzig.colors.green("{}"),
                         .{ expected_path, boolean.value },
@@ -206,10 +206,10 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 else => {},
             },
             .Null => switch (@typeInfo(@TypeOf(expected_value))) {
-                .Optional => {
+                .optional => {
                     if (expected_value == null) return;
                 },
-                .Null => {
+                .null => {
                     return;
                 },
                 else => {},
@@ -220,7 +220,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
         switch (value.*) {
             .string => |string| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
-                    .Pointer, .Array => {
+                    .pointer, .array => {
                         logFailure(
                             "Expected \"" ++ jetzig.colors.red("{s}") ++ "\" in " ++ jetzig.colors.cyan("{s}") ++ ", found \"" ++ jetzig.colors.green("{s}") ++ "\"\nJSON:" ++ json_banner,
                             .{ expected_value, expected_path, string.value, try jsonPretty(response) },
@@ -232,7 +232,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             .integer,
             => |integer| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
-                    .Int, .ComptimeInt => {
+                    .int, .comptime_int => {
                         logFailure(
                             "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
 
@@ -244,7 +244,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             },
             .float => |float| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
-                    .Float, .ComptimeFloat => {
+                    .float, .comptime_float => {
                         logFailure(
                             "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
                             .{ expected_value, expected_path, float.value, try jsonPretty(response) },
@@ -255,7 +255,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
             },
             .boolean => |boolean| {
                 switch (@typeInfo(@TypeOf(expected_value))) {
-                    .Bool => {
+                    .bool => {
                         logFailure(
                             "Expected " ++ jetzig.colors.red("{}") ++ " in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("{}") ++ "\nJSON:" ++ json_banner,
                             .{ expected_value, expected_path, boolean.value, try jsonPretty(response) },
