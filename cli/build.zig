@@ -14,6 +14,12 @@ pub fn build(b: *std.Build) !void {
     });
 
     const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
+    const jetquery_dep = b.dependency("jetquery", .{
+        .target = target,
+        .optimize = optimize,
+        .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+    });
+    exe.root_module.addImport("jetquery", jetquery_dep.module("jetquery"));
 
     exe.root_module.addImport("args", zig_args_dep.module("args"));
     exe.root_module.addImport(

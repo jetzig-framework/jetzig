@@ -55,7 +55,11 @@ pub fn build(b: *std.Build) !void {
     const zmpl_module = zmpl_dep.module("zmpl");
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
-    const jetquery_dep = b.dependency("jetquery", .{ .target = target, .optimize = optimize });
+    const jetquery_dep = b.dependency("jetquery", .{
+        .target = target,
+        .optimize = optimize,
+        .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+    });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const pg_dep = b.dependency("pg", .{ .target = target, .optimize = optimize });
