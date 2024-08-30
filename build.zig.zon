@@ -22,8 +22,9 @@
             .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
         },
         .pg = .{
-            .url = "https://github.com/karlseguin/pg.zig/archive/1b4011d4c8218c70471477e283608daf919bee3a.tar.gz",
-            .hash = "122086d9461b75535b630019374f8a068eff467e657a46d2bb577fe0a507f1cd2fca",
+            // .url = "https://github.com/karlseguin/pg.zig/archive/1491270ac43c7eba91992bb06b3758254c36e39a.tar.gz",
+            // .hash = "1220bcc68967188de7ad5d520a4629c0d1e169c111d87e6978a3c128de5ec2b6bdd0",
+            .path = "../pg.zig",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/8fcfad9ca2d9e446612c79f4e54050cfbe81b38d.tar.gz",
