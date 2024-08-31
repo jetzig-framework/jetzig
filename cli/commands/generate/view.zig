@@ -101,7 +101,7 @@ const Action = struct {
 // Parse a view arg. Grammar:
 // [index[:static]|get[:static]|post[:static]|put[:static]|patch[:static]|delete[:static]]
 fn parseAction(arg: []const u8) ?Action {
-    inline for (@typeInfo(Method).Enum.fields) |tag| {
+    inline for (@typeInfo(Method).@"enum".fields) |tag| {
         const with_static = tag.name ++ ":static";
         const method: Method = @enumFromInt(tag.value);
 
