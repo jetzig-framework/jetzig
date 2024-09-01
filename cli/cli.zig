@@ -7,6 +7,7 @@ const server = @import("commands/server.zig");
 const routes = @import("commands/routes.zig");
 const bundle = @import("commands/bundle.zig");
 const tests = @import("commands/tests.zig");
+const database = @import("commands/database.zig");
 
 const Options = struct {
     help: bool = false,
@@ -25,6 +26,7 @@ const Options = struct {
             .routes = "List all routes in your app",
             .bundle = "Create a deployment bundle",
             .@"test" = "Run app tests",
+            .database = "Manage the application's database",
             .help = "Print help and exit",
         },
     };
@@ -38,11 +40,13 @@ const Verb = union(enum) {
     routes: routes.Options,
     bundle: bundle.Options,
     @"test": tests.Options,
+    database: database.Options,
     g: generate.Options,
     s: server.Options,
     r: routes.Options,
     b: bundle.Options,
     t: tests.Options,
+    d: database.Options,
 };
 
 /// Main entrypoint for `jetzig` executable. Parses command line args and generates a new
@@ -76,6 +80,7 @@ pub fn main() !void {
             \\  server       Run a development server.
             \\  routes       List all routes in your app.
             \\  bundle       Create a deployment bundle.
+            \\  database     Manage the application's database.
             \\  test         Run app tests.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
@@ -130,6 +135,13 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
                 .{ .help = options.options.help },
             ),
             .t, .@"test" => |opts| tests.run(
+                allocator,
+                opts,
+                writer,
+                options.positionals,
+                .{ .help = options.options.help },
+            ),
+            .d, .database => |opts| database.run(
                 allocator,
                 opts,
                 writer,
