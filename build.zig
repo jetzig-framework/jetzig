@@ -2,13 +2,6 @@ const std = @import("std");
 
 pub const Routes = @import("src/Routes.zig");
 pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
-// pub const TemplateFn = @import("src/jetzig.zig").TemplateFn;
-// pub const StaticRequest = @import("src/jetzig.zig").StaticRequest;
-// pub const http = @import("src/jetzig/http.zig");
-// pub const data = @import("src/jetzig/data.zig");
-// pub const views = @import("src/jetzig/views.zig");
-// pub const Route = views.Route;
-// pub const Job = @import("src/jetzig.zig").Job;
 
 const zmpl_build = @import("zmpl");
 
@@ -70,6 +63,8 @@ pub fn build(b: *std.Build) !void {
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
     b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
     b.modules.put("pg", pg_dep.module("pg")) catch @panic("Out of memory");
+    b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
+    b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
     jetquery_dep.module("jetquery").addImport("pg", pg_dep.module("pg"));
 
     const smtp_client_dep = b.dependency("smtp_client", .{
@@ -135,6 +130,8 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const zmpl_module = jetzig_dep.module("zmpl");
     const zmd_module = jetzig_dep.module("zmd");
     const pg_module = jetzig_dep.module("pg");
+    const jetquery_module = jetzig_dep.module("jetquery");
+    const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
 
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
@@ -271,10 +268,23 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const routes_step = b.step("jetzig:routes", "List all routes in your app");
     const exe_routes = b.addExecutable(.{
         .name = "routes",
-        .root_source_file = jetzig_dep.path("src/routes_exe.zig"),
+        .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    const migrate_step = b.step("jetzig:migrate", "Migrate your app's database");
+    const exe_migrate = b.addExecutable(.{
+        .name = "migrate",
+        .root_source_file = jetzig_dep.path("src/commands/migrate.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_migrate.root_module.addImport("jetquery", jetquery_module);
+    exe_migrate.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
+    const run_migrate_cmd = b.addRunArtifact(exe_migrate);
+    migrate_step.dependOn(&run_migrate_cmd.step);
+
     exe_routes.root_module.addImport("jetzig", jetzig_module);
     exe_routes.root_module.addImport("routes", routes_module);
     exe_routes.root_module.addImport("app", &exe.root_module);
