@@ -39,7 +39,6 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     };
 
     defer for (self.custom_routes.items) |custom_route| {
-        self.allocator.free(custom_route.view_name);
         self.allocator.free(custom_route.template);
     };
 
@@ -72,6 +71,12 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     );
     defer log_thread.join();
 
+    var repo = try jetzig.database.repo(
+        self.allocator,
+        jetzig.config.get(?jetzig.database.DatabaseOptions, "database"),
+    );
+    defer repo.deinit();
+
     if (server_options.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
@@ -98,6 +103,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         &store,
         &job_queue,
         &cache,
+        &repo,
     );
 
     var mutex = std.Thread.Mutex{};

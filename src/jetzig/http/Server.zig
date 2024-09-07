@@ -29,6 +29,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
+repo: *jetzig.jetquery.Repo,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
 
 const Server = @This();
@@ -44,6 +45,7 @@ pub fn init(
     store: *jetzig.kv.Store,
     job_queue: *jetzig.kv.Store,
     cache: *jetzig.kv.Store,
+    repo: *jetzig.jetquery.Repo,
 ) Server {
     return .{
         .allocator = allocator,
@@ -57,6 +59,7 @@ pub fn init(
         .store = store,
         .job_queue = job_queue,
         .cache = cache,
+        .repo = repo,
     };
 }
 
@@ -137,6 +140,7 @@ pub fn processNextRequest(
         httpz_request,
         httpz_response,
         &response,
+        self.repo,
     );
 
     try request.process();

@@ -14,12 +14,13 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
+    // FIXME: Load config from app
     var repo = try jetquery.Repo.init(
         allocator,
         .{
             .adapter = .{
                 .postgresql = .{
-                    .database = "postgres",
+                    .database = "jetzig_website",
                     .username = "postgres",
                     .hostname = "127.0.0.1",
                     .password = "password",
