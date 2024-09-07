@@ -43,6 +43,7 @@ rendered_view: ?jetzig.views.View = null,
 start_time: i128,
 store: RequestStore,
 cache: RequestStore,
+repo: *jetzig.jetquery.Repo,
 global: *jetzig.Global,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
@@ -104,6 +105,7 @@ pub fn init(
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
+    repo: *jetzig.jetquery.Repo,
 ) !Request {
     const method = switch (httpz_request.method) {
         .DELETE => Method.DELETE,
@@ -131,6 +133,7 @@ pub fn init(
         .start_time = start_time,
         .store = .{ .store = server.store, .allocator = allocator },
         .cache = .{ .store = server.cache, .allocator = allocator },
+        .repo = repo,
         .global = if (@hasField(jetzig.Global, "__jetzig_default"))
             undefined
         else
@@ -515,6 +518,15 @@ pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParam
         .name = name,
         .mail_params = mail_params,
     };
+}
+
+pub fn query(
+    self: *const Request,
+    comptime table: std.meta.DeclEnum(jetzig.config.get(type, "Schema")),
+) jetzig.jetquery.Query(@field(jetzig.config.get(type, "Schema"), @tagName(table))) {
+    return jetzig.jetquery.Query(
+        @field(jetzig.config.get(type, "Schema"), @tagName(table)),
+    ).init(self.allocator);
 }
 
 fn extensionFormat(self: *const Request) ?jetzig.http.Request.Format {

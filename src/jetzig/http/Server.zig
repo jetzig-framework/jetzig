@@ -19,6 +19,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
+repo: *jetzig.jetquery.Repo,
 global: *anyopaque,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
 
@@ -35,6 +36,7 @@ pub fn init(
     store: *jetzig.kv.Store,
     job_queue: *jetzig.kv.Store,
     cache: *jetzig.kv.Store,
+    repo: *jetzig.jetquery.Repo,
     global: *anyopaque,
 ) Server {
     return .{
@@ -49,6 +51,7 @@ pub fn init(
         .store = store,
         .job_queue = job_queue,
         .cache = cache,
+        .repo = repo,
         .global = global,
     };
 }
@@ -130,6 +133,7 @@ pub fn processNextRequest(
         httpz_request,
         httpz_response,
         &response,
+        self.repo,
     );
 
     try request.process();
