@@ -203,6 +203,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
     exe_static_routes.root_module.addImport("main", main_module);
+    // TODO: Prevent failure if schema file not present.
+    const schema_module = b.createModule(.{ .root_source_file = b.path("src/app/database/Schema.zig") });
+    schema_module.addImport("jetzig", jetzig_module);
+
+    exe_static_routes.root_module.addImport("routes", routes_module);
+    exe_static_routes.root_module.addImport("jetzig", jetzig_module);
+    exe_static_routes.root_module.addImport("zmpl", zmpl_module);
+    exe_static_routes.root_module.addImport("Schema", schema_module);
 
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));

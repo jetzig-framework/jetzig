@@ -8,6 +8,12 @@ pub const Global = if (@hasDecl(@import("main"), "Global"))
 else
     jetzig.DefaultGlobal;
 
+pub const database_lazy_connect = true;
+
+pub const jetzig_options = struct {
+    pub const Schema = @import("Schema");
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
