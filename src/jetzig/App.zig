@@ -11,6 +11,7 @@ environment: jetzig.Environment,
 allocator: std.mem.Allocator,
 custom_routes: std.ArrayList(jetzig.views.Route),
 initHook: ?*const fn (*App) anyerror!void,
+server: *jetzig.http.Server = undefined,
 
 pub fn deinit(self: *const App) void {
     @constCast(self).custom_routes.deinit();
@@ -74,6 +75,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     var repo = try jetzig.database.repo(
         self.allocator,
         jetzig.config.get(?jetzig.database.DatabaseOptions, "database"),
+        self,
     );
     defer repo.deinit();
 
@@ -105,6 +107,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         &cache,
         &repo,
     );
+    @constCast(self).server = &server;
 
     var mutex = std.Thread.Mutex{};
     var worker_pool = jetzig.jobs.Pool.init(

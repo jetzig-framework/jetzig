@@ -103,14 +103,6 @@ pub const database: ?db.DatabaseOptions = null;
 /// Database Schema.
 pub const Schema: type = struct {
     pub const _null = struct {}; // https://github.com/ziglang/zig/pull/21331
-    pub const Blogs = struct {
-        pub const table_name = "blogs";
-        pub const Definition = struct {
-            id: []const u8,
-            title: []const u8,
-            content: []const u8,
-        };
-    };
 };
 
 /// Key-value store options. Set backend to `.file` to use a file-based store.
