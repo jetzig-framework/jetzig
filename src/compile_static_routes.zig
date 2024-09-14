@@ -3,7 +3,6 @@ const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
 const markdown_fragments = @import("markdown_fragments");
-pub const database_lazy_connect = true;
 
 pub const jetzig_options = struct {
     pub const Schema = @import("Schema");

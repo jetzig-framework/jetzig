@@ -39,7 +39,7 @@ pub fn repo(allocator: std.mem.Allocator, maybe_options: ?DatabaseOptions, app: 
                         .username = options.username,
                         .password = options.password,
                         .database = options.database,
-                        .lazy_connect = @hasField(@import("root"), "database_lazy_connect"),
+                        .lazy_connect = true,
                     },
                 },
                 .eventCallback = Callback.callbackFn,
