@@ -17,6 +17,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * [zig-webui](https://github.com/webui-dev/zig-webui/)
 * [ZTS](https://github.com/zigster64/zts)
 * [Zine](https://github.com/kristoff-it/zine)
+* [Zinc](https://github.com/zon-dev/zinc/)
 
 ## Checklist
 
