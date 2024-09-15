@@ -4,7 +4,7 @@ const jetzig = @import("../../jetzig.zig");
 
 const Route = @This();
 
-pub const Action = enum { index, get, post, put, patch, delete, custom };
+pub const Action = enum { index, get, new, post, put, patch, delete, custom };
 pub const RenderFn = *const fn (Route, *jetzig.http.Request) anyerror!jetzig.views.View;
 pub const RenderStaticFn = *const fn (Route, *jetzig.http.StaticRequest) anyerror!jetzig.views.View;
 
@@ -17,6 +17,7 @@ const StaticViewWithId = *const fn (id: []const u8, *jetzig.http.StaticRequest, 
 pub const Formats = struct {
     index: ?[]const ResponseFormat = null,
     get: ?[]const ResponseFormat = null,
+    new: ?[]const ResponseFormat = null,
     post: ?[]const ResponseFormat = null,
     put: ?[]const ResponseFormat = null,
     patch: ?[]const ResponseFormat = null,
@@ -28,6 +29,7 @@ const ResponseFormat = enum { html, json };
 pub const DynamicViewType = union(Action) {
     index: ViewWithoutId,
     get: ViewWithId,
+    new: ViewWithoutId,
     post: ViewWithoutId,
     put: ViewWithId,
     patch: ViewWithId,
@@ -38,6 +40,7 @@ pub const DynamicViewType = union(Action) {
 pub const StaticViewType = union(Action) {
     index: StaticViewWithoutId,
     get: StaticViewWithId,
+    new: StaticViewWithoutId,
     post: StaticViewWithoutId,
     put: StaticViewWithId,
     patch: StaticViewWithId,
@@ -120,6 +123,7 @@ pub fn validateFormat(self: Route, request: *const jetzig.http.Request) bool {
     const supported_formats = switch (self.action) {
         .index => formats.index orelse return true,
         .get => formats.get orelse return true,
+        .new => formats.new orelse return true,
         .post => formats.post orelse return true,
         .put => formats.put orelse return true,
         .patch => formats.patch orelse return true,
@@ -156,6 +160,7 @@ fn renderFn(self: Route, request: *jetzig.http.Request) anyerror!jetzig.views.Vi
     switch (self.view.dynamic) {
         .index => |view| return try view(request, request.response_data),
         .get => |view| return try view(request.path.resource_id, request, request.response_data),
+        .new => |view| return try view(request, request.response_data),
         .post => |view| return try view(request, request.response_data),
         .patch => |view| return try view(request.path.resource_id, request, request.response_data),
         .put => |view| return try view(request.path.resource_id, request, request.response_data),
@@ -170,6 +175,7 @@ fn renderStaticFn(self: Route, request: *jetzig.http.StaticRequest) anyerror!jet
     switch (self.view.static) {
         .index => |view| return try view(request, request.response_data),
         .get => |view| return try view(try request.resourceId(), request, request.response_data),
+        .new => |view| return try view(request, request.response_data),
         .post => |view| return try view(request, request.response_data),
         .patch => |view| return try view(try request.resourceId(), request, request.response_data),
         .put => |view| return try view(try request.resourceId(), request, request.response_data),
