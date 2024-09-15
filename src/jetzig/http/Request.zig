@@ -632,6 +632,7 @@ pub fn match(self: *Request, route: jetzig.views.Route) !bool {
         .GET => switch (route.action) {
             .index => self.isMatch(.exact, route),
             .get => self.isMatch(.resource_id, route),
+            .new => self.isMatch(.exact, route),
             else => false,
         },
         .POST => switch (route.action) {
@@ -659,6 +660,8 @@ fn isMatch(self: *Request, match_type: enum { exact, resource_id }, route: jetzi
         .exact => self.path.base_path,
         .resource_id => self.path.directory,
     };
+
+    if (route.action == .get and std.mem.eql(u8, self.path.resource_id, "new")) return false;
 
     return std.mem.eql(u8, path, route.uri_path);
 }
