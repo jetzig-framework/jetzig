@@ -50,4 +50,7 @@ pub fn repo(allocator: std.mem.Allocator, maybe_options: ?DatabaseOptions, app: 
 
 fn eventCallback(event: jetzig.jetquery.events.Event, app: *const jetzig.App) !void {
     try app.server.logger.INFO("[database] {?s}", .{event.sql});
+    if (event.err) |err| {
+        try app.server.logger.ERROR("[database] {?s}", .{err.message});
+    }
 }

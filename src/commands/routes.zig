@@ -3,6 +3,8 @@ const routes = @import("routes");
 const app = @import("app");
 const jetzig = @import("jetzig");
 
+pub const jetzig_options = app.jetzig_options;
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -21,6 +23,7 @@ pub fn main() !void {
         const action = comptime switch (route.action) {
             .get => jetzig.colors.cyan("{s: <7}"),
             .index => jetzig.colors.blue("{s: <7}"),
+            .new => jetzig.colors.green("{s: <7}"),
             .post => jetzig.colors.yellow("{s: <7}"),
             .put => jetzig.colors.magenta("{s: <7}"),
             .patch => jetzig.colors.bright_magenta("{s: <7}"),
@@ -32,6 +35,7 @@ pub fn main() !void {
             @tagName(route.action),
             route.uri_path ++ switch (route.action) {
                 .index, .post => "",
+                .new => "/new",
                 .get, .put, .patch, .delete => "/:id",
                 .custom => "",
             },

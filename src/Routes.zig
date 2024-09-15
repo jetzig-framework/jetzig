@@ -55,7 +55,8 @@ const Function = struct {
         const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
         if (std.mem.eql(u8, path, "root")) return try self.routes.allocator.dupe(u8, "/");
 
-        return try std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ "/", path });
+        const maybe_new = if (std.mem.eql(u8, self.name, "new")) "/new" else "";
+        return try std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ "/", path, maybe_new });
     }
 
     pub fn lessThanFn(context: void, lhs: Function, rhs: Function) bool {
