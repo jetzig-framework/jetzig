@@ -109,6 +109,15 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
         std.process.exit(1);
     }
 
+    if (jetzig.jetquery.adapter == .null) {
+        try logger.WARN("No database configured in `config/database.zig`. Database operations are not available.", .{});
+    } else {
+        try logger.INFO(
+            "Using `{s}` database adapter with database: `{s}`.",
+            .{ @tagName(jetzig.jetquery.adapter), jetzig.jetquery.config.database.database },
+        );
+    }
+
     return .{
         .logger = logger,
         .secret = secret,
