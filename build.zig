@@ -52,6 +52,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+        .jetquery_config_path = @as([]const u8, "config/database.zig"),
     });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });

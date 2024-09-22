@@ -324,7 +324,9 @@ fn renderView(
             };
         }
     } else {
-        try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
+        if (!request.redirected) {
+            try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
+        }
         request.response_data.reset();
         return .{
             .view = .{ .data = request.response_data, .status_code = .no_content },

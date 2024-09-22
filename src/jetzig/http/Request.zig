@@ -520,15 +520,6 @@ pub fn mail(self: *Request, name: []const u8, mail_params: jetzig.mail.MailParam
     };
 }
 
-pub fn query(
-    self: *const Request,
-    comptime table: std.meta.DeclEnum(jetzig.config.get(type, "Schema")),
-) jetzig.jetquery.Query(@field(jetzig.config.get(type, "Schema"), @tagName(table))) {
-    return jetzig.jetquery.Query(
-        @field(jetzig.config.get(type, "Schema"), @tagName(table)),
-    ).init(self.allocator);
-}
-
 fn extensionFormat(self: *const Request) ?jetzig.http.Request.Format {
     const extension = self.path.extension orelse return null;
     if (std.mem.eql(u8, extension, ".html")) {
