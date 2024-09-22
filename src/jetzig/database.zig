@@ -13,12 +13,11 @@ pub const DatabaseOptions = struct {
 
 pub const Schema = jetzig.get(type, "Schema");
 
-pub fn repo(allocator: std.mem.Allocator, maybe_options: ?DatabaseOptions, app: *const jetzig.App) !jetzig.jetquery.Repo {
-    const options = maybe_options orelse return try jetzig.jetquery.Repo.init(
-        allocator,
-        .{ .adapter = .null },
-    );
+pub fn Query(comptime table: std.meta.DeclEnum(jetzig.config.get(type, "Schema"))) type {
+    return jetzig.jetquery.Query(@field(jetzig.config.get(type, "Schema"), @tagName(table)));
+}
 
+pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !jetzig.jetquery.Repo {
     // XXX: Is this terrible ?
     const Callback = struct {
         var jetzig_app: *const jetzig.App = undefined;
@@ -28,24 +27,10 @@ pub fn repo(allocator: std.mem.Allocator, maybe_options: ?DatabaseOptions, app: 
     };
     Callback.jetzig_app = app;
 
-    return switch (options.adapter) {
-        .postgresql => try jetzig.jetquery.Repo.init(
-            allocator,
-            .{
-                .adapter = .{
-                    .postgresql = .{
-                        .hostname = options.hostname,
-                        .port = options.port,
-                        .username = options.username,
-                        .password = options.password,
-                        .database = options.database,
-                        .lazy_connect = true,
-                    },
-                },
-                .eventCallback = Callback.callbackFn,
-            },
-        ),
-    };
+    return try jetzig.jetquery.Repo.loadConfig(
+        allocator,
+        .{ .eventCallback = Callback.callbackFn, .lazy_connect = true },
+    );
 }
 
 fn eventCallback(event: jetzig.jetquery.events.Event, app: *const jetzig.App) !void {

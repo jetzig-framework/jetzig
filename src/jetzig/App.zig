@@ -70,11 +70,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     );
     defer log_thread.join();
 
-    var repo = try jetzig.database.repo(
-        self.allocator,
-        jetzig.config.get(?jetzig.database.DatabaseOptions, "database"),
-        self,
-    );
+    var repo = try jetzig.database.repo(self.allocator, self);
     defer repo.deinit();
 
     if (self.env.detach) {
