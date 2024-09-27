@@ -4,6 +4,7 @@ pub const zmpl = @import("zmpl").zmpl;
 pub const zmd = @import("zmd").zmd;
 pub const jetkv = @import("jetkv").jetkv;
 pub const jetquery = @import("jetquery");
+pub const jetcommon = @import("jetcommon");
 
 pub const http = @import("jetzig/http.zig");
 pub const loggers = @import("jetzig/loggers.zig");
@@ -20,6 +21,10 @@ pub const kv = @import("jetzig/kv.zig");
 pub const database = @import("jetzig/database.zig");
 pub const testing = @import("jetzig/testing.zig");
 pub const config = @import("jetzig/config.zig");
+
+pub const DateTime = jetcommon.types.DateTime;
+pub const Time = jetcommon.types.Time;
+pub const Date = jetcommon.types.Date;
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.

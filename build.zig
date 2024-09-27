@@ -54,6 +54,7 @@ pub fn build(b: *std.Build) !void {
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
     });
+    const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const pg_dep = b.dependency("pg", .{ .target = target, .optimize = optimize });
@@ -65,6 +66,7 @@ pub fn build(b: *std.Build) !void {
     b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
     b.modules.put("pg", pg_dep.module("pg")) catch @panic("Out of memory");
     b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
+    b.modules.put("jetcommon", jetcommon_dep.module("jetcommon")) catch @panic("Out of memory");
     b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
     jetquery_dep.module("jetquery").addImport("pg", pg_dep.module("pg"));
 
@@ -79,6 +81,7 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
     jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
     jetzig_module.addImport("jetquery", jetquery_dep.module("jetquery"));
+    jetzig_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
     jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
@@ -99,6 +102,8 @@ pub fn build(b: *std.Build) !void {
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
+    main_tests.root_module.addImport("jetquery", jetquery_dep.module("jetquery"));
+    main_tests.root_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
     main_tests.root_module.addImport("httpz", httpz_dep.module("httpz"));
     main_tests.root_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     const run_main_tests = b.addRunArtifact(main_tests);
@@ -132,6 +137,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const zmd_module = jetzig_dep.module("zmd");
     const pg_module = jetzig_dep.module("pg");
     const jetquery_module = jetzig_dep.module("jetquery");
+    const jetcommon_module = jetzig_dep.module("jetcommon");
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
 
     exe.root_module.addImport("jetzig", jetzig_module);
@@ -290,6 +296,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .optimize = optimize,
     });
     exe_migrate.root_module.addImport("jetquery", jetquery_module);
+    exe_migrate.root_module.addImport("jetcommon", jetcommon_module);
     exe_migrate.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
     const run_migrate_cmd = b.addRunArtifact(exe_migrate);
     migrate_step.dependOn(&run_migrate_cmd.step);
