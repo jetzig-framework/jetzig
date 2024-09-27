@@ -5,7 +5,7 @@ const httpz = @import("httpz");
 const jetzig = @import("../../jetzig.zig");
 
 allocator: std.mem.Allocator,
-key_value: httpz.key_value.MultiFormKeyValue,
+key_value: *httpz.key_value.MultiFormKeyValue,
 
 const MultipartQuery = @This();
 

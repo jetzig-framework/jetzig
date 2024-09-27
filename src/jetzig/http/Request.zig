@@ -121,7 +121,7 @@ pub fn init(
         .allocator = allocator,
         .path = jetzig.http.Path.init(httpz_request.url.raw),
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator, &httpz_request.headers),
+        .headers = jetzig.http.Headers.init(allocator, httpz_request.headers),
         .server = server,
         .response = response,
         .response_data = response_data,

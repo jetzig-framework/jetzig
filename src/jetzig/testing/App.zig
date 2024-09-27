@@ -264,7 +264,7 @@ fn stubbedResponse(allocator: std.mem.Allocator) !httpz.Response {
         .conn = undefined,
         .pos = 0,
         .status = 200,
-        .headers = try keyValue(allocator, 32),
+        .headers = (try keyValue(allocator, 32)).*,
         .content_type = null,
         .arena = allocator,
         .written = false,
@@ -275,12 +275,16 @@ fn stubbedResponse(allocator: std.mem.Allocator) !httpz.Response {
     };
 }
 
-fn keyValue(allocator: std.mem.Allocator, max: usize) !httpz.key_value.KeyValue {
-    return try httpz.key_value.KeyValue.init(allocator, max);
+fn keyValue(allocator: std.mem.Allocator, max: usize) !*httpz.key_value.StringKeyValue {
+    const key_value = try allocator.create(httpz.key_value.StringKeyValue);
+    key_value.* = try httpz.key_value.StringKeyValue.init(allocator, max);
+    return key_value;
 }
 
-fn multiFormKeyValue(allocator: std.mem.Allocator, max: usize) !httpz.key_value.MultiFormKeyValue {
-    return try httpz.key_value.MultiFormKeyValue.init(allocator, max);
+fn multiFormKeyValue(allocator: std.mem.Allocator, max: usize) !*httpz.key_value.MultiFormKeyValue {
+    const key_value = try allocator.create(httpz.key_value.MultiFormKeyValue);
+    key_value.* = try httpz.key_value.MultiFormKeyValue.init(allocator, max);
+    return key_value;
 }
 
 fn createStore(allocator: std.mem.Allocator) !*jetzig.kv.Store {
