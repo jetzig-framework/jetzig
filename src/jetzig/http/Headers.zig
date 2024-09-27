@@ -5,14 +5,14 @@ const httpz = @import("httpz");
 const jetzig = @import("../../jetzig.zig");
 
 allocator: std.mem.Allocator,
-httpz_headers: *httpz.key_value.KeyValue,
+httpz_headers: *httpz.key_value.StringKeyValue,
 new_headers: std.ArrayList(Header),
 
 const Headers = @This();
 const Header = struct { name: []const u8, value: []const u8 };
 const max_bytes_header_name = jetzig.config.get(u8, "max_bytes_header_name");
 
-pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.KeyValue) Headers {
+pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.StringKeyValue) Headers {
     return .{
         .allocator = allocator,
         .httpz_headers = httpz_headers,
@@ -121,7 +121,7 @@ pub fn iterator(self: Headers) Iterator {
 
 test "append (deprecated)" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
@@ -130,7 +130,7 @@ test "append (deprecated)" {
 
 test "add" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
@@ -139,7 +139,7 @@ test "add" {
 
 test "get with multiple headers (bugfix regression test)" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
@@ -149,7 +149,7 @@ test "get with multiple headers (bugfix regression test)" {
 
 test "getAll" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("foo", "bar");
@@ -162,7 +162,7 @@ test "getAll" {
 
 test "add too many headers" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     for (0..10) |_| try headers.append("foo", "bar");
@@ -172,7 +172,7 @@ test "add too many headers" {
 
 test "case-insensitive matching" {
     const allocator = std.testing.allocator;
-    var httpz_headers = try httpz.key_value.KeyValue.init(allocator, 10);
+    var httpz_headers = try httpz.key_value.StringKeyValue.init(allocator, 10);
     var headers = Headers.init(allocator, &httpz_headers);
     defer headers.deinit();
     try headers.append("Content-Type", "bar");
