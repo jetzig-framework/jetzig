@@ -11,10 +11,10 @@ pub const DatabaseOptions = struct {
     database: []const u8,
 };
 
-pub const Schema = jetzig.get(type, "Schema");
+pub const Schema = jetzig.config.get(type, "Schema");
 
-pub fn Query(comptime table: std.meta.DeclEnum(jetzig.config.get(type, "Schema"))) type {
-    return jetzig.jetquery.Query(@field(jetzig.config.get(type, "Schema"), @tagName(table)));
+pub fn Query(comptime table: jetzig.jetquery.DeclEnum(jetzig.config.get(type, "Schema"))) type {
+    return jetzig.jetquery.Query(Schema, table);
 }
 
 pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !jetzig.jetquery.Repo {
