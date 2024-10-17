@@ -38,7 +38,7 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
 
     try mailer.deliverFn(allocator, &mail_params, &data, params.get("params").?, env);
 
-    const mail = jetzig.mail.Mail.init(allocator, .{
+    const mail = jetzig.mail.Mail.init(allocator, env, .{
         .subject = mail_params.get(.subject) orelse "(No subject)",
         .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
         .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,

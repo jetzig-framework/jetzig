@@ -6,19 +6,9 @@ const zmpl = @import("zmpl");
 const zmd = @import("zmd");
 const httpz = @import("httpz");
 
-pub const ServerOptions = struct {
-    logger: jetzig.loggers.Logger,
-    bind: []const u8,
-    port: u16,
-    secret: []const u8,
-    detach: bool,
-    environment: jetzig.Environment.EnvironmentName,
-    log_queue: *jetzig.loggers.LogQueue,
-};
-
 allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
-options: ServerOptions,
+env: jetzig.Environment,
 routes: []*jetzig.views.Route,
 custom_routes: []jetzig.views.Route,
 job_definitions: []const jetzig.JobDefinition,
@@ -35,7 +25,7 @@ const Server = @This();
 
 pub fn init(
     allocator: std.mem.Allocator,
-    options: ServerOptions,
+    env: jetzig.Environment,
     routes: []*jetzig.views.Route,
     custom_routes: []jetzig.views.Route,
     job_definitions: []const jetzig.JobDefinition,
@@ -47,8 +37,8 @@ pub fn init(
 ) Server {
     return .{
         .allocator = allocator,
-        .logger = options.logger,
-        .options = options,
+        .logger = env.logger,
+        .env = env,
         .routes = routes,
         .custom_routes = custom_routes,
         .job_definitions = job_definitions,
@@ -62,8 +52,8 @@ pub fn init(
 
 pub fn deinit(self: *Server) void {
     if (self.initialized) self.std_net_server.deinit();
-    self.allocator.free(self.options.secret);
-    self.allocator.free(self.options.bind);
+    self.allocator.free(self.env.secret);
+    self.allocator.free(self.env.bind);
 }
 
 const Dispatcher = struct {
@@ -82,8 +72,8 @@ pub fn listen(self: *Server) !void {
     var httpz_server = try httpz.Server(Dispatcher).init(
         self.allocator,
         .{
-            .port = self.options.port,
-            .address = self.options.bind,
+            .port = self.env.port,
+            .address = self.env.bind,
             .thread_pool = .{
                 .count = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount()),
                 .buffer_size = jetzig.config.get(usize, "buffer_size"),
@@ -102,9 +92,9 @@ pub fn listen(self: *Server) !void {
     defer httpz_server.deinit();
 
     try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
-        self.options.bind,
-        self.options.port,
-        @tagName(self.options.environment),
+        self.env.bind,
+        self.env.port,
+        @tagName(self.env.environment),
     });
 
     self.initialized = true;
@@ -262,7 +252,7 @@ fn renderJSON(
 
         if (data.value) |_| {} else _ = try data.object();
 
-        rendered.content = if (self.options.environment == .development)
+        rendered.content = if (self.env.environment == .development)
             try data.toJsonOptions(.{ .pretty = true, .color = false })
         else
             try data.toJson();

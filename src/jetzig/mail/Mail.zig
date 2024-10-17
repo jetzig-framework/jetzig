@@ -8,16 +8,19 @@ allocator: std.mem.Allocator,
 config: jetzig.mail.SMTPConfig,
 params: jetzig.mail.MailParams,
 boundary: u32,
+env: jetzig.jobs.JobEnv,
 
 const Mail = @This();
 
 pub fn init(
     allocator: std.mem.Allocator,
+    env: jetzig.jobs.JobEnv,
     params: jetzig.mail.MailParams,
 ) Mail {
     return .{
         .allocator = allocator,
         .config = jetzig.config.get(jetzig.mail.SMTPConfig, "smtp"),
+        .env = env,
         .params = params,
         .boundary = std.crypto.random.int(u32),
     };
@@ -31,7 +34,7 @@ pub fn deliver(self: Mail) !void {
         .from = self.params.from.?,
         .to = self.params.to.?,
         .data = data,
-    }, self.config.toSMTP(self.allocator));
+    }, try self.config.toSMTP(self.allocator, self.env));
 }
 
 pub fn generateData(self: Mail) ![]const u8 {
@@ -140,6 +143,7 @@ inline fn isEncoded(char: u8) bool {
 test "HTML part only" {
     const mail = Mail{
         .allocator = std.testing.allocator,
+        .env = undefined,
         .config = .{},
         .boundary = 123456789,
         .params = .{
@@ -175,6 +179,7 @@ test "HTML part only" {
 test "text part only" {
     const mail = Mail{
         .allocator = std.testing.allocator,
+        .env = undefined,
         .config = .{},
         .boundary = 123456789,
         .params = .{
@@ -210,6 +215,7 @@ test "text part only" {
 test "HTML and text parts" {
     const mail = Mail{
         .allocator = std.testing.allocator,
+        .env = undefined,
         .config = .{},
         .boundary = 123456789,
         .params = .{
@@ -252,6 +258,7 @@ test "HTML and text parts" {
 test "long content encoding" {
     const mail = Mail{
         .allocator = std.testing.allocator,
+        .env = undefined,
         .config = .{},
         .boundary = 123456789,
         .params = .{
@@ -301,6 +308,7 @@ test "long content encoding" {
 test "non-latin alphabet encoding" {
     const mail = Mail{
         .allocator = std.testing.allocator,
+        .env = undefined,
         .config = .{},
         .boundary = 123456789,
         .params = .{
@@ -340,4 +348,33 @@ test "non-latin alphabet encoding" {
     defer std.testing.allocator.free(expected);
 
     try std.testing.expectEqualStrings(expected, actual);
+}
+
+test "environment SMTP config" {
+    var env: jetzig.jobs.JobEnv = undefined;
+    var env_map = std.process.EnvMap.init(std.testing.allocator);
+    defer env_map.deinit();
+
+    try env_map.put("JETZIG_SMTP_PORT", "999");
+    try env_map.put("JETZIG_SMTP_ENCRYPTION", "start_tls");
+    try env_map.put("JETZIG_SMTP_HOST", "smtp.example.com");
+    try env_map.put("JETZIG_SMTP_USERNAME", "example-username");
+    try env_map.put("JETZIG_SMTP_PASSWORD", "example-password");
+
+    env.vars = jetzig.Environment.Vars{ .env_map = env_map };
+
+    const mail = Mail{
+        .allocator = undefined,
+        .env = undefined,
+        .config = .{},
+        .boundary = undefined,
+        .params = undefined,
+    };
+
+    const config = try mail.config.toSMTP(std.testing.allocator, env);
+    try std.testing.expect(config.port == 999);
+    try std.testing.expect(config.encryption == .start_tls);
+    try std.testing.expectEqualStrings("smtp.example.com", config.host);
+    try std.testing.expectEqualStrings("example-username", config.username.?);
+    try std.testing.expectEqualStrings("example-password", config.password.?);
 }

@@ -7,8 +7,54 @@ const jetzig = @import("../jetzig.zig");
 const Environment = @This();
 
 allocator: std.mem.Allocator,
+logger: jetzig.loggers.Logger,
+bind: []const u8,
+port: u16,
+secret: []const u8,
+detach: bool,
+environment: jetzig.Environment.EnvironmentName,
+vars: jetzig.Environment.Vars,
+log_queue: *jetzig.loggers.LogQueue,
 
 pub const EnvironmentName = enum { development, production, testing };
+pub const Vars = struct {
+    env_map: std.process.EnvMap,
+
+    pub fn get(self: Vars, key: []const u8) ?[]const u8 {
+        return self.env_map.get(key);
+    }
+
+    pub fn getT(self: Vars, T: type, key: []const u8) !switch (@typeInfo(T)) {
+        .bool => T,
+        else => ?T,
+    } {
+        const value = self.env_map.get(key) orelse return if (@typeInfo(T) == .bool)
+            false
+        else
+            null;
+
+        return switch (@typeInfo(T)) {
+            .int => try std.fmt.parseInt(T, value, 10),
+            .bool => if (std.mem.eql(u8, value, "1"))
+                true
+            else if (std.mem.eql(u8, value, "0"))
+                false
+            else
+                error.JetzigInvalidEnvironmentVariableBooleanValue,
+            .@"enum" => parseEnum(T, value),
+            else => @compileError("Unsupported environment value type: `" ++ @typeName(T) ++ "`"),
+        };
+    }
+
+    pub fn deinit(self: Vars) void {
+        var env_map = self.env_map;
+        env_map.deinit();
+    }
+
+    fn parseEnum(E: type, value: []const u8) ?E {
+        return std.meta.stringToEnum(E, value);
+    }
+};
 
 const Options = struct {
     help: bool = false,
@@ -54,17 +100,12 @@ const Options = struct {
     };
 };
 
-pub fn init(allocator: std.mem.Allocator) Environment {
-    return .{ .allocator = allocator };
-}
-
-/// Generate server initialization options using command line args with defaults.
-pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
-    const options = try args.parseForCurrentProcess(Options, self.allocator, .print);
+pub fn init(allocator: std.mem.Allocator) !Environment {
+    const options = try args.parseForCurrentProcess(Options, allocator, .print);
     defer options.deinit();
 
-    const log_queue = try self.allocator.create(jetzig.loggers.LogQueue);
-    log_queue.* = jetzig.loggers.LogQueue.init(self.allocator);
+    const log_queue = try allocator.create(jetzig.loggers.LogQueue);
+    log_queue.* = jetzig.loggers.LogQueue.init(allocator);
     try log_queue.setFiles(
         try getLogFile(.stdout, options.options),
         try getLogFile(.stderr, options.options),
@@ -77,18 +118,19 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     }
 
     const environment = options.options.environment;
+    const vars = Vars{ .env_map = try std.process.getEnvMap(allocator) };
 
     var logger = switch (options.options.@"log-format") {
         .development => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
-                self.allocator,
+                allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
                 log_queue,
             ),
         },
         .json => jetzig.loggers.Logger{
             .json_logger = jetzig.loggers.JsonLogger.init(
-                self.allocator,
+                allocator,
                 resolveLogLevel(options.options.@"log-level", environment),
                 log_queue,
             ),
@@ -101,7 +143,7 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     }
 
     const secret_len = jetzig.http.Session.Cipher.key_length;
-    const secret = (try self.getSecret(&logger, secret_len, environment))[0..secret_len];
+    const secret = (try getSecret(allocator, &logger, secret_len, environment))[0..secret_len];
 
     if (secret.len != secret_len) {
         try logger.ERROR("Expected secret length: {}, found: {}.", .{ secret_len, secret.len });
@@ -110,14 +152,22 @@ pub fn getServerOptions(self: Environment) !jetzig.http.Server.ServerOptions {
     }
 
     return .{
+        .allocator = allocator,
         .logger = logger,
         .secret = secret,
-        .bind = try self.allocator.dupe(u8, options.options.bind),
+        .bind = try allocator.dupe(u8, options.options.bind),
         .port = options.options.port,
         .detach = options.options.detach,
         .environment = environment,
+        .vars = vars,
         .log_queue = log_queue,
     };
+}
+
+pub fn deinit(self: Environment) void {
+    self.vars.deinit();
+    self.allocator.free(self.bind);
+    self.allocator.free(self.secret);
 }
 
 fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
@@ -139,10 +189,15 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
     return file;
 }
 
-fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u10, environment: EnvironmentName) ![]const u8 {
+fn getSecret(
+    allocator: std.mem.Allocator,
+    logger: *jetzig.loggers.Logger,
+    comptime len: u10,
+    environment: EnvironmentName,
+) ![]const u8 {
     const env_var = "JETZIG_SECRET";
 
-    return std.process.getEnvVarOwned(self.allocator, env_var) catch |err| {
+    return std.process.getEnvVarOwned(allocator, env_var) catch |err| {
         switch (err) {
             error.EnvironmentVariableNotFound => {
                 if (environment != .development) {
@@ -151,7 +206,7 @@ fn getSecret(self: Environment, logger: *jetzig.loggers.Logger, comptime len: u1
                     std.process.exit(1);
                 }
 
-                const secret = try jetzig.util.generateSecret(self.allocator, len);
+                const secret = try jetzig.util.generateSecret(allocator, len);
                 try logger.WARN(
                     "Running in development mode, using auto-generated cookie encryption key: {s}",
                     .{secret},

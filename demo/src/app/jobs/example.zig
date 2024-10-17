@@ -9,6 +9,7 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
 
     const mail = jetzig.mail.Mail.init(
         allocator,
+        env,
         .{
             .subject = "Hello!!!",
             .from = "bob@jetzig.dev",

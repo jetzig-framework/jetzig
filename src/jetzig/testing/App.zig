@@ -87,10 +87,16 @@ pub fn request(
 
     const logger = jetzig.loggers.Logger{ .test_logger = jetzig.loggers.TestLogger{} };
     var log_queue = jetzig.loggers.LogQueue.init(allocator);
+    // We init the `std.process.EnvMap` directly here (instead of calling `std.process.getEnvMap`
+    // to ensure that tests run in a clean environment. Users can manually add items to the
+    // environment within a test if required.
+    const vars = jetzig.Environment.Vars{ .env_map = std.process.EnvMap.init(allocator) };
     var server = jetzig.http.Server{
         .allocator = allocator,
         .logger = logger,
-        .options = .{
+        .env = .{
+            .allocator = allocator,
+            .vars = vars,
             .logger = logger,
             .bind = undefined,
             .port = undefined,

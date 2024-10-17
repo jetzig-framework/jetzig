@@ -13,6 +13,8 @@ pub const JobEnv = struct {
     logger: jetzig.loggers.Logger,
     /// The current server environment, `enum { development, production }`
     environment: jetzig.Environment.EnvironmentName,
+    /// Environment configured at server launch
+    vars: jetzig.Environment.Vars,
     /// All routes detected by Jetzig on startup
     routes: []*const jetzig.Route,
     /// All mailers detected by Jetzig on startup

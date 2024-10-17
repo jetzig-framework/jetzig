@@ -7,7 +7,7 @@ const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
 const App = @This();
 
-environment: jetzig.Environment,
+env: jetzig.Environment,
 allocator: std.mem.Allocator,
 custom_routes: std.ArrayList(jetzig.views.Route),
 initHook: ?*const fn (*App) anyerror!void,
@@ -25,6 +25,8 @@ const AppOptions = struct {};
 /// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     _ = options; // See `AppOptions`
+
+    defer self.env.deinit();
 
     if (self.initHook) |hook| try hook(@constCast(self));
 
@@ -61,18 +63,14 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     );
     defer cache.deinit();
 
-    const server_options = try self.environment.getServerOptions();
-    defer self.allocator.free(server_options.bind);
-    defer self.allocator.free(server_options.secret);
-
     var log_thread = try std.Thread.spawn(
         .{ .allocator = self.allocator },
         jetzig.loggers.LogQueue.Reader.publish,
-        .{ &server_options.log_queue.reader, .{} },
+        .{ &self.env.log_queue.reader, .{} },
     );
     defer log_thread.join();
 
-    if (server_options.detach) {
+    if (self.env.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
         var child_argv = std.ArrayList([]const u8).init(self.allocator);
@@ -89,7 +87,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
 
     var server = jetzig.http.Server.init(
         self.allocator,
-        server_options,
+        self.env,
         routes,
         self.custom_routes.items,
         &routes_module.jobs,
@@ -106,7 +104,8 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         &job_queue,
         .{
             .logger = server.logger,
-            .environment = server.options.environment,
+            .vars = self.env.vars,
+            .environment = self.env.environment,
             .routes = routes,
             .jobs = &routes_module.jobs,
             .mailers = &routes_module.mailers,
@@ -127,7 +126,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
             error.AddressInUse => {
                 try server.logger.ERROR(
                     "Socket unavailable: {s}:{} - unable to start server.\n",
-                    .{ server_options.bind, server_options.port },
+                    .{ self.env.bind, self.env.port },
                 );
                 return;
             },

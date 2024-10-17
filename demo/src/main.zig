@@ -116,6 +116,13 @@ pub const jetzig_options = struct {
 
     /// SMTP configuration for Jetzig Mail. It is recommended to use a local SMTP relay,
     /// e.g.: https://github.com/juanluisbaptiste/docker-postfix
+    ///
+    /// Each configuration option can be overridden with environment variables:
+    /// `JETZIG_SMTP_PORT`
+    /// `JETZIG_SMTP_ENCRYPTION`
+    /// `JETZIG_SMTP_HOST`
+    /// `JETZIG_SMTP_USERNAME`
+    /// `JETZIG_SMTP_PASSWORD`
     // pub const smtp: jetzig.mail.SMTPConfig = .{
     //     .port = 25,
     //     .encryption = .none, // .insecure, .none, .tls, .start_tls

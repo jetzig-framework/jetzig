@@ -217,13 +217,10 @@ pub const initHook: ?*const fn (*App) anyerror!void = if (@hasDecl(root, "init")
 /// Initialize a new Jetzig app. Call this from `src/main.zig` and then call
 /// `start(@import("routes").routes)` on the returned value.
 pub fn init(allocator: std.mem.Allocator) !App {
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-
-    const environment = Environment.init(allocator);
+    const env = try Environment.init(allocator);
 
     return .{
-        .environment = environment,
+        .env = env,
         .allocator = allocator,
         .custom_routes = std.ArrayList(views.Route).init(allocator),
         .initHook = initHook,

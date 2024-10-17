@@ -393,7 +393,11 @@ pub fn session(self: *Request) !*jetzig.http.Session {
     if (self._session) |capture| return capture;
 
     const local_session = try self.allocator.create(jetzig.http.Session);
-    local_session.* = jetzig.http.Session.init(self.allocator, try self.cookies(), self.server.options.secret);
+    local_session.* = jetzig.http.Session.init(
+        self.allocator,
+        try self.cookies(),
+        self.server.env.secret,
+    );
     local_session.parse() catch |err| {
         switch (err) {
             error.JetzigInvalidSessionCookie => {
@@ -477,7 +481,8 @@ const RequestMail = struct {
                 self.request.allocator,
                 mail_job.params,
                 jetzig.jobs.JobEnv{
-                    .environment = self.request.server.options.environment,
+                    .vars = self.request.server.env.vars,
+                    .environment = self.request.server.env.environment,
                     .logger = self.request.server.logger,
                     .routes = self.request.server.routes,
                     .mailers = self.request.server.mailer_definitions,
