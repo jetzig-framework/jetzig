@@ -235,6 +235,16 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         exe_unit_tests.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
     }
 
+    if (exe.root_module.link_libc == true) {
+        exe_static_routes.linkLibC();
+        exe_unit_tests.linkLibC();
+    }
+
+    for (exe.root_module.link_objects.items) |link_object| {
+        try exe_static_routes.root_module.link_objects.append(b.allocator, link_object);
+        try exe_unit_tests.root_module.link_objects.append(b.allocator, link_object);
+    }
+
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
     const test_step = b.step("jetzig:test", "Run tests");
