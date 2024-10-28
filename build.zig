@@ -190,9 +190,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .optimize = optimize,
     });
 
+    const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
+    exe_static_routes.root_module.addImport("main", main_module);
 
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));
@@ -233,6 +235,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_unit_tests.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
+        main_module.addImport(import.key_ptr.*, import.value_ptr.*);
     }
 
     if (exe.root_module.link_libc == true) {
@@ -243,6 +246,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     for (exe.root_module.link_objects.items) |link_object| {
         try exe_static_routes.root_module.link_objects.append(b.allocator, link_object);
         try exe_unit_tests.root_module.link_objects.append(b.allocator, link_object);
+        try main_module.link_objects.append(b.allocator, link_object);
     }
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);

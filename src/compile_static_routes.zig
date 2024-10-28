@@ -3,7 +3,10 @@ const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
 const markdown_fragments = @import("markdown_fragments");
-// const jetzig_options = @import("jetzig_app").jetzig_options;
+pub const Global = if (@hasDecl(@import("main"), "Global"))
+    @import("main").Global
+else
+    jetzig.DefaultGlobal;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};

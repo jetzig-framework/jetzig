@@ -65,6 +65,8 @@ pub const MailerDefinition = mail.MailerDefinition;
 pub const Logger = loggers.Logger;
 
 pub const root = @import("root");
+pub const Global = if (@hasDecl(root, "Global")) root.Global else DefaultGlobal;
+pub const DefaultGlobal = struct { __jetzig_default: bool };
 
 /// Global configuration. Override these values by defining in `src/main.zig` with:
 /// ```zig

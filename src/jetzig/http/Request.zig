@@ -43,6 +43,7 @@ rendered_view: ?jetzig.views.View = null,
 start_time: i128,
 store: RequestStore,
 cache: RequestStore,
+global: *jetzig.Global,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
 pub const RequestStore = struct {
@@ -130,6 +131,10 @@ pub fn init(
         .start_time = start_time,
         .store = .{ .store = server.store, .allocator = allocator },
         .cache = .{ .store = server.cache, .allocator = allocator },
+        .global = if (@hasField(jetzig.Global, "__jetzig_default"))
+            undefined
+        else
+            @ptrCast(@alignCast(server.global)),
     };
 }
 

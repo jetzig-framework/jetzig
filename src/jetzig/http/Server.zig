@@ -19,6 +19,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
+global: *anyopaque,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
 
 const Server = @This();
@@ -34,6 +35,7 @@ pub fn init(
     store: *jetzig.kv.Store,
     job_queue: *jetzig.kv.Store,
     cache: *jetzig.kv.Store,
+    global: *anyopaque,
 ) Server {
     return .{
         .allocator = allocator,
@@ -47,6 +49,7 @@ pub fn init(
         .store = store,
         .job_queue = job_queue,
         .cache = cache,
+        .global = global,
     };
 }
 
