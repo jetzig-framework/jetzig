@@ -2,22 +2,15 @@ const std = @import("std");
 
 const jetzig = @import("../jetzig.zig");
 
-pub const DatabaseOptions = struct {
-    adapter: enum { postgresql },
-    hostname: []const u8,
-    port: u16,
-    username: []const u8,
-    password: []const u8,
-    database: []const u8,
-};
-
 pub const Schema = jetzig.config.get(type, "Schema");
+pub const adapter = jetzig.jetquery.config.database.adapter;
+pub const Repo = jetzig.jetquery.Repo(jetzig.jetquery.config.database.adapter, Schema);
 
-pub fn Query(comptime table: jetzig.jetquery.DeclEnum(jetzig.config.get(type, "Schema"))) type {
-    return jetzig.jetquery.Query(Schema, table);
+pub fn Query(comptime model: anytype) type {
+    return jetzig.jetquery.Query(adapter, Schema, model);
 }
 
-pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !jetzig.jetquery.Repo {
+pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !Repo {
     // XXX: Is this terrible ?
     const Callback = struct {
         var jetzig_app: *const jetzig.App = undefined;
@@ -27,7 +20,7 @@ pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !jetzig.jetque
     };
     Callback.jetzig_app = app;
 
-    return try jetzig.jetquery.Repo.loadConfig(
+    return try Repo.loadConfig(
         allocator,
         .{ .eventCallback = Callback.callbackFn, .lazy_connect = true },
     );

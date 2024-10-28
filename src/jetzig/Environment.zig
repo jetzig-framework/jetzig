@@ -151,12 +151,12 @@ pub fn init(allocator: std.mem.Allocator) !Environment {
         std.process.exit(1);
     }
 
-    if (jetzig.jetquery.adapter == .null) {
+    if (jetzig.database.adapter == .null) {
         try logger.WARN("No database configured in `config/database.zig`. Database operations are not available.", .{});
     } else {
         try logger.INFO(
             "Using `{s}` database adapter with database: `{s}`.",
-            .{ @tagName(jetzig.jetquery.adapter), jetzig.jetquery.config.database.database },
+            .{ @tagName(jetzig.database.adapter), jetzig.jetquery.config.database.database },
         );
     }
 

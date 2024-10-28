@@ -19,7 +19,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
-repo: *jetzig.jetquery.Repo,
+repo: *jetzig.database.Repo,
 global: *anyopaque,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
 
@@ -36,7 +36,7 @@ pub fn init(
     store: *jetzig.kv.Store,
     job_queue: *jetzig.kv.Store,
     cache: *jetzig.kv.Store,
-    repo: *jetzig.jetquery.Repo,
+    repo: *jetzig.database.Repo,
     global: *anyopaque,
 ) Server {
     return .{
