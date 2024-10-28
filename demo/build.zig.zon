@@ -6,6 +6,10 @@
         .jetzig = .{
             .path = "../",
         },
+        .pg = .{
+            .url = "https://github.com/karlseguin/pg.zig/archive/d3ff7ab558b6ec1cc9b0de1606dbea364cf2d3b7.tar.gz",
+            .hash = "1220829e07672808e21d2b07544ed3567299b03d4fb694cd6dd0ece6c433b3a1309f",
+        },
     },
     .paths = .{
         // This makes *all* files, recursively, included in this package. It is generally

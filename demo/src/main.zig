@@ -4,6 +4,9 @@ const builtin = @import("builtin");
 const jetzig = @import("jetzig");
 const zmd = @import("zmd");
 
+const pg = @import("pg");
+pub const Global = pg.Pool;
+
 pub const routes = @import("routes");
 pub const static = @import("static");
 
@@ -197,8 +200,19 @@ pub fn main() !void {
     const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
     defer if (builtin.mode == .Debug) std.debug.assert(gpa.deinit() == .ok);
 
+    var pool = try pg.Pool.init(allocator, .{
+        .size = 2,
+        .connect = .{ .host = "localhost", .port = 5432 },
+        .auth = .{
+            .username = "postgres",
+            .password = "password",
+            .database = "postgres",
+        },
+    });
+    defer pool.deinit();
+
     var app = try jetzig.init(allocator);
     defer app.deinit();
 
-    try app.start(routes, .{});
+    try app.start(routes, .{ .global = pool });
 }

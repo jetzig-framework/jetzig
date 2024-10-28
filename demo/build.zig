@@ -16,7 +16,9 @@ pub fn build(b: *std.Build) !void {
     // -------------------
     // const iguanas_dep = b.dependency("iguanas", .{ .optimize = optimize, .target = target });
     // exe.root_module.addImport("iguanas", iguanas_dep.module("iguanas"));
-    //
+    const pg_dep = b.dependency("pg", .{ .optimize = optimize, .target = target });
+    exe.root_module.addImport("pg", pg_dep.module("pg"));
+
     // ^ Add all dependencies before `jetzig.jetzigInit()` ^
 
     try jetzig.jetzigInit(b, exe, .{});

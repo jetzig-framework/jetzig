@@ -1,5 +1,6 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
+const pg = @import("pg");
 
 const importedFunction = @import("../lib/example.zig").exampleFunction;
 
@@ -10,6 +11,10 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     try root.put("message", "Welcome to Jetzig!");
     try root.put("custom_number", customFunction(100, 200, 300));
     try root.put("imported_number", importedFunction(100, 200, 300));
+
+    var conn = try request.global.acquire();
+    defer conn.deinit();
+    std.debug.print("connection acquired: {any}\n", .{conn});
 
     try request.response.headers.append("x-example-header", "example header value");
 
