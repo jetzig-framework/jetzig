@@ -43,7 +43,7 @@ rendered_view: ?jetzig.views.View = null,
 start_time: i128,
 store: RequestStore,
 cache: RequestStore,
-repo: *jetzig.jetquery.Repo,
+repo: *jetzig.database.Repo,
 global: *jetzig.Global,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
@@ -105,7 +105,7 @@ pub fn init(
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
-    repo: *jetzig.jetquery.Repo,
+    repo: *jetzig.database.Repo,
 ) !Request {
     const method = switch (httpz_request.method) {
         .DELETE => Method.DELETE,

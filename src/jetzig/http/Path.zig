@@ -17,6 +17,8 @@ resource_id: []const u8,
 extension: ?[]const u8,
 query: ?[]const u8,
 
+// TODO: Fix edge case `/foo/bar/` <-- strip trailing slash.
+
 const Self = @This();
 
 /// Initialize a new HTTP Path.

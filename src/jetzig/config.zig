@@ -97,9 +97,6 @@ pub const job_worker_threads: usize = 1;
 /// milliseconds.
 pub const job_worker_sleep_interval_ms: usize = 10;
 
-/// Database configuration.
-pub const database: ?db.DatabaseOptions = null;
-
 /// Database Schema.
 pub const Schema: type = struct {
     pub const _null = struct {}; // https://github.com/ziglang/zig/pull/21331

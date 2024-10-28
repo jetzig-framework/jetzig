@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const jetquery = @import("jetquery");
-const Migrate = @import("jetquery_migrate");
-// const migrations = @import("migrations").migrations;
+const Migrate = @import("jetquery_migrate").Migrate;
+const MigrateSchema = @import("jetquery_migrate").MigrateSchema;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -14,9 +14,12 @@ pub fn main() !void {
 
     const allocator = arena.allocator();
 
-    var repo = try jetquery.Repo.loadConfig(allocator, .{});
+    var repo = try jetquery.Repo(
+        jetquery.config.database.adapter,
+        MigrateSchema,
+    ).loadConfig(allocator, .{});
     defer repo.deinit();
 
-    const migrate = Migrate.init(&repo);
+    const migrate = Migrate(jetquery.config.database.adapter).init(&repo);
     try migrate.run();
 }
