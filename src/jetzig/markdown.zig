@@ -4,13 +4,29 @@ const Zmd = @import("zmd").Zmd;
 
 const jetzig = @import("../jetzig.zig");
 
+pub const MarkdownRenderOptions = struct {
+    fragments: ?type = null,
+};
+
 pub fn render(
     allocator: std.mem.Allocator,
-    path: []const u8,
-    custom_fragments: ?type,
-) !?[]const u8 {
-    const fragments = custom_fragments orelse jetzig.config.get(type, "markdown_fragments");
+    content: []const u8,
+    comptime options: MarkdownRenderOptions,
+) ![]const u8 {
+    const fragments = options.fragments orelse jetzig.config.get(type, "markdown_fragments");
 
+    var zmd = Zmd.init(allocator);
+    defer zmd.deinit();
+
+    try zmd.parse(content);
+    return try zmd.toHtml(fragments);
+}
+
+pub fn renderFile(
+    allocator: std.mem.Allocator,
+    path: []const u8,
+    comptime options: MarkdownRenderOptions,
+) !?[]const u8 {
     var path_buf = std.ArrayList([]const u8).init(allocator);
     defer path_buf.deinit();
 
@@ -33,16 +49,12 @@ pub fn render(
             else => err,
         };
     };
-    const markdown_content = std.fs.cwd().readFileAlloc(allocator, full_path, @intCast(stat.size)) catch |err| {
+    const content = std.fs.cwd().readFileAlloc(allocator, full_path, @intCast(stat.size)) catch |err| {
         switch (err) {
             error.FileNotFound => return null,
             else => return err,
         }
     };
 
-    var zmd = Zmd.init(allocator);
-    defer zmd.deinit();
-
-    try zmd.parse(markdown_content);
-    return try zmd.toHtml(fragments);
+    return try render(allocator, content, options);
 }
