@@ -210,14 +210,21 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
     exe_static_routes.root_module.addImport("main", main_module);
-    // TODO: Prevent failure if schema file not present.
-    const schema_module = b.createModule(.{ .root_source_file = b.path("src/app/database/Schema.zig") });
+
+    const schema_module = if (try isSourceFile(b, "src/app/database/Schema.zig"))
+        b.createModule(.{ .root_source_file = b.path("src/app/database/Schema.zig") })
+    else
+        jetzig_dep.builder.createModule(
+            .{ .root_source_file = jetzig_dep.builder.path("src/jetzig/DefaultSchema.zig") },
+        );
+    exe_static_routes.root_module.addImport("Schema", schema_module);
+    exe.root_module.addImport("Schema", schema_module);
+
     schema_module.addImport("jetzig", jetzig_module);
 
     exe_static_routes.root_module.addImport("routes", routes_module);
     exe_static_routes.root_module.addImport("jetzig", jetzig_module);
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
-    exe_static_routes.root_module.addImport("Schema", schema_module);
 
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));
@@ -348,4 +355,15 @@ fn getMarkdownFragmentsSource(allocator: std.mem.Allocator, source: [:0]const u8
     }
 
     return null;
+}
+
+fn isSourceFile(b: *std.Build, path: []const u8) !bool {
+    const dir = try std.fs.openDirAbsolute(b.build_root.path.?, .{});
+    const stat = dir.statFile(path) catch |err| {
+        switch (err) {
+            error.FileNotFound => return false,
+            else => return err,
+        }
+    };
+    return stat.kind == .file;
 }

@@ -114,6 +114,7 @@ pub fn request(
         .cache = self.cache,
         .job_queue = self.job_queue,
         .global = undefined,
+        .repo = undefined, // TODO - database test helpers
     };
 
     try server.decodeStaticParams();
