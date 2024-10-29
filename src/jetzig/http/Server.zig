@@ -274,7 +274,7 @@ fn renderMarkdown(self: *Server, request: *jetzig.http.Request) !?RenderedView {
     _ = self;
     // No route recognized, but we can still render a static markdown file if it matches the URI:
     if (request.method != .GET) return null;
-    if (try jetzig.markdown.render(request.allocator, request.path.base_path, null)) |content| {
+    if (try jetzig.markdown.renderFile(request.allocator, request.path.base_path, .{})) |content| {
         return .{
             .view = jetzig.views.View{ .data = request.response_data, .status_code = .ok },
             .content = content,
