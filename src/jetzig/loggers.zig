@@ -72,6 +72,12 @@ pub const Logger = union(enum) {
         }
     }
 
+    pub fn logSql(self: *const Logger, request: jetzig.jetquery.events.Event) !void {
+        switch (self.*) {
+            inline else => |*logger| try logger.logSql(request),
+        }
+    }
+
     pub fn logError(self: *const Logger, err: anyerror) !void {
         switch (self.*) {
             inline else => |*logger| try logger.logError(err),

@@ -101,6 +101,17 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
     try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
 }
 
+pub fn logSql(self: *const JsonLogger, event: jetzig.jetquery.events.Event) !void {
+    var buf: [4096]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    try std.json.stringify(
+        .{ .sql = event.sql, .duration = event.duration },
+        .{ .whitespace = .minified },
+        stream.writer(),
+    );
+    try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
+}
+
 pub fn logError(self: *const JsonLogger, err: anyerror) !void {
     try self.log(.ERROR, "Encountered error: {s}", .{@errorName(err)});
 }

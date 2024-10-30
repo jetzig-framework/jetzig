@@ -7,7 +7,7 @@ const Migrate = @import("jetquery_migrate");
 /// Command line options for the `database` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[migrate]",
+        .usage_summary = "[migrate|rollback|create|drop]",
         .full_text =
         \\Manage the application's database.
         \\

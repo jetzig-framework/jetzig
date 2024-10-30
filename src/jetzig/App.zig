@@ -36,10 +36,13 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     try mime_map.build();
 
     const routes = try createRoutes(self.allocator, &routes_module.routes);
-    defer for (routes) |var_route| {
-        var_route.deinitParams();
-        self.allocator.destroy(var_route);
-    };
+    defer {
+        for (routes) |var_route| {
+            var_route.deinitParams();
+            self.allocator.destroy(var_route);
+        }
+        self.allocator.free(routes);
+    }
 
     defer for (self.custom_routes.items) |custom_route| {
         self.allocator.free(custom_route.template);
@@ -63,15 +66,15 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     );
     defer cache.deinit();
 
+    var repo = try jetzig.database.repo(self.allocator, self);
+    defer repo.deinit();
+
     var log_thread = try std.Thread.spawn(
         .{ .allocator = self.allocator },
         jetzig.loggers.LogQueue.Reader.publish,
         .{ &self.env.log_queue.reader, .{} },
     );
     defer log_thread.join();
-
-    var repo = try jetzig.database.repo(self.allocator, self);
-    defer repo.deinit();
 
     if (self.env.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
