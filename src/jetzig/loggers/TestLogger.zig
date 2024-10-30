@@ -41,6 +41,10 @@ pub fn logRequest(self: TestLogger, request: *const jetzig.http.Request) !void {
     });
 }
 
+pub fn logSql(self: TestLogger, event: jetzig.jetquery.events.Event) !void {
+    try self.log(.INFO, "[database] {?s}", .{event.sql});
+}
+
 pub fn logError(self: TestLogger, err: anyerror) !void {
     try self.log(.ERROR, "Encountered error: {s}", .{@errorName(err)});
 }

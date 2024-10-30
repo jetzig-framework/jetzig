@@ -128,9 +128,19 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     if (optimize != .Debug) exe.linkLibC();
 
+    const Environment = enum { development, testing, production };
+    const environment = b.option(
+        Environment,
+        "environment",
+        "Jetzig server environment.",
+    ) orelse .development;
+
     const jetzig_dep = b.dependency(
         "jetzig",
-        .{ .optimize = optimize, .target = target },
+        .{
+            .optimize = optimize,
+            .target = target,
+        },
     );
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
@@ -139,6 +149,12 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetquery_module = jetzig_dep.module("jetquery");
     const jetcommon_module = jetzig_dep.module("jetcommon");
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
+
+    {
+        const build_options = b.addOptions();
+        build_options.addOption(Environment, "environment", environment);
+        jetzig_module.addOptions("build_config", build_options);
+    }
 
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);

@@ -104,6 +104,127 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
     }, .stdout);
 }
 
+pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Event) !void {
+    // XXX: This function does not make any effort to prevent log messages clobbering each other
+    // from multiple threads. JSON logger etc. write in one call and the logger's mutex prevents
+    // clobbering, but this is not the case here.
+    const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
+    try self.log_queue.print(
+        "{s} [database] ",
+        .{formatted_level},
+        .stdout,
+    );
+    try self.printSql(event.sql orelse "");
+
+    var duration_buf: [256]u8 = undefined;
+    const formatted_duration = if (event.duration) |duration| try jetzig.colors.duration(
+        &duration_buf,
+        duration,
+        self.stdout_colorized,
+    ) else "";
+
+    try self.log_queue.print(
+        std.fmt.comptimePrint(" [{s}]\n", .{jetzig.colors.cyan("{s}")}),
+        .{formatted_duration},
+        .stdout,
+    );
+}
+
+const sql_tokens = .{
+    "SELECT",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "WHERE",
+    "ANY",
+    "FROM",
+    "INTO",
+    "IN",
+    "IS",
+    "NOT",
+    "NULL",
+    "LIMIT",
+    "ORDER BY",
+    "GROUP BY",
+    "HAVING",
+    "LEFT OUTER JOIN",
+    "INNER JOIN",
+    "ASC",
+    "DESC",
+    "MAX",
+    "MIN",
+    "COUNT",
+    "SUM",
+};
+
+fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
+    const string_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.green;
+    const identifier_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.yellow;
+    const reset_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.reset;
+
+    var index: usize = 0;
+    var single_quote: bool = false;
+    var double_quote: bool = false;
+    while (index < sql.len) {
+        // TODO: Escapes
+        switch (sql[index]) {
+            '"' => {
+                if (!single_quote) {
+                    double_quote = !double_quote;
+                    if (double_quote) {
+                        try self.log_queue.print(identifier_color ++ "\"", .{}, .stdout);
+                    } else {
+                        try self.log_queue.print("\"" ++ reset_color, .{}, .stdout);
+                    }
+                    index += 1;
+                }
+            },
+            '\'' => {
+                if (!double_quote) {
+                    single_quote = !single_quote;
+                    if (single_quote) {
+                        try self.log_queue.print(string_color ++ "'", .{}, .stdout);
+                    } else {
+                        try self.log_queue.print("'" ++ reset_color, .{}, .stdout);
+                    }
+                }
+                index += 1;
+            },
+            '$' => {
+                if (double_quote or single_quote) {
+                    try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                    index += 1;
+                } else {
+                    const param = sql[index..][0 .. std.mem.indexOfAny(
+                        u8,
+                        sql[index..],
+                        &std.ascii.whitespace,
+                    ) orelse sql.len - index];
+                    try self.log_queue.print(jetzig.colors.magenta("{s}"), .{param}, .stdout);
+                    index += param.len;
+                }
+            },
+            else => {
+                if (double_quote or single_quote) {
+                    try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                    index += 1;
+                } else {
+                    inline for (sql_tokens) |token| {
+                        if (std.mem.startsWith(u8, sql[index..], token)) {
+                            try self.log_queue.print(jetzig.colors.cyan(token), .{}, .stdout);
+                            index += token.len;
+                            break;
+                        }
+                    } else {
+                        try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                        index += 1;
+                    }
+                }
+            },
+        }
+    }
+}
+
 pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
     if (@errorReturnTrace()) |stack| {
         try self.log(.ERROR, "\nStack Trace:\n{}", .{stack});

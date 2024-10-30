@@ -7,6 +7,8 @@ const jetzig = @import("../jetzig.zig");
 const Environment = @This();
 
 allocator: std.mem.Allocator,
+parent_allocator: std.mem.Allocator,
+arena: *std.heap.ArenaAllocator,
 logger: jetzig.loggers.Logger,
 bind: []const u8,
 port: u16,
@@ -60,10 +62,10 @@ const Options = struct {
     help: bool = false,
     bind: []const u8 = "127.0.0.1",
     port: u16 = 8080,
-    environment: EnvironmentName = .development,
     log: []const u8 = "-",
     @"log-error": []const u8 = "-",
     @"log-level": ?jetzig.loggers.LogLevel = null,
+    // TODO: Create a production logger and select default logger based on environment.
     @"log-format": jetzig.loggers.LogFormat = .development,
     detach: bool = false,
 
@@ -71,7 +73,6 @@ const Options = struct {
         .h = "help",
         .b = "bind",
         .p = "port",
-        .e = "environment",
         .d = "detach",
     };
 
@@ -81,7 +82,6 @@ const Options = struct {
         .option_docs = .{
             .bind = "IP address/hostname to bind to (default: 127.0.0.1)",
             .port = "Port to listen on (default: 8080)",
-            .environment = "Set the server environment. Must be one of: { development, production } (default: development)",
             .log = "Path to log file. Use '-' for stdout (default: '-')",
             .@"log-error" =
             \\Optional path to separate error log file. Use '-' for stderr. If omitted, errors are logged to the location specified by the `log` option (or stderr if `log` is '-').
@@ -100,7 +100,30 @@ const Options = struct {
     };
 };
 
-pub fn init(allocator: std.mem.Allocator) !Environment {
+const LaunchLogger = struct {
+    stdout: std.fs.File,
+    stderr: std.fs.File,
+
+    pub fn log(
+        self: LaunchLogger,
+        comptime level: jetzig.loggers.LogLevel,
+        comptime message: []const u8,
+        log_args: anytype,
+    ) !void {
+        const target = @field(self, @tagName(jetzig.loggers.logTarget(level)));
+        const writer = target.writer();
+        try writer.print(
+            std.fmt.comptimePrint("[startup:{s}] {s}\n", .{ @tagName(level), message }),
+            log_args,
+        );
+    }
+};
+
+pub fn init(parent_allocator: std.mem.Allocator) !Environment {
+    const arena = try parent_allocator.create(std.heap.ArenaAllocator);
+    arena.* = std.heap.ArenaAllocator.init(parent_allocator);
+    const allocator = arena.allocator();
+
     const options = try args.parseForCurrentProcess(Options, allocator, .print);
     defer options.deinit();
 
@@ -117,10 +140,15 @@ pub fn init(allocator: std.mem.Allocator) !Environment {
         std.process.exit(0);
     }
 
-    const environment = options.options.environment;
+    const environment = std.enums.nameCast(EnvironmentName, jetzig.environment);
     const vars = Vars{ .env_map = try std.process.getEnvMap(allocator) };
 
-    var logger = switch (options.options.@"log-format") {
+    var launch_logger = LaunchLogger{
+        .stdout = try getLogFile(.stdout, options.options),
+        .stderr = try getLogFile(.stdout, options.options),
+    };
+
+    const logger = switch (options.options.@"log-format") {
         .development => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 allocator,
@@ -138,30 +166,51 @@ pub fn init(allocator: std.mem.Allocator) !Environment {
     };
 
     if (options.options.detach and std.mem.eql(u8, options.options.log, "-")) {
-        try logger.ERROR("Must pass `--log` when using `--detach`.", .{});
+        try launch_logger.log(.ERROR, "Must pass `--log` when using `--detach`.", .{});
         std.process.exit(1);
     }
 
     const secret_len = jetzig.http.Session.Cipher.key_length;
-    const secret = (try getSecret(allocator, &logger, secret_len, environment))[0..secret_len];
+    const secret_value = try getSecret(allocator, launch_logger, secret_len, environment);
+    const secret = if (secret_value.len > secret_len) secret_value[0..secret_len] else secret_value;
 
     if (secret.len != secret_len) {
-        try logger.ERROR("Expected secret length: {}, found: {}.", .{ secret_len, secret.len });
-        try logger.ERROR("Use `jetzig generate secret` to create a secure secret value.", .{});
+        try launch_logger.log(
+            .ERROR,
+            "Expected secret length: {}, found: {}.",
+            .{ secret_len, secret.len },
+        );
+        try launch_logger.log(
+            .ERROR,
+            "Use `jetzig generate secret` to create a secure secret value.",
+            .{},
+        );
         std.process.exit(1);
     }
 
     if (jetzig.database.adapter == .null) {
-        try logger.WARN("No database configured in `config/database.zig`. Database operations are not available.", .{});
+        try launch_logger.log(
+            .WARN,
+            "No database configured in `config/database.zig`. Database operations are not available.",
+            .{},
+        );
     } else {
-        try logger.INFO(
+        try launch_logger.log(
+            .INFO,
             "Using `{s}` database adapter with database: `{s}`.",
-            .{ @tagName(jetzig.database.adapter), jetzig.jetquery.config.database.database },
+            .{
+                @tagName(jetzig.database.adapter),
+                switch (environment) {
+                    inline else => |tag| @field(jetzig.jetquery.config.database, @tagName(tag)).database,
+                },
+            },
         );
     }
 
     return .{
         .allocator = allocator,
+        .parent_allocator = parent_allocator,
+        .arena = arena,
         .logger = logger,
         .secret = secret,
         .bind = try allocator.dupe(u8, options.options.bind),
@@ -174,9 +223,8 @@ pub fn init(allocator: std.mem.Allocator) !Environment {
 }
 
 pub fn deinit(self: Environment) void {
-    self.vars.deinit();
-    self.allocator.free(self.bind);
-    self.allocator.free(self.secret);
+    self.arena.deinit();
+    self.parent_allocator.destroy(self.arena);
 }
 
 fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
@@ -200,7 +248,7 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
 
 fn getSecret(
     allocator: std.mem.Allocator,
-    logger: *jetzig.loggers.Logger,
+    logger: LaunchLogger,
     comptime len: u10,
     environment: EnvironmentName,
 ) ![]const u8 {
@@ -209,18 +257,28 @@ fn getSecret(
     return std.process.getEnvVarOwned(allocator, env_var) catch |err| {
         switch (err) {
             error.EnvironmentVariableNotFound => {
-                if (environment != .development) {
-                    try logger.ERROR("Environment variable `{s}` must be defined in production mode.", .{env_var});
-                    try logger.ERROR("Run `jetzig generate secret` to generate an appropriate value.", .{});
+                if (environment == .production) {
+                    try logger.log(
+                        .ERROR,
+                        "Environment variable `{s}` must be defined in production mode.",
+                        .{env_var},
+                    );
+                    try logger.log(
+                        .ERROR,
+                        "Run `jetzig generate secret` to generate an appropriate value.",
+                        .{},
+                    );
                     std.process.exit(1);
                 }
 
                 const secret = try jetzig.util.generateSecret(allocator, len);
-                try logger.WARN(
-                    "Running in development mode, using auto-generated cookie encryption key: {s}",
-                    .{secret},
+                try logger.log(
+                    .WARN,
+                    "Running in {s} mode, using auto-generated cookie encryption key: {s}",
+                    .{ @tagName(environment), secret },
                 );
-                try logger.WARN(
+                try logger.log(
+                    .WARN,
                     "Run `jetzig generate secret` and set `JETZIG_SECRET` to remove this warning.",
                     .{},
                 );
@@ -236,6 +294,6 @@ fn resolveLogLevel(level: ?jetzig.loggers.LogLevel, environment: EnvironmentName
     return level orelse switch (environment) {
         .testing => .DEBUG,
         .development => .DEBUG,
-        .production => .INFO,
+        .production => .DEBUG,
     };
 }

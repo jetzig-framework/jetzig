@@ -2,9 +2,9 @@ const std = @import("std");
 
 const jetzig = @import("../jetzig.zig");
 
+pub const adapter = @field(jetzig.jetquery.config.database, @tagName(jetzig.environment)).adapter;
 pub const Schema = jetzig.config.get(type, "Schema");
-pub const adapter = jetzig.jetquery.config.database.adapter;
-pub const Repo = jetzig.jetquery.Repo(jetzig.jetquery.config.database.adapter, Schema);
+pub const Repo = jetzig.jetquery.Repo(adapter, Schema);
 
 pub fn Query(comptime model: anytype) type {
     return jetzig.jetquery.Query(adapter, Schema, model);
@@ -22,12 +22,16 @@ pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !Repo {
 
     return try Repo.loadConfig(
         allocator,
-        .{ .eventCallback = Callback.callbackFn, .lazy_connect = true },
+        std.enums.nameCast(jetzig.jetquery.Environment, jetzig.environment),
+        .{
+            .eventCallback = Callback.callbackFn,
+            .lazy_connect = jetzig.environment == .development,
+        },
     );
 }
 
 fn eventCallback(event: jetzig.jetquery.events.Event, app: *const jetzig.App) !void {
-    try app.server.logger.INFO("[database] {?s}", .{event.sql});
+    try app.server.logger.logSql(event);
     if (event.err) |err| {
         try app.server.logger.ERROR("[database] {?s}", .{err.message});
     }

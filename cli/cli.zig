@@ -11,9 +11,11 @@ const database = @import("commands/database.zig");
 
 const Options = struct {
     help: bool = false,
+    environment: enum { development, testing, production },
 
     pub const shorthands = .{
         .h = "help",
+        .e = "environment",
     };
 
     pub const meta = .{

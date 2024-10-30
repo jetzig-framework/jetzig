@@ -26,6 +26,8 @@ pub const DateTime = jetcommon.types.DateTime;
 pub const Time = jetcommon.types.Time;
 pub const Date = jetcommon.types.Date;
 
+pub const environment = @import("build_config").environment;
+
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
 pub const App = @import("jetzig/App.zig");
