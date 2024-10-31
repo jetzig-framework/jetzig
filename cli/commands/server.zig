@@ -34,15 +34,15 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
-    if (other_options.help) {
+    if (main_options.options.help) {
         try args.printHelp(Options, "jetzig server", writer);
         return;
     }
 
-    if (positionals.len > 0) {
+    if (main_options.positionals.len > 0) {
         std.debug.print("The `server` command does not accept positional arguments.", .{});
         return error.JetzigCommandError;
     }
@@ -66,7 +66,15 @@ pub fn run(
         util.runCommand(
             allocator,
             realpath,
-            &[_][]const u8{ "zig", "build", "-Djetzig_runner=true", "install", "--color", "on" },
+            &.{
+                "zig",
+                "build",
+                util.environmentBuildOption(main_options.options.environment),
+                "-Djetzig_runner=true",
+                "install",
+                "--color",
+                "on",
+            },
         ) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
             try awaitFileChange(allocator, cwd, &mtime);

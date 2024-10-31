@@ -31,8 +31,8 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
     var cwd = try util.detectJetzigProjectDir();
     defer cwd.close();
@@ -65,13 +65,16 @@ pub fn run(
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    const generate_type: ?Generator = if (positionals.len > 0) map.get(positionals[0]) else null;
+    const generate_type: ?Generator = if (main_options.positionals.len > 0)
+        map.get(main_options.positionals[0])
+    else
+        null;
 
-    if (positionals.len > 1) {
-        for (positionals[1..]) |arg| try sub_args.append(arg);
+    if (main_options.positionals.len > 1) {
+        for (main_options.positionals[1..]) |arg| try sub_args.append(arg);
     }
 
-    if (other_options.help and generate_type == null) {
+    if (main_options.options.help and generate_type == null) {
         try args.printHelp(Options, "jetzig generate", writer);
         return;
     } else if (generate_type == null) {
@@ -81,14 +84,14 @@ pub fn run(
 
     if (generate_type) |capture| {
         return switch (capture) {
-            .view => view.run(arena, cwd, sub_args.items, other_options.help),
-            .partial => partial.run(arena, cwd, sub_args.items, other_options.help),
-            .layout => layout.run(arena, cwd, sub_args.items, other_options.help),
-            .mailer => mailer.run(arena, cwd, sub_args.items, other_options.help),
-            .job => job.run(arena, cwd, sub_args.items, other_options.help),
-            .middleware => middleware.run(arena, cwd, sub_args.items, other_options.help),
-            .secret => secret.run(arena, cwd, sub_args.items, other_options.help),
-            .migration => migration.run(arena, cwd, sub_args.items, other_options.help),
+            .view => view.run(arena, cwd, sub_args.items, main_options.options.help),
+            .partial => partial.run(arena, cwd, sub_args.items, main_options.options.help),
+            .layout => layout.run(arena, cwd, sub_args.items, main_options.options.help),
+            .mailer => mailer.run(arena, cwd, sub_args.items, main_options.options.help),
+            .job => job.run(arena, cwd, sub_args.items, main_options.options.help),
+            .middleware => middleware.run(arena, cwd, sub_args.items, main_options.options.help),
+            .secret => secret.run(arena, cwd, sub_args.items, main_options.options.help),
+            .migration => migration.run(arena, cwd, sub_args.items, main_options.options.help),
         };
     }
 }
