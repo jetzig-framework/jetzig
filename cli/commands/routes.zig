@@ -21,12 +21,11 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
-    _ = positionals;
     _ = options;
-    if (other_options.help) {
+    if (main_options.options.help) {
         try args.printHelp(Options, "jetzig routes", writer);
         return;
     }

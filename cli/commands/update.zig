@@ -30,21 +30,24 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
     _ = options;
-    if (other_options.help) {
+    if (main_options.options.help) {
         try args.printHelp(Options, "jetzig update", writer);
         return;
     }
 
-    if (positionals.len > 1) {
-        std.debug.print("Expected at most 1 positional argument, found {}\n", .{positionals.len});
+    if (main_options.positionals.len > 1) {
+        std.debug.print(
+            "Expected at most 1 positional argument, found {}\n",
+            .{main_options.positionals.len},
+        );
         return error.JetzigCommandError;
     }
 
-    const name = if (positionals.len > 0) positionals[0] else "jetzig";
+    const name = if (main_options.positionals.len > 0) main_options.positionals[0] else "jetzig";
 
     const github_url = try util.githubUrl(allocator);
     defer allocator.free(github_url);

@@ -37,16 +37,15 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
     if (builtin.os.tag == .windows) {
         std.debug.print("Bundling on Windows is currently not supported.\n", .{});
         std.process.exit(1);
     }
 
-    _ = positionals;
-    if (other_options.help) {
+    if (main_options.options.help) {
         try args.printHelp(Options, "jetzig bundle", writer);
         return;
     }

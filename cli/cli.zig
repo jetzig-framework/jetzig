@@ -1,17 +1,20 @@
 const std = @import("std");
 const args = @import("args");
-const init = @import("commands/init.zig");
-const update = @import("commands/update.zig");
-const generate = @import("commands/generate.zig");
-const server = @import("commands/server.zig");
-const routes = @import("commands/routes.zig");
-const bundle = @import("commands/bundle.zig");
-const tests = @import("commands/tests.zig");
-const database = @import("commands/database.zig");
 
-const Options = struct {
+pub const init = @import("commands/init.zig");
+pub const update = @import("commands/update.zig");
+pub const generate = @import("commands/generate.zig");
+pub const server = @import("commands/server.zig");
+pub const routes = @import("commands/routes.zig");
+pub const bundle = @import("commands/bundle.zig");
+pub const tests = @import("commands/tests.zig");
+pub const database = @import("commands/database.zig");
+
+pub const Environment = enum { development, testing, production };
+
+pub const Options = struct {
     help: bool = false,
-    environment: enum { development, testing, production },
+    environment: Environment = .development,
 
     pub const shorthands = .{
         .h = "help",
@@ -30,6 +33,7 @@ const Options = struct {
             .@"test" = "Run app tests",
             .database = "Manage the application's database",
             .help = "Print help and exit",
+            .environment = "Jetzig environment.",
         },
     };
 };
@@ -92,63 +96,65 @@ pub fn main() !void {
 }
 
 fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb), writer: anytype) !void {
+    const OptionsType = args.ParseArgsResult(Options, Verb);
+
     if (options.verb) |verb| {
         return switch (verb) {
             .init => |opts| init.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .g, .generate => |opts| generate.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .update => |opts| update.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .s, .server => |opts| server.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .r, .routes => |opts| routes.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .b, .bundle => |opts| bundle.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .t, .@"test" => |opts| tests.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
             .d, .database => |opts| database.run(
                 allocator,
                 opts,
                 writer,
-                options.positionals,
-                .{ .help = options.options.help },
+                OptionsType,
+                options,
             ),
         };
     }

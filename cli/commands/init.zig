@@ -1,6 +1,8 @@
 const std = @import("std");
 const args = @import("args");
+
 const util = @import("../util.zig");
+const cli = @import("../cli.zig");
 
 const init_data = @import("init_data").init_data;
 
@@ -33,13 +35,13 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
     _ = options;
     var install_path: ?[]const u8 = null;
 
-    for (positionals) |arg| {
+    for (main_options.positionals) |arg| {
         if (install_path != null) {
             std.debug.print("Unexpected positional argument: {s}\n", .{arg});
             return error.JetzigCommandError;
@@ -50,7 +52,7 @@ pub fn run(
     const github_url = try util.githubUrl(allocator);
     defer allocator.free(github_url);
 
-    if (other_options.help) {
+    if (main_options.options.help) {
         try args.printHelp(Options, "jetzig init", writer);
         return;
     }

@@ -28,16 +28,17 @@ pub fn run(
     allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
-    positionals: [][]const u8,
-    other_options: struct { help: bool },
+    T: type,
+    main_options: T,
 ) !void {
     _ = options;
     _ = writer;
-    _ = positionals;
-    _ = other_options;
+    _ = main_options;
     try util.execCommand(allocator, &.{
         "zig",
         "build",
+        "-e",
+        "testing",
         "jetzig:test",
     });
 }
