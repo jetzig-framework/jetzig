@@ -142,6 +142,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
             .target = target,
         },
     );
+
+    const jetquery_dep = jetzig_dep.builder.dependency("jetquery", .{
+        .target = target,
+        .optimize = optimize,
+        .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+        .jetquery_config_path = @as([]const u8, "config/database.zig"),
+    });
+
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
     const zmd_module = jetzig_dep.module("zmd");
@@ -149,6 +157,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetquery_module = jetzig_dep.module("jetquery");
     const jetcommon_module = jetzig_dep.module("jetcommon");
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
+    const jetquery_reflect_module = jetquery_dep.module("jetquery_reflect");
 
     const build_options = b.addOptions();
     build_options.addOption(Environment, "environment", environment);
@@ -316,47 +325,39 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .optimize = optimize,
     });
     exe_database.root_module.addImport("jetquery", jetquery_module);
+    exe_database.root_module.addImport("jetzig", jetzig_module);
     exe_database.root_module.addImport("jetcommon", jetcommon_module);
     exe_database.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
-    exe_database.root_module.addOptions("build_options", build_options);
+    exe_database.root_module.addImport("jetquery_reflect", jetquery_reflect_module);
+    exe_database.root_module.addImport("Schema", schema_module);
+    // exe_database.root_module.addOptions("build_options", build_options);
 
-    const database_migrate_step = b.step(
-        "jetzig:database:migrate",
-        "Migrate your Jetzig app's database.",
-    );
-    const run_database_migrate_cmd = b.addRunArtifact(exe_database);
-    run_database_migrate_cmd.addArg("migrate");
-    database_migrate_step.dependOn(&run_database_migrate_cmd.step);
-
-    const database_rollback_step = b.step(
-        "jetzig:database:rollback",
-        "Roll back a migration in your Jetzig app's database.",
-    );
-    const run_database_rollback_cmd = b.addRunArtifact(exe_database);
-    run_database_rollback_cmd.addArg("rollback");
-    database_rollback_step.dependOn(&run_database_rollback_cmd.step);
-
-    const database_create_step = b.step(
-        "jetzig:database:create",
-        "Create a database for your Jetzig app.",
-    );
-    const run_database_create_cmd = b.addRunArtifact(exe_database);
-    run_database_create_cmd.addArg("create");
-    database_create_step.dependOn(&run_database_create_cmd.step);
-
-    const database_drop_step = b.step(
-        "jetzig:database:drop",
-        "Drop your Jetzig app's database.",
-    );
-    const run_database_drop_cmd = b.addRunArtifact(exe_database);
-    run_database_drop_cmd.addArg("drop");
-    database_drop_step.dependOn(&run_database_drop_cmd.step);
+    registerDatabaseSteps(b, exe_database);
 
     exe_routes.root_module.addImport("jetzig", jetzig_module);
     exe_routes.root_module.addImport("routes", routes_module);
     exe_routes.root_module.addImport("app", &exe.root_module);
     const run_routes_cmd = b.addRunArtifact(exe_routes);
     routes_step.dependOn(&run_routes_cmd.step);
+}
+
+fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) void {
+    const commands = .{
+        .{ "migrate", "Migrate your Jetzig app's database." },
+        .{ "rollback", "Roll back a migration in your Jetzig app's database." },
+        .{ "create", "Create a database for your Jetzig app." },
+        .{ "drop", "Drop your Jetzig app's database." },
+        .{ "schema", "Read your app's database and generate a JetQuery schema." },
+    };
+
+    inline for (commands) |command| {
+        const action = command[0];
+        const description = command[1];
+        const step = b.step("jetzig:database:" ++ action, description);
+        const run_cmd = b.addRunArtifact(exe_database);
+        run_cmd.addArg(action);
+        step.dependOn(&run_cmd.step);
+    }
 }
 
 fn generateMarkdownFragments(b: *std.Build) ![]const u8 {

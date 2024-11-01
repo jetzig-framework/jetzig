@@ -20,7 +20,7 @@ pub fn run(
             \\Example:
             \\
             \\  jetzig database create
-            \\  jetzig --environment testing database create
+            \\  jetzig --environment=testing database create
             \\
         , .{});
 

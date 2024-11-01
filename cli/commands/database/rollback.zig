@@ -15,12 +15,12 @@ pub fn run(
     _ = options;
     if (main_options.options.help or args.len != 0) {
         std.debug.print(
-            \\Run database migrations.
+            \\Roll back a database migration.
             \\
             \\Example:
             \\
-            \\  jetzig database migrate
-            \\  jetzig --environment testing database migrate
+            \\  jetzig database rollback
+            \\  jetzig --environment=testing database rollback
             \\
         , .{});
 
