@@ -82,10 +82,13 @@ pub fn remove(self: *Self, key: []const u8) !bool {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
     // copied from `get()`
-    return switch (self.data.value.?.*) {
+    const result = switch (self.data.value.?.*) {
         .object => self.data.value.?.object.remove(key),
         else => unreachable,
     };
+
+    try self.save();
+    return result;
 }
 
 fn save(self: *Self) !void {
