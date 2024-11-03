@@ -21,7 +21,11 @@ pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     var session = try request.session();
 
     if (params.get("message")) |message| {
-        try session.put("message", message);
+        if (std.mem.eql(u8, message.string.value, "delete")) {
+            _ = try session.remove("message");
+        } else {
+            try session.put("message", message);
+        }
     }
 
     return request.redirect("/session", .moved_permanently);

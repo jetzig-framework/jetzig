@@ -76,6 +76,21 @@ pub fn put(self: *Self, key: []const u8, value: *jetzig.data.Value) !void {
     try self.save();
 }
 
+// removes true if a value was removed
+// and false otherwise
+pub fn remove(self: *Self, key: []const u8) !bool {
+    if (self.state != .parsed) return error.UnparsedSessionCookie;
+
+    // copied from `get()`
+    const result = switch (self.data.value.?.*) {
+        .object => self.data.value.?.object.remove(key),
+        else => unreachable,
+    };
+
+    try self.save();
+    return result;
+}
+
 fn save(self: *Self) !void {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
@@ -164,6 +179,28 @@ test "put and get session key/value" {
     try session.put("foo", data.string("bar"));
     var value = (try session.get("foo")).?;
     try std.testing.expectEqualStrings(try value.toString(), "bar");
+}
+
+test "remove session key/value" {
+    const allocator = std.testing.allocator;
+    var cookies = jetzig.http.Cookies.init(allocator, "");
+    defer cookies.deinit();
+    try cookies.parse();
+
+    const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
+    var session = Self.init(allocator, &cookies, &secret);
+    defer session.deinit();
+
+    var data = jetzig.data.Data.init(allocator);
+    defer data.deinit();
+
+    try session.parse();
+    try session.put("foo", data.string("bar"));
+    var value = (try session.get("foo")).?;
+    try std.testing.expectEqualStrings(try value.toString(), "bar");
+
+    try std.testing.expectEqual(true, try session.remove("foo"));
+    try std.testing.expectEqual(null, try session.get("foo"));
 }
 
 test "get value from parsed/decrypted cookie" {
