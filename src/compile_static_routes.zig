@@ -11,7 +11,7 @@ else
 pub const database_lazy_connect = true;
 
 pub const jetzig_options = struct {
-    pub const Schema = @import("jetquery_schema");
+    pub const Schema = @import("Schema");
 };
 
 pub fn main() !void {

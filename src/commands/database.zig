@@ -81,6 +81,9 @@ pub fn main() !void {
             }
         },
         .schema => {
+            var cwd = try jetzig.util.detectJetzigProjectDir();
+            defer cwd.close();
+
             const Repo = jetquery.Repo(config.adapter, Schema);
             var repo = try Repo.loadConfig(
                 allocator,
@@ -90,9 +93,19 @@ pub fn main() !void {
             const reflect = @import("jetquery_reflect").Reflect(config.adapter, Schema).init(
                 allocator,
                 &repo,
+                .{
+                    .import_jetquery =
+                    \\@import("jetzig").jetquery
+                    ,
+                },
             );
             const schema = try reflect.generateSchema();
-            std.debug.print("{s}\n", .{schema});
+            const path = try cwd.realpathAlloc(
+                allocator,
+                try std.fs.path.join(allocator, &.{ "src", "app", "database", "Schema.zig" }),
+            );
+            try jetzig.util.createFile(path, schema);
+            std.log.info("Database schema written to `{s}`.", .{path});
         },
     }
 }
