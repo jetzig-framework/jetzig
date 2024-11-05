@@ -330,7 +330,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_database.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
     exe_database.root_module.addImport("jetquery_reflect", jetquery_reflect_module);
     exe_database.root_module.addImport("Schema", schema_module);
-    // exe_database.root_module.addOptions("build_options", build_options);
 
     registerDatabaseSteps(b, exe_database);
 
@@ -347,7 +346,7 @@ fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) v
         .{ "rollback", "Roll back a migration in your Jetzig app's database." },
         .{ "create", "Create a database for your Jetzig app." },
         .{ "drop", "Drop your Jetzig app's database." },
-        .{ "schema", "Read your app's database and generate a JetQuery schema." },
+        .{ "dump", "Read your app's database and generate a JetQuery schema." },
     };
 
     inline for (commands) |command| {

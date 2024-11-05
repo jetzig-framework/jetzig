@@ -136,10 +136,12 @@ const sql_tokens = .{
     "UPDATE",
     "DELETE",
     "WHERE",
+    "SET",
     "ANY",
     "FROM",
     "INTO",
     "IN",
+    "ON",
     "IS",
     "NOT",
     "NULL",
@@ -155,6 +157,7 @@ const sql_tokens = .{
     "MIN",
     "COUNT",
     "SUM",
+    "VALUES",
 };
 
 fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
