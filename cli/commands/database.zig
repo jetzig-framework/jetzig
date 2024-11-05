@@ -10,13 +10,13 @@ const migrate = @import("database/migrate.zig");
 const rollback = @import("database/rollback.zig");
 const create = @import("database/create.zig");
 const drop = @import("database/drop.zig");
-const schema = @import("database/schema.zig");
+const dump = @import("database/dump.zig");
 pub const confirm_drop_env = "JETZIG_DROP_PRODUCTION_DATABASE";
 
 /// Command line options for the `database` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[migrate|rollback|create|drop|schema]",
+        .usage_summary = "[migrate|rollback|create|drop|dump]",
         .full_text =
         \\Manage the application's database.
         \\
@@ -40,13 +40,13 @@ pub fn run(
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const Action = enum { migrate, rollback, create, drop, schema };
+    const Action = enum { migrate, rollback, create, drop, dump };
     const map = std.StaticStringMap(Action).initComptime(.{
         .{ "migrate", .migrate },
         .{ "rollback", .rollback },
         .{ "create", .create },
         .{ "drop", .drop },
-        .{ "schema", .schema },
+        .{ "dump", .dump },
     });
 
     const action = if (main_options.positionals.len > 0)
@@ -74,7 +74,7 @@ pub fn run(
             .rollback => rollback.run(alloc, cwd, sub_args, options, T, main_options),
             .create => create.run(alloc, cwd, sub_args, options, T, main_options),
             .drop => drop.run(alloc, cwd, sub_args, options, T, main_options),
-            .schema => schema.run(alloc, cwd, sub_args, options, T, main_options),
+            .dump => dump.run(alloc, cwd, sub_args, options, T, main_options),
         };
     };
 }
