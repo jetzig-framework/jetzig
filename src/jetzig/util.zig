@@ -125,3 +125,77 @@ pub fn writeAnsi(file: std.fs.File, writer: anytype, text: []const u8) !void {
         }
     }
 }
+
+/// Create a file at the given location and write content. Creates subpaths if not present.
+pub fn createFile(path: []const u8, content: []const u8) !void {
+    if (std.fs.path.dirname(path)) |dirname| {
+        std.fs.makeDirAbsolute(dirname) catch |err| {
+            switch (err) {
+                error.PathAlreadyExists => {},
+                else => return err,
+            }
+        };
+    }
+
+    const file = try std.fs.createFileAbsolute(path, .{ .truncate = true });
+    try file.writeAll(content);
+    file.close();
+}
+
+/// Detects a Jetzig project directory either in the current directory or one of its parent
+/// directories.
+pub fn detectJetzigProjectDir() !std.fs.Dir {
+    var dir = try std.fs.cwd().openDir(".", .{});
+    const max_parent_dirs: usize = 100; // Prevent symlink loops or other weird stuff.
+
+    for (0..max_parent_dirs) |_| {
+        if (try isPath(dir, "build.zig", .file) and try isPath(dir, "src/app/views", .dir)) return dir;
+
+        dir = dir.openDir("..", .{}) catch |err| {
+            switch (err) {
+                error.FileNotFound, error.NotDir => {
+                    std.debug.print(
+                        "Encountered unexpected detecting Jetzig project directory: {s}\n",
+                        .{@errorName(err)},
+                    );
+                    return error.JetzigCommandError;
+                },
+                else => return err,
+            }
+        };
+        continue;
+    }
+
+    std.debug.print(
+        \\Exceeded maximum parent directory depth.
+        \\Unable to detect Jetzig project directory.
+        \\
+    ,
+        .{},
+    );
+    return error.JetzigCommandError;
+}
+
+fn isPath(dir: std.fs.Dir, sub_path: []const u8, path_type: enum { file, dir }) !bool {
+    switch (path_type) {
+        .file => {
+            _ = dir.statFile(sub_path) catch |err| {
+                switch (err) {
+                    error.FileNotFound => return false,
+                    else => return err,
+                }
+            };
+            return true;
+        },
+        .dir => {
+            var test_dir = dir.openDir(sub_path, .{}) catch |err| {
+                switch (err) {
+                    error.FileNotFound, error.NotDir => return false,
+                    else => return err,
+                }
+            };
+            test_dir.close();
+            return true;
+        },
+    }
+}

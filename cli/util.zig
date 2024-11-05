@@ -26,7 +26,8 @@ pub fn printFailure() void {
     std.debug.print(" ❌\n", .{});
 }
 
-/// Verifies that cwd is the root of a Jetzig project
+/// Detects a Jetzig project directory either in the current directory or one of its parent
+/// directories.
 pub fn detectJetzigProjectDir() !std.fs.Dir {
     var dir = try std.fs.cwd().openDir(".", .{});
     const max_parent_dirs: usize = 100; // Prevent symlink loops or other weird stuff.
