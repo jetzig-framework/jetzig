@@ -68,7 +68,7 @@ test "json from header" {
     const response = try app.request(
         .GET,
         "/",
-        .{ .headers = &.{.{ .name = "accept", .value = "application/json" }} },
+        .{ .headers = .{ .accept = "application/json" } },
     );
     try response.expectJson(".message", "Welcome to Jetzig!");
     try response.expectJson(".custom_number", 600);

@@ -3,12 +3,12 @@
     .version = "0.0.0",
     .dependencies = .{
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/6dda080c7fcbe78c39d9e4f52b8eec9aa7cbbaad.tar.gz",
-            .hash = "12208a01a7c10d0583f253787cf7271587d9509862f34e2b6d754cade7bc08500ef6",
+            .url = "https://github.com/jetzig-framework/zmd/archive/d6c8aa9a9cde99674ccb096d8f94ed09cba8dab.tar.gz",
+            .hash = "1220d0e8734628fd910a73146e804d10a3269e3e7d065de6bb0e3e88d5ba234eb163",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/a128d0a9c9cd70ca9f007405ae3d17e3a074ab34.tar.gz",
-            .hash = "1220e1e95a5479b24e1c5448c5dc4ad283a01050617d0e5d9ff1c7e7283c639df24a",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/dc3ed9dd695328fba0643635644089bc79307cc0.tar.gz",
+            .hash = "1220e23465d94b00a8c4b2abd4d2c433c7e8a942d779e83cab9eb6c207252373308b",
         },
         .jetkv = .{
             .url = "https://github.com/jetzig-framework/jetkv/archive/2b1130a48979ea2871c8cf6ca89c38b1e7062839.tar.gz",

@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const jetzig = @import("jetzig");
 pub const static = @import("static");
 
-pub const std_options = .{
+pub const std_options = std.Options{
     .logFn = log,
 };
 

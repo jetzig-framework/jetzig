@@ -221,7 +221,7 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
         }
     };
 
-    const view = .{ .data = self.response_data, .status_code = state.status_code };
+    const view = jetzig.views.View{ .data = self.response_data, .status_code = state.status_code };
     const status = jetzig.http.status_codes.get(state.status_code);
     const maybe_template = jetzig.zmpl.findPrefixed("views", status.getCode());
     self.rendered_view = view;

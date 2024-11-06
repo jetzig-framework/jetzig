@@ -80,9 +80,9 @@ pub fn request(
     comptime path: []const u8,
     args: anytype,
 ) !jetzig.testing.TestResponse {
-    const options = buildOptions(self, args);
-
     const allocator = self.arena.allocator();
+
+    const options = try buildOptions(allocator, self, args);
     const routes = try jetzig.App.createRoutes(allocator, self.routes);
 
     const logger = jetzig.loggers.Logger{ .test_logger = jetzig.loggers.TestLogger{} };
@@ -113,6 +113,7 @@ pub fn request(
         .store = self.store,
         .cache = self.cache,
         .job_queue = self.job_queue,
+        .global = undefined,
     };
 
     try server.decodeStaticParams();
@@ -299,7 +300,7 @@ fn createStore(allocator: std.mem.Allocator) !*jetzig.kv.Store {
     return store;
 }
 
-fn buildOptions(app: *const App, args: anytype) RequestOptions {
+fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !RequestOptions {
     const fields = switch (@typeInfo(@TypeOf(args))) {
         .@"struct" => |info| info.fields,
         else => @compileError("Expected struct, found `" ++ @tagName(@typeInfo(@TypeOf(args))) ++ "`"),
@@ -317,9 +318,17 @@ fn buildOptions(app: *const App, args: anytype) RequestOptions {
     }
 
     return .{
-        .headers = if (@hasField(@TypeOf(args), "headers")) args.headers else &.{},
+        .headers = if (@hasField(@TypeOf(args), "headers")) try buildHeaders(allocator, args.headers) else &.{},
         .json = if (@hasField(@TypeOf(args), "json")) app.json(args.json) else null,
         .params = if (@hasField(@TypeOf(args), "params")) app.params(args.params) else null,
         .body = if (@hasField(@TypeOf(args), "body")) args.body else null,
     };
+}
+
+fn buildHeaders(allocator: std.mem.Allocator, args: anytype) ![]const jetzig.testing.TestResponse.Header {
+    var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(allocator);
+    inline for (std.meta.fields(@TypeOf(args))) |field| {
+        try headers.append(jetzig.testing.TestResponse.Header{ .name = field.name, .value = @field(args, field.name) });
+    }
+    return try headers.toOwnedSlice();
 }

@@ -70,7 +70,7 @@ pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
     var buf: [max_bytes_header_name]u8 = undefined;
     const lower = std.ascii.lowerString(&buf, name);
 
-    const header = .{
+    const header = Header{
         .name = try self.allocator.dupe(u8, lower),
         .value = try self.allocator.dupe(u8, value),
     };
