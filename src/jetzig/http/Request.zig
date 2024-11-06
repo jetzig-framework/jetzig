@@ -585,6 +585,25 @@ pub fn setTemplate(self: *Request, name: []const u8) void {
     self.dynamic_assigned_template = name;
 }
 
+pub fn joinPath(self: *const Request, args: anytype) ![]const u8 {
+    const fields = std.meta.fields(@TypeOf(args));
+    var buf: [fields.len][]const u8 = undefined;
+    inline for (fields, 0..) |field, index| {
+        buf[index] = switch (@typeInfo(field.type)) {
+            .pointer => |info| switch (@typeInfo(info.child)) {
+                .@"struct", .@"union" => if (@hasDecl(info.child, "toString"))
+                    try args[index].toString()
+                else
+                    @compileError("Cannot coerce type `" ++ @typeName(field.type) ++ "` to string."),
+                else => args[index], // Assume []const u8, let Zig do the work.
+            },
+            .int, .float => try std.fmt.allocPrint(self.allocator, "{d}", args[index]),
+            else => @compileError("Cannot coerce type `" ++ @typeName(field.type) ++ "` to string."),
+        };
+    }
+    return try std.mem.join(self.allocator, "/", buf[0..]);
+}
+
 pub fn joinPaths(self: *const Request, paths: []const []const []const u8) ![]const u8 {
     var buf = std.ArrayList([]const u8).init(self.allocator);
     defer buf.deinit();
