@@ -105,7 +105,7 @@ pub fn main() !void {
                 try std.fs.path.join(allocator, &.{ "src", "app", "database", "Schema.zig" }),
             );
             try jetzig.util.createFile(path, dump);
-            std.log.info("Database dump written to `{s}`.", .{path});
+            std.log.info("Database schema written to `{s}`.", .{path});
         },
     }
 }
