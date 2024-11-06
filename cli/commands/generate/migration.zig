@@ -37,5 +37,15 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
             .command = command,
         },
     );
-    try migration.save();
+    const path = migration.save() catch |err| {
+        switch (err) {
+            error.InvalidMigrationCommand => {
+                std.log.err("Invalid migration command: {?s}", .{command});
+                return;
+            },
+            else => return err,
+        }
+    };
+
+    std.log.info("Saved migration: {s}", .{path});
 }
