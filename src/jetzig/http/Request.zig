@@ -35,9 +35,11 @@ layout: ?[]const u8 = null,
 layout_disabled: bool = false,
 rendered: bool = false,
 redirected: bool = false,
+failed: bool = false,
 redirect_state: ?RedirectState = null,
 middleware_rendered: ?struct { name: []const u8, action: []const u8 } = null,
 middleware_rendered_during_response: bool = false,
+middleware_data: jetzig.http.middleware.MiddlewareData = undefined,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 start_time: i128,
@@ -173,9 +175,21 @@ pub fn respond(self: *Request) !void {
 /// Render a response. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    if (self.rendered) self.rendered_multiple = true;
+    if (self.rendered or self.failed) self.rendered_multiple = true;
 
     self.rendered = true;
+    if (self.response_started) self.middleware_rendered_during_response = true;
+    self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
+    return self.rendered_view.?;
+}
+
+/// Render an error. This function can only be called once per request (repeat calls will
+/// trigger an error).
+pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
+    if (self.rendered or self.redirected) self.rendered_multiple = true;
+
+    self.rendered = true;
+    self.failed = true;
     if (self.response_started) self.middleware_rendered_during_response = true;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
@@ -194,7 +208,7 @@ pub fn redirect(
     location: []const u8,
     redirect_status: enum { moved_permanently, found },
 ) jetzig.views.View {
-    if (self.rendered) self.rendered_multiple = true;
+    if (self.rendered or self.failed) self.rendered_multiple = true;
 
     self.rendered = true;
     self.redirected = true;
@@ -207,6 +221,19 @@ pub fn redirect(
 
     self.redirect_state = .{ .location = location, .status_code = status_code };
     return .{ .data = self.response_data, .status_code = status_code };
+}
+
+pub fn middleware(
+    self: *const Request,
+    comptime name: jetzig.http.middleware.Enum,
+) jetzig.http.middleware.Type(name) {
+    inline for (jetzig.http.middleware.middlewares, 0..) |T, index| {
+        if (@hasDecl(T, "middleware_name") and std.mem.eql(u8, @tagName(name), T.middleware_name)) {
+            const middleware_data = self.middleware_data.get(index);
+            return @as(*jetzig.http.middleware.Type(name), @ptrCast(@alignCast(middleware_data))).*;
+        }
+    }
+    unreachable;
 }
 
 const RedirectState = struct { location: []const u8, status_code: jetzig.http.status_codes.StatusCode };

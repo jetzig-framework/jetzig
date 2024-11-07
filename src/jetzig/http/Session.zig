@@ -53,8 +53,8 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Get a value from the session.
-pub fn get(self: *Self, key: []const u8) !?*jetzig.data.Value {
-    if (self.state != .parsed) return error.UnparsedSessionCookie;
+pub fn get(self: *Self, key: []const u8) ?*jetzig.data.Value {
+    std.debug.assert(self.state == .parsed);
 
     return switch (self.data.value.?.*) {
         .object => self.data.value.?.object.get(key),
@@ -62,8 +62,22 @@ pub fn get(self: *Self, key: []const u8) !?*jetzig.data.Value {
     };
 }
 
+/// Get a typed value from the session.
+pub fn getT(
+    self: *Self,
+    comptime T: jetzig.data.ValueType,
+    key: []const u8,
+) @TypeOf(self.data.value.?.object.getT(T, key)) {
+    std.debug.assert(self.state == .parsed);
+
+    return switch (self.data.value.?.*) {
+        .object => self.data.value.?.object.getT(T, key),
+        else => unreachable,
+    };
+}
+
 /// Put a value into the session.
-pub fn put(self: *Self, key: []const u8, value: *jetzig.data.Value) !void {
+pub fn put(self: *Self, key: []const u8, value: anytype) !void {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
     switch (self.data.value.?.*) {

@@ -14,11 +14,12 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     _ = args;
     _ = cwd;
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    var secret: [128]u8 = undefined;
+    const len = 128;
+    var secret: [len]u8 = undefined;
 
-    for (0..128) |index| {
-        secret[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len)];
+    for (0..len) |index| {
+        secret[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len - 1)];
     }
 
-    std.debug.print("{s}\n", .{secret});
+    try std.io.getStdOut().writer().print("{s}\n", .{secret});
 }

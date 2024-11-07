@@ -153,10 +153,10 @@ pub fn processNextRequest(
         try self.renderResponse(&request);
         try request.response.headers.append("Content-Type", response.content_type);
         try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
-        jetzig.http.middleware.deinit(&middleware_data, &request);
 
-        try jetzig.http.middleware.afterResponse(&middleware_data, &request);
         try request.respond();
+        try jetzig.http.middleware.afterResponse(&middleware_data, &request);
+        jetzig.http.middleware.deinit(&middleware_data, &request);
     }
 
     try self.logger.logRequest(&request);
@@ -233,7 +233,7 @@ fn renderHTML(
                 return request.setResponse(rendered_error, .{});
             };
 
-            return if (request.redirected or request.dynamic_assigned_template != null)
+            return if (request.redirected or request.failed or request.dynamic_assigned_template != null)
                 request.setResponse(rendered, .{})
             else
                 request.setResponse(try self.renderNotFound(request), .{});
@@ -301,6 +301,14 @@ fn renderView(
         if (isBadRequest(err)) return try self.renderBadRequest(request);
         return try self.renderInternalServerError(request, err);
     };
+
+    if (request.failed) {
+        const view: jetzig.views.View = request.rendered_view orelse .{
+            .data = request.response_data,
+            .status_code = .internal_server_error,
+        };
+        return try self.renderError(request, view.status_code);
+    }
 
     const template: ?zmpl.Template = if (request.dynamic_assigned_template) |request_template|
         zmpl.findPrefixed("views", request_template) orelse maybe_template
