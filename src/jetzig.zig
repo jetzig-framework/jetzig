@@ -21,6 +21,7 @@ pub const kv = @import("jetzig/kv.zig");
 pub const database = @import("jetzig/database.zig");
 pub const testing = @import("jetzig/testing.zig");
 pub const config = @import("jetzig/config.zig");
+pub const auth = @import("jetzig/auth.zig");
 
 pub const DateTime = jetcommon.types.DateTime;
 pub const Time = jetcommon.types.Time;

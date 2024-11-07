@@ -12,3 +12,4 @@ pub const Boolean = zmpl.Data.Boolean;
 pub const String = zmpl.Data.String;
 pub const Object = zmpl.Data.Object;
 pub const Array = zmpl.Data.Array;
+pub const ValueType = zmpl.Data.ValueType;

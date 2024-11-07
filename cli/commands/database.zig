@@ -28,7 +28,7 @@ pub const Options = struct {
     };
 };
 
-/// Run the `jetzig generate` command.
+/// Run the `jetzig database` command.
 pub fn run(
     allocator: std.mem.Allocator,
     options: Options,

@@ -12,6 +12,7 @@ stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
 log_queue: *jetzig.loggers.LogQueue,
+mutex: *std.Thread.Mutex,
 
 /// Initialize a new Development Logger.
 pub fn init(
@@ -19,12 +20,14 @@ pub fn init(
     level: LogLevel,
     log_queue: *jetzig.loggers.LogQueue,
 ) DevelopmentLogger {
+    const mutex = allocator.create(std.Thread.Mutex) catch unreachable;
     return .{
         .allocator = allocator,
         .level = level,
         .log_queue = log_queue,
         .stdout_colorized = log_queue.stdout_is_tty,
         .stderr_colorized = log_queue.stderr_is_tty,
+        .mutex = mutex,
     };
 }
 
@@ -105,6 +108,9 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
 }
 
 pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Event) !void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     // XXX: This function does not make any effort to prevent log messages clobbering each other
     // from multiple threads. JSON logger etc. write in one call and the logger's mutex prevents
     // clobbering, but this is not the case here.

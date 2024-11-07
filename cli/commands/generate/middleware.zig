@@ -78,25 +78,32 @@ const middleware_content =
     \\    return middleware;
     \\}
     \\
-    \\/// Invoked immediately after the request head has been processed, before relevant view function
-    \\/// is processed. This gives you access to request headers but not the request body.
-    \\pub fn beforeRequest(self: *Self, request: *jetzig.http.Request) !void {
+    \\/// Invoked immediately after the request is received but before it has started processing.
+    \\/// Any calls to `request.render` or `request.redirect` will prevent further processing of the
+    \\/// request, including any other middleware in the chain.
+    \\pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
     \\    request.server.logger.debug("[middleware] my_custom_value: {s}", .{self.my_custom_value});
     \\    self.my_custom_value = @tagName(request.method);
     \\}
     \\
-    \\/// Invoked immediately after the request has finished responding. Provides full access to the
-    \\/// response as well as the request.
-    \\pub fn afterRequest(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
+    \\/// Invoked immediately before the response renders to the client.
+    \\/// The response can be modified here if needed.
+    \\pub fn beforeResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
     \\    request.server.logger.debug(
     \\        "[middleware] my_custom_value: {s}, response status: {s}",
     \\        .{ self.my_custom_value, @tagName(response.status_code) },
     \\    );
     \\}
     \\
-    \\/// Invoked after `afterRequest` is called, use this function to do any clean-up.
+    \\/// Invoked immediately after the response has been finalized and sent to the client.
+    \\/// Response data can be accessed for logging, but any modifications will have no impact.
+    \\pub fn afterResponse(self: *Self, request: *jetzig.http.Request, response: *jetzig.http.Response) void {
+    \\    request.allocator.destroy(self);
+    \\}
+    \\
+    \\/// Invoked after `afterResponse` is called. Use this function to do any clean-up.
     \\/// Note that `request.allocator` is an arena allocator, so any allocations are automatically
-    \\/// done before the next request starts processing.
+    \\/// freed before the next request starts processing.
     \\pub fn deinit(self: *Self, request: *jetzig.http.Request) void {
     \\    request.allocator.destroy(self);
     \\}

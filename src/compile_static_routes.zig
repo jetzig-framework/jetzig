@@ -12,6 +12,10 @@ pub const database_lazy_connect = true;
 
 pub const jetzig_options = struct {
     pub const Schema = @import("Schema");
+    pub const middleware: []const type = if (@hasDecl(@import("main").jetzig_options, "middleware"))
+        @import("main").jetzig_options.middleware
+    else
+        &.{};
 };
 
 pub fn main() !void {

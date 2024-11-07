@@ -1,9 +1,52 @@
 const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
-const middlewares: []const type = jetzig.config.get([]const type, "middleware");
+pub const middlewares: []const type = jetzig.config.get([]const type, "middleware");
+pub const MiddlewareData = std.BoundedArray(?*anyopaque, middlewares.len);
+pub const Enum = MiddlewareEnum();
 
-const MiddlewareData = std.BoundedArray(?*anyopaque, middlewares.len);
+fn MiddlewareEnum() type {
+    comptime {
+        var size: usize = 0;
+        for (middlewares) |middleware_type| {
+            if (@hasDecl(middleware_type, "middleware_name")) size += 1;
+        }
+        var fields: [size]std.builtin.Type.EnumField = undefined;
+        var index: usize = 0;
+        for (middlewares) |middleware_type| {
+            if (@hasDecl(middleware_type, "middleware_name")) {
+                fields[index] = .{ .name = middleware_type.middleware_name, .value = index };
+                index += 1;
+            }
+        }
+        return @Type(.{
+            .@"enum" = .{
+                .tag_type = std.math.IntFittingRange(0, if (size == 0) 0 else size - 1),
+                .fields = &fields,
+                .decls = &.{},
+                .is_exhaustive = true,
+            },
+        });
+    }
+}
+
+pub fn Type(comptime name: MiddlewareEnum()) type {
+    comptime {
+        for (middlewares) |middleware_type| {
+            if (@hasDecl(
+                middleware_type,
+                "middleware_name",
+            ) and std.mem.eql(
+                u8,
+                middleware_type.middleware_name,
+                @tagName(name),
+            )) {
+                return middleware_type;
+            }
+        }
+        unreachable;
+    }
+}
 
 pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
     var middleware_data = MiddlewareData.init(0) catch unreachable;
@@ -35,6 +78,7 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
         }
     }
 
+    request.middleware_data = middleware_data;
     return middleware_data;
 }
 
