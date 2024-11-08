@@ -4,6 +4,10 @@ const jetzig = @import("../jetzig.zig");
 
 pub const IdType = enum { string, integer };
 
+pub const AuthOptions = struct {
+    user_model: []const u8,
+};
+
 pub fn getUserId(comptime id_type: IdType, request: *jetzig.Request) !?switch (id_type) {
     .integer => i128,
     .string => []const u8,

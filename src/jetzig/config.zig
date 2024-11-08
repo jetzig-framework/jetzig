@@ -151,9 +151,13 @@ pub const smtp: mail.SMTPConfig = .{
 };
 
 /// HTTP cookie configuration
-pub const cookie_options: http.Cookies.CookieOptions = .{
+pub const cookies: http.Cookies.CookieOptions = .{
     .domain = "localhost",
     .path = "/",
+};
+
+pub const auth: @import("auth.zig").AuthOptions = .{
+    .user_model = "User",
 };
 
 /// Force email delivery in development mode (instead of printing email body to logger).

@@ -22,7 +22,7 @@ pub const CookieOptions = struct {
     partitioned: bool = false,
 };
 
-const cookie_options = jetzig.config.get(CookieOptions, "cookie_options");
+const cookie_options = jetzig.config.get(CookieOptions, "cookies");
 
 pub const Cookie = struct {
     name: []const u8,
