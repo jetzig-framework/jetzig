@@ -30,6 +30,7 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
         "demo/public/zmpl.png",
         "demo/public/favicon.ico",
         "demo/public/styles.css",
+        "demo/src/config/database.zig",
         ".gitignore",
     };
 
