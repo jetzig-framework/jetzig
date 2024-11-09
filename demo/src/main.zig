@@ -75,6 +75,9 @@ pub const jetzig_options = struct {
     // milliseconds.
     pub const job_worker_sleep_interval_ms: usize = 10;
 
+    /// Database Schema. Set to `@import("Schema")` to load `src/app/database/Schema.zig`.
+    pub const Schema = @import("Schema");
+
     /// Key-value store options. Set backend to `.file` to use a file-based store.
     /// When using `.file` backend, you must also set `.file_options`.
     /// The key-value store is exposed as `request.store` in views and is also available in as
