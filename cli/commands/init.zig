@@ -107,6 +107,14 @@ pub fn run(
     try copySourceFile(
         allocator,
         install_dir,
+        "demo/config/database.zig",
+        "config/database.zig",
+        null,
+    );
+
+    try copySourceFile(
+        allocator,
+        install_dir,
         "demo/src/main.zig",
         "src/main.zig",
         null,

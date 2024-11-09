@@ -97,10 +97,8 @@ pub const job_worker_threads: usize = 1;
 /// milliseconds.
 pub const job_worker_sleep_interval_ms: usize = 10;
 
-/// Database Schema.
-pub const Schema: type = struct {
-    pub const _null = struct {}; // https://github.com/ziglang/zig/pull/21331
-};
+/// Database Schema. Set to `@import("Schema")` to load `src/app/database/Schema.zig`.
+pub const Schema: type = struct {};
 
 /// Key-value store options. Set backend to `.file` to use a file-based store.
 /// When using `.file` backend, you must also set `.file_options`.
@@ -166,7 +164,7 @@ pub const force_development_email_delivery = false;
 /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
 pub fn get(T: type, comptime key: []const u8) T {
     const self = @This();
-    if (!@hasDecl(self, key)) @panic("Unknown config option: " ++ key);
+    if (!@hasDecl(self, key)) @compileError("Unknown config option: " ++ key);
 
     if (@hasDecl(root, "jetzig_options") and @hasDecl(root.jetzig_options, key)) {
         return @field(root.jetzig_options, key);

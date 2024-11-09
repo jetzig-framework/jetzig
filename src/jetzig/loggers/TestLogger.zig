@@ -4,7 +4,8 @@ const jetzig = @import("../../jetzig.zig");
 
 const TestLogger = @This();
 
-enabled: bool = false,
+mode: enum { stream, file, disable },
+file: ?std.fs.File = null,
 
 pub fn TRACE(self: TestLogger, comptime message: []const u8, args: anytype) !void {
     try self.log(.TRACE, message, args);
@@ -55,7 +56,10 @@ pub fn log(
     comptime message: []const u8,
     args: anytype,
 ) !void {
-    if (self.enabled) {
-        std.debug.print("-- test logger: " ++ @tagName(level) ++ " " ++ message ++ "\n", args);
+    const template = "-- test logger: " ++ @tagName(level) ++ " " ++ message ++ "\n";
+    switch (self.mode) {
+        .stream => std.debug.print(template, args),
+        .file => try self.file.?.writer().print(template, args),
+        .disable => {},
     }
 }

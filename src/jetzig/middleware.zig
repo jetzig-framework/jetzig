@@ -3,6 +3,7 @@ const jetzig = @import("../jetzig.zig");
 
 pub const HtmxMiddleware = @import("middleware/HtmxMiddleware.zig");
 pub const CompressionMiddleware = @import("middleware/CompressionMiddleware.zig");
+pub const AuthMiddleware = @import("middleware/AuthMiddleware.zig");
 
 const RouteOptions = struct {
     content: ?[]const u8 = null,

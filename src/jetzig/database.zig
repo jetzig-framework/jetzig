@@ -10,10 +10,10 @@ pub fn Query(comptime model: anytype) type {
     return jetzig.jetquery.Query(adapter, Schema, model);
 }
 
-pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !Repo {
+pub fn repo(allocator: std.mem.Allocator, app: anytype) !Repo {
     // XXX: Is this terrible ?
     const Callback = struct {
-        var jetzig_app: *const jetzig.App = undefined;
+        var jetzig_app: @TypeOf(app) = undefined;
         pub fn callbackFn(event: jetzig.jetquery.events.Event) !void {
             try eventCallback(event, jetzig_app);
         }
@@ -30,7 +30,7 @@ pub fn repo(allocator: std.mem.Allocator, app: *const jetzig.App) !Repo {
     );
 }
 
-fn eventCallback(event: jetzig.jetquery.events.Event, app: *const jetzig.App) !void {
+fn eventCallback(event: jetzig.jetquery.events.Event, app: anytype) !void {
     try app.server.logger.logSql(event);
     if (event.err) |err| {
         try app.server.logger.ERROR("[database] {?s}", .{err.message});

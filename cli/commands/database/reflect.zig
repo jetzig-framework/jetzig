@@ -19,7 +19,7 @@ pub fn run(
             \\
             \\Example:
             \\
-            \\  jetzig database dump
+            \\  jetzig database reflect
             \\
         , .{});
 
@@ -30,6 +30,6 @@ pub fn run(
         "zig",
         "build",
         util.environmentBuildOption(main_options.options.environment),
-        "jetzig:database:dump",
+        "jetzig:database:reflect",
     });
 }

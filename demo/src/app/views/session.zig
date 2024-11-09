@@ -6,7 +6,7 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
 
     const session = try request.session();
 
-    if (try session.get("message")) |message| {
+    if (session.get("message")) |message| {
         try root.put("message", message);
     } else {
         try root.put("message", data.string("No message saved yet"));

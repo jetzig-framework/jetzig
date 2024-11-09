@@ -7,6 +7,8 @@ pub const std_options = std.Options{
     .logFn = log,
 };
 
+pub const jetzig_options = @import("main").jetzig_options;
+
 pub fn log(
     comptime message_level: std.log.Level,
     comptime scope: @Type(.enum_literal),
@@ -144,14 +146,14 @@ const Test = struct {
 
     fn printSkipped(self: Test, writer: anytype) !void {
         try writer.print(
-            jetzig.colors.yellow("[SKIP]") ++ name_template,
+            "[" ++ jetzig.colors.yellow("SKIP") ++ "]" ++ name_template,
             .{ self.module orelse "tests", self.name },
         );
     }
 
     fn printLeaked(self: Test, writer: anytype) !void {
         _ = self;
-        try writer.print(jetzig.colors.red(" [LEAKED]"), .{});
+        try writer.print("[" ++ jetzig.colors.red("LEAKED") ++ "] ", .{});
     }
 
     fn printDuration(self: Test, writer: anytype) !void {
@@ -251,6 +253,7 @@ fn printSummary(tests: []const Test, start: i128) !void {
     } else {
         try writer.print(jetzig.colors.red("      FAIL   ") ++ "\n", .{});
         try writer.print(jetzig.colors.red("      ▔▔▔▔") ++ "\n", .{});
+        try writer.print("Server logs: " ++ jetzig.colors.cyan("log/test.log") ++ "\n\n", .{});
         std.process.exit(1);
     }
 }

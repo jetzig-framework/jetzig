@@ -1,5 +1,5 @@
 const std = @import("std");
-const jetzig = @import("jetzig");
+const jetzig = @import("../../jetzig.zig");
 
 pub const middleware_name = "auth";
 
@@ -9,7 +9,7 @@ const user_model = jetzig.config.get(jetzig.auth.AuthOptions, "auth").user_model
 /// Define any custom data fields you want to store here. Assigning to these fields in the `init`
 /// function allows you to access them in the `beforeRequest` and `afterRequest` functions, where
 /// they can also be modified.
-user: ?@TypeOf(jetzig.database.Query(user_model).find(0)).ResultType(),
+user: ?@TypeOf(jetzig.database.Query(user_model).find(0)).ResultType,
 
 const Self = @This();
 

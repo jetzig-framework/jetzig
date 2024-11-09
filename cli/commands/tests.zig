@@ -37,8 +37,7 @@ pub fn run(
     try util.execCommand(allocator, &.{
         "zig",
         "build",
-        "-e",
-        "testing",
+        "-Denvironment=testing",
         "jetzig:test",
     });
 }

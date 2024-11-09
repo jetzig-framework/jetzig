@@ -4,6 +4,7 @@ pub const Routes = @import("src/Routes.zig");
 pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 
 const zmpl_build = @import("zmpl");
+const Environment = enum { development, testing, production };
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -106,7 +107,10 @@ pub fn build(b: *std.Build) !void {
     main_tests.root_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
     main_tests.root_module.addImport("httpz", httpz_dep.module("httpz"));
     main_tests.root_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
+    const test_build_options = b.addOptions();
+    test_build_options.addOption(Environment, "environment", .testing);
     const run_main_tests = b.addRunArtifact(main_tests);
+    main_tests.root_module.addOptions("build_options", test_build_options);
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_main_tests.step);
@@ -123,12 +127,13 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         return error.ZmplVersionNotSupported;
     }
 
+    _ = b.option([]const u8, "seed", "Internal test seed");
+
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
 
     if (optimize != .Debug) exe.linkLibC();
 
-    const Environment = enum { development, testing, production };
     const environment = b.option(
         Environment,
         "environment",
@@ -207,7 +212,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_routes_file.root_module.addImport("zmpl", zmpl_module);
 
     const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
-    run_routes_file_cmd.has_side_effects = true; // FIXME
     const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
     run_routes_file_cmd.addArgs(&.{
         root_path,
@@ -217,6 +221,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         jobs_path,
         mailers_path,
     });
+
     const routes_module = b.createModule(.{ .root_source_file = routes_file_path });
     routes_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("routes", routes_module);
@@ -262,7 +267,10 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     run_static_routes_cmd.expectExitCode(0);
 
     const run_tests_file_cmd = b.addRunArtifact(exe_routes_file);
+    run_tests_file_cmd.step.dependOn(&run_routes_file_cmd.step);
+
     const tests_file_path = run_tests_file_cmd.addOutputFileArg("tests.zig");
+
     run_tests_file_cmd.addArgs(&.{
         root_path,
         b.pathFromRoot("src"),
@@ -270,7 +278,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         views_path,
         jobs_path,
         mailers_path,
+        try randomSeed(b), // Hack to force cache skip - let's find a better way.
     });
+
+    for (try scanSourceFiles(b)) |sub_path| {
+        // XXX: We don't use these args, but they help Zig's build system to cache/bust steps.
+        run_routes_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
+        run_tests_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
+    }
 
     const exe_unit_tests = b.addTest(.{
         .root_source_file = tests_file_path,
@@ -280,6 +295,8 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     });
     exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
     exe_unit_tests.root_module.addImport("static", static_module);
+    exe_unit_tests.root_module.addImport("routes", routes_module);
+    exe_unit_tests.root_module.addImport("main", main_module);
 
     var it = exe.root_module.import_table.iterator();
     while (it.next()) |import| {
@@ -303,12 +320,10 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     }
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
     const test_step = b.step("jetzig:test", "Run tests");
-    test_step.dependOn(&run_static_routes_cmd.step);
     test_step.dependOn(&run_exe_unit_tests.step);
-    test_step.dependOn(&run_tests_file_cmd.step);
-    exe_unit_tests.root_module.addImport("routes", routes_module);
+    run_exe_unit_tests.step.dependOn(&run_static_routes_cmd.step);
+    run_exe_unit_tests.step.dependOn(&run_routes_file_cmd.step);
 
     const routes_step = b.step("jetzig:routes", "List all routes in your app");
     const exe_routes = b.addExecutable(.{
@@ -346,7 +361,7 @@ fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) v
         .{ "rollback", "Roll back a migration in your Jetzig app's database." },
         .{ "create", "Create a database for your Jetzig app." },
         .{ "drop", "Drop your Jetzig app's database." },
-        .{ "dump", "Read your app's database and generate a JetQuery schema." },
+        .{ "reflect", "Read your app's database and generate a JetQuery schema." },
     };
 
     inline for (commands) |command| {
@@ -410,4 +425,31 @@ fn isSourceFile(b: *std.Build, path: []const u8) !bool {
         }
     };
     return stat.kind == .file;
+}
+
+fn scanSourceFiles(b: *std.Build) ![]const []const u8 {
+    var buf = std.ArrayList([]const u8).init(b.allocator);
+
+    var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
+    defer src_dir.close();
+
+    var walker = try src_dir.walk(b.allocator);
+    defer walker.deinit();
+
+    while (try walker.next()) |entry| {
+        if (entry.kind == .file) try buf.append(
+            try std.fs.path.join(b.allocator, &.{ "src", entry.path }),
+        );
+    }
+    return try buf.toOwnedSlice();
+}
+
+fn randomSeed(b: *std.Build) ![]const u8 {
+    const seed = try b.allocator.alloc(u8, 32);
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    for (0..32) |index| {
+        seed[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len - 1)];
+    }
+
+    return seed;
 }

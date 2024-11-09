@@ -12,6 +12,11 @@ store: *jetzig.kv.Store,
 cache: *jetzig.kv.Store,
 job_queue: *jetzig.kv.Store,
 multipart_boundary: ?[]const u8 = null,
+logger: jetzig.loggers.Logger,
+server: Server,
+repo: *jetzig.database.Repo,
+
+const Server = struct { logger: jetzig.loggers.Logger };
 
 const initHook = jetzig.root.initHook;
 
@@ -31,20 +36,39 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
     const arena = try allocator.create(std.heap.ArenaAllocator);
     arena.* = std.heap.ArenaAllocator.init(allocator);
 
-    return .{
+    var dir = try std.fs.cwd().makeOpenPath("log", .{});
+    const file = try dir.createFile("test.log", .{ .exclusive = false, .truncate = false });
+
+    const logger = jetzig.loggers.Logger{
+        .test_logger = jetzig.loggers.TestLogger{ .mode = .file, .file = file },
+    };
+
+    const alloc = arena.allocator();
+    const app = try alloc.create(App);
+    const repo = try alloc.create(jetzig.database.Repo);
+
+    app.* = App{
         .arena = arena,
         .allocator = allocator,
         .routes = &routes_module.routes,
         .store = try createStore(arena.allocator()),
         .cache = try createStore(arena.allocator()),
         .job_queue = try createStore(arena.allocator()),
+        .logger = logger,
+        .server = .{ .logger = logger },
+        .repo = repo,
     };
+
+    repo.* = try jetzig.database.repo(alloc, app.*);
+
+    return app.*;
 }
 
 /// Free allocated resources for test app.
 pub fn deinit(self: *App) void {
     self.arena.deinit();
     self.allocator.destroy(self.arena);
+    if (self.logger.test_logger.file) |file| file.close();
 }
 
 const RequestOptions = struct {
@@ -85,19 +109,21 @@ pub fn request(
     const options = try buildOptions(allocator, self, args);
     const routes = try jetzig.App.createRoutes(allocator, self.routes);
 
-    const logger = jetzig.loggers.Logger{ .test_logger = jetzig.loggers.TestLogger{} };
     var log_queue = jetzig.loggers.LogQueue.init(allocator);
+
     // We init the `std.process.EnvMap` directly here (instead of calling `std.process.getEnvMap`
     // to ensure that tests run in a clean environment. Users can manually add items to the
     // environment within a test if required.
     const vars = jetzig.Environment.Vars{ .env_map = std.process.EnvMap.init(allocator) };
     var server = jetzig.http.Server{
         .allocator = allocator,
-        .logger = logger,
+        .logger = self.logger,
         .env = .{
+            .parent_allocator = undefined,
+            .arena = undefined,
             .allocator = allocator,
             .vars = vars,
-            .logger = logger,
+            .logger = self.logger,
             .bind = undefined,
             .port = undefined,
             .detach = false,
@@ -114,7 +140,7 @@ pub fn request(
         .cache = self.cache,
         .job_queue = self.job_queue,
         .global = undefined,
-        .repo = undefined, // TODO - database test helpers
+        .repo = self.repo,
     };
 
     try server.decodeStaticParams();
@@ -154,7 +180,8 @@ pub fn params(self: App, args: anytype) []Param {
     const allocator = self.arena.allocator();
     var array = std.ArrayList(Param).init(allocator);
     inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |field| {
-        array.append(.{ .key = field.name, .value = @field(args, field.name) }) catch @panic("OOM");
+        const value = coerceString(allocator, @field(args, field.name));
+        array.append(.{ .key = field.name, .value = value }) catch @panic("OOM");
     }
     return array.toOwnedSlice() catch @panic("OOM");
 }
@@ -332,4 +359,15 @@ fn buildHeaders(allocator: std.mem.Allocator, args: anytype) ![]const jetzig.tes
         try headers.append(jetzig.testing.TestResponse.Header{ .name = field.name, .value = @field(args, field.name) });
     }
     return try headers.toOwnedSlice();
+}
+
+fn coerceString(allocator: std.mem.Allocator, value: anytype) []const u8 {
+    return switch (@typeInfo(@TypeOf(value))) {
+        .int,
+        .float,
+        .comptime_int,
+        .comptime_float,
+        => std.fmt.allocPrint(allocator, "{d}", .{value}) catch @panic("OOM"),
+        else => value, // TODO: Handle more complex types - arrays, objects, etc.
+    };
 }

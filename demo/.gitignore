@@ -3,3 +3,4 @@ zig-out/
 static/
 src/app/views/**/.*.zig
 .DS_Store
+log/

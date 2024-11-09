@@ -14,7 +14,7 @@ const production_drop_failure_message = "To drop a production database, " ++
 
 const environment = jetzig.build_options.environment;
 const config = @field(jetquery.config.database, @tagName(environment));
-const Action = enum { migrate, rollback, create, drop, dump };
+const Action = enum { migrate, rollback, create, drop, reflect };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -35,7 +35,7 @@ pub fn main() !void {
         .{ "rollback", .rollback },
         .{ "create", .create },
         .{ "drop", .drop },
-        .{ "dump", .dump },
+        .{ "reflect", .reflect },
     });
     const action = map.get(args[1]) orelse return error.JetzigUnrecognizedDatabaseArgument;
 
@@ -80,7 +80,7 @@ pub fn main() !void {
                 try repo.dropDatabase(config.database, .{});
             }
         },
-        .dump => {
+        .reflect => {
             var cwd = try jetzig.util.detectJetzigProjectDir();
             defer cwd.close();
 
@@ -99,12 +99,12 @@ pub fn main() !void {
                     ,
                 },
             );
-            const dump = try reflect.generateSchema();
+            const schema = try reflect.generateSchema();
             const path = try cwd.realpathAlloc(
                 allocator,
                 try std.fs.path.join(allocator, &.{ "src", "app", "database", "Schema.zig" }),
             );
-            try jetzig.util.createFile(path, dump);
+            try jetzig.util.createFile(path, schema);
             std.log.info("Database schema written to `{s}`.", .{path});
         },
     }
@@ -119,7 +119,7 @@ fn migrationsRepo(action: Action, allocator: std.mem.Allocator) !MigrationsRepo 
             .admin = switch (action) {
                 .migrate, .rollback => false,
                 .create, .drop => true,
-                .dump => unreachable, // We use a separate repo for schema reflection.
+                .reflect => unreachable, // We use a separate repo for schema reflection.
             },
             .context = .migration,
         },

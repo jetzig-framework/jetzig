@@ -47,8 +47,6 @@ pub fn reset(self: *Self) !void {
 
 /// Free allocated memory.
 pub fn deinit(self: *Self) void {
-    if (self.state != .parsed) return;
-
     self.data.deinit();
 }
 
@@ -78,7 +76,7 @@ pub fn getT(
 
 /// Put a value into the session.
 pub fn put(self: *Self, key: []const u8, value: anytype) !void {
-    if (self.state != .parsed) return error.UnparsedSessionCookie;
+    std.debug.assert(self.state == .parsed);
 
     switch (self.data.value.?.*) {
         .object => |*object| {
@@ -90,10 +88,9 @@ pub fn put(self: *Self, key: []const u8, value: anytype) !void {
     try self.save();
 }
 
-// removes true if a value was removed
-// and false otherwise
+// Returns `true` if a value was removed and `false` otherwise.
 pub fn remove(self: *Self, key: []const u8) !bool {
-    if (self.state != .parsed) return error.UnparsedSessionCookie;
+    std.debug.assert(self.state == .parsed);
 
     // copied from `get()`
     const result = switch (self.data.value.?.*) {
@@ -191,7 +188,7 @@ test "put and get session key/value" {
 
     try session.parse();
     try session.put("foo", data.string("bar"));
-    var value = (try session.get("foo")).?;
+    var value = (session.get("foo")).?;
     try std.testing.expectEqualStrings(try value.toString(), "bar");
 }
 
@@ -210,11 +207,11 @@ test "remove session key/value" {
 
     try session.parse();
     try session.put("foo", data.string("bar"));
-    var value = (try session.get("foo")).?;
+    var value = (session.get("foo")).?;
     try std.testing.expectEqualStrings(try value.toString(), "bar");
 
     try std.testing.expectEqual(true, try session.remove("foo"));
-    try std.testing.expectEqual(null, try session.get("foo"));
+    try std.testing.expectEqual(null, session.get("foo"));
 }
 
 test "get value from parsed/decrypted cookie" {
@@ -231,7 +228,7 @@ test "get value from parsed/decrypted cookie" {
     defer session.deinit();
 
     try session.parse();
-    var value = (try session.get("foo")).?;
+    var value = (session.get("foo")).?;
     try std.testing.expectEqualStrings("bar", try value.toString());
 }
 
