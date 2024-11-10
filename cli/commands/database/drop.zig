@@ -19,12 +19,13 @@ pub fn run(
             \\
             \\Example:
             \\
-            \\  jetzig database migrate
-            \\  jetzig --environment=testing database migrate
+            \\  jetzig database drop
+            \\  jetzig --environment=testing database drop
             \\
             \\To drop a production database, set the environment variable `{s}` to the name of the database you want to drop, e.g.:
             \\
             \\  {0s}=my_production_production jetzig --environment=production database drop
+            \\
         , .{cli.database.confirm_drop_env});
 
         return if (main_options.options.help) {} else error.JetzigCommandError;
