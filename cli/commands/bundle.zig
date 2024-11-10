@@ -176,7 +176,7 @@ fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Op
     var install_argv = std.ArrayList([]const u8).init(allocator);
     defer install_argv.deinit();
 
-    try install_argv.appendSlice(&[_][]const u8{ "zig", "build" });
+    try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "-Denvironment=production" });
 
     switch (options.optimize) {
         .ReleaseFast => try install_argv.append("-Doptimize=ReleaseFast"),
