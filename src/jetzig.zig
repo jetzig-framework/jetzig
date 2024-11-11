@@ -28,7 +28,7 @@ pub const Time = jetcommon.types.Time;
 pub const Date = jetcommon.types.Date;
 
 pub const build_options = @import("build_options");
-pub const environment = build_options.environment;
+pub const environment = std.enums.nameCast(Environment.EnvironmentName, build_options.environment);
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
@@ -85,7 +85,7 @@ pub const initHook: ?*const fn (*App) anyerror!void = if (@hasDecl(root, "init")
 /// Initialize a new Jetzig app. Call this from `src/main.zig` and then call
 /// `start(@import("routes").routes)` on the returned value.
 pub fn init(allocator: std.mem.Allocator) !App {
-    const env = try Environment.init(allocator);
+    const env = try Environment.init(allocator, .{});
 
     return .{
         .env = env,

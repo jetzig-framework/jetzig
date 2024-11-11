@@ -361,7 +361,7 @@ test "environment SMTP config" {
     try env_map.put("JETZIG_SMTP_USERNAME", "example-username");
     try env_map.put("JETZIG_SMTP_PASSWORD", "example-password");
 
-    env.vars = jetzig.Environment.Vars{ .env_map = env_map };
+    env.vars = jetzig.Environment.Vars{ .env_map = env_map, .env_file = null };
 
     const mail = Mail{
         .allocator = undefined,

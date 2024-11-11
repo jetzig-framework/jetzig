@@ -57,6 +57,15 @@ pub inline fn strip(input: []const u8) []const u8 {
     return std.mem.trim(u8, input, &std.ascii.whitespace);
 }
 
+pub inline fn unquote(input: []const u8) []const u8 {
+    return if (std.mem.startsWith(u8, input, "\"") and std.mem.endsWith(u8, input, "\""))
+        std.mem.trim(u8, input, "\"")
+    else if (std.mem.startsWith(u8, input, "'") and std.mem.endsWith(u8, input, "'"))
+        std.mem.trim(u8, input, "'")
+    else
+        input;
+}
+
 /// Generate a secure random string of `len` characters (for cryptographic purposes).
 pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

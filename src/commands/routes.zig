@@ -13,7 +13,7 @@ pub fn main() !void {
 
     log("Jetzig Routes:", .{});
 
-    const environment = jetzig.Environment.init(undefined);
+    const environment = jetzig.Environment.init(allocator, .{ .silent = true });
     const initHook: ?*const fn (*jetzig.App) anyerror!void = if (@hasDecl(app, "init")) app.init else null;
 
     inline for (routes.routes) |route| max_uri_path_len = @max(route.uri_path.len + 5, max_uri_path_len);

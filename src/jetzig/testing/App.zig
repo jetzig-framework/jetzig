@@ -114,7 +114,10 @@ pub fn request(
     // We init the `std.process.EnvMap` directly here (instead of calling `std.process.getEnvMap`
     // to ensure that tests run in a clean environment. Users can manually add items to the
     // environment within a test if required.
-    const vars = jetzig.Environment.Vars{ .env_map = std.process.EnvMap.init(allocator) };
+    const vars = jetzig.Environment.Vars{
+        .env_map = std.process.EnvMap.init(allocator),
+        .env_file = null,
+    };
     var server = jetzig.http.Server{
         .allocator = allocator,
         .logger = self.logger,

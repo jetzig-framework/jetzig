@@ -7,10 +7,12 @@ const Self = @This();
 pub const DevelopmentLogger = @import("loggers/DevelopmentLogger.zig");
 pub const JsonLogger = @import("loggers/JsonLogger.zig");
 pub const TestLogger = @import("loggers/TestLogger.zig");
+pub const ProductionLogger = @import("loggers/ProductionLogger.zig");
+
 pub const LogQueue = @import("loggers/LogQueue.zig");
 
 pub const LogLevel = enum(u4) { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
-pub const LogFormat = enum { development, json };
+pub const LogFormat = enum { development, production, json };
 
 /// Infer a log target (stdout or stderr) from a given log level.
 pub inline fn logTarget(comptime level: LogLevel) LogQueue.Target {
@@ -23,6 +25,7 @@ pub const Logger = union(enum) {
     development_logger: DevelopmentLogger,
     json_logger: JsonLogger,
     test_logger: TestLogger,
+    production_logger: ProductionLogger,
 
     /// Log a TRACE level message to the configured logger.
     pub fn TRACE(self: *const Logger, comptime message: []const u8, args: anytype) !void {

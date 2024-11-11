@@ -21,16 +21,61 @@ log_queue: *jetzig.loggers.LogQueue,
 pub const EnvironmentName = enum { development, production, testing };
 pub const Vars = struct {
     env_map: std.process.EnvMap,
+    env_file: ?EnvFile,
+
+    pub const EnvFile = struct {
+        allocator: std.mem.Allocator,
+        hashmap: *std.StringHashMap([]const u8),
+        content: []const u8,
+
+        pub fn init(allocator: std.mem.Allocator, file: std.fs.File) !EnvFile {
+            const stat = try file.stat();
+            const content = try file.readToEndAlloc(allocator, stat.size);
+            file.close();
+            const hashmap = try allocator.create(std.StringHashMap([]const u8));
+            hashmap.* = std.StringHashMap([]const u8).init(allocator);
+            var it = std.mem.tokenizeScalar(u8, content, '\n');
+            while (it.next()) |line| {
+                const stripped = jetzig.util.strip(line);
+                if (std.mem.startsWith(u8, stripped, "#")) continue;
+                const equals_index = std.mem.indexOfScalar(u8, stripped, '=') orelse continue;
+                const name = stripped[0..equals_index];
+                const value = if (equals_index + 1 < stripped.len) stripped[equals_index + 1 ..] else "";
+                try hashmap.put(name, jetzig.util.unquote(value));
+            }
+
+            return .{ .allocator = allocator, .hashmap = hashmap, .content = content };
+        }
+
+        pub fn deinit(self: EnvFile) void {
+            self.hashmap.deinit();
+            self.allocator.destroy(self.hashmap);
+            self.allocator.free(self.content);
+        }
+    };
+
+    pub fn init(allocator: std.mem.Allocator, env_file: ?std.fs.File) !Vars {
+        return .{
+            .env_file = if (env_file) |file| try EnvFile.init(allocator, file) else null,
+            .env_map = try std.process.getEnvMap(allocator),
+        };
+    }
+
+    pub fn deinit(self: Vars) void {
+        var env_map = self.env_map;
+        env_map.deinit();
+    }
 
     pub fn get(self: Vars, key: []const u8) ?[]const u8 {
-        return self.env_map.get(key);
+        const env_file = self.env_file orelse return self.env_map.get(key);
+        return env_file.hashmap.get(key) orelse self.env_map.get(key);
     }
 
     pub fn getT(self: Vars, T: type, key: []const u8) !switch (@typeInfo(T)) {
         .bool => T,
         else => ?T,
     } {
-        const value = self.env_map.get(key) orelse return if (@typeInfo(T) == .bool)
+        const value = self.get(key) orelse return if (@typeInfo(T) == .bool)
             false
         else
             null;
@@ -48,11 +93,6 @@ pub const Vars = struct {
         };
     }
 
-    pub fn deinit(self: Vars) void {
-        var env_map = self.env_map;
-        env_map.deinit();
-    }
-
     fn parseEnum(E: type, value: []const u8) ?E {
         return std.meta.stringToEnum(E, value);
     }
@@ -65,8 +105,11 @@ const Options = struct {
     log: []const u8 = "-",
     @"log-error": []const u8 = "-",
     @"log-level": ?jetzig.loggers.LogLevel = null,
-    // TODO: Create a production logger and select default logger based on environment.
-    @"log-format": jetzig.loggers.LogFormat = .development,
+    @"log-format": jetzig.loggers.LogFormat = switch (jetzig.environment) {
+        .development, .testing => .development,
+        .production => .production,
+    },
+    @"env-file": []const u8 = ".env",
     detach: bool = false,
 
     pub const shorthands = .{
@@ -95,6 +138,9 @@ const Options = struct {
             .detach =
             \\Run the server in the background. Must be used in conjunction with --log (default: false)
             ,
+            .@"env-file" =
+            \\Load environment variables from a file. Variables defined in this file take precedence over process environment variables.
+            ,
             .help = "Print help and exit",
         },
     };
@@ -103,6 +149,7 @@ const Options = struct {
 const LaunchLogger = struct {
     stdout: std.fs.File,
     stderr: std.fs.File,
+    silent: bool = false,
 
     pub fn log(
         self: LaunchLogger,
@@ -110,6 +157,8 @@ const LaunchLogger = struct {
         comptime message: []const u8,
         log_args: anytype,
     ) !void {
+        if (self.silent) return;
+
         const target = @field(self, @tagName(jetzig.loggers.logTarget(level)));
         const writer = target.writer();
         try writer.print(
@@ -119,7 +168,11 @@ const LaunchLogger = struct {
     }
 };
 
-pub fn init(parent_allocator: std.mem.Allocator) !Environment {
+pub const EnvironmentOptions = struct {
+    silent: bool = false,
+};
+
+pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions) !Environment {
     const arena = try parent_allocator.create(std.heap.ArenaAllocator);
     arena.* = std.heap.ArenaAllocator.init(parent_allocator);
     const allocator = arena.allocator();
@@ -127,12 +180,13 @@ pub fn init(parent_allocator: std.mem.Allocator) !Environment {
     const options = try args.parseForCurrentProcess(Options, allocator, .print);
     defer options.deinit();
 
+    const stdout = try getLogFile(.stdout, options.options);
+    const stderr = try getLogFile(.stdout, options.options);
+
     const log_queue = try allocator.create(jetzig.loggers.LogQueue);
     log_queue.* = jetzig.loggers.LogQueue.init(allocator);
-    try log_queue.setFiles(
-        try getLogFile(.stdout, options.options),
-        try getLogFile(.stderr, options.options),
-    );
+
+    try log_queue.setFiles(stdout, stderr);
 
     if (options.options.help) {
         const writer = std.io.getStdErr().writer();
@@ -140,26 +194,40 @@ pub fn init(parent_allocator: std.mem.Allocator) !Environment {
         std.process.exit(0);
     }
 
-    const environment = std.enums.nameCast(EnvironmentName, jetzig.environment);
-    const vars = Vars{ .env_map = try std.process.getEnvMap(allocator) };
+    const env_file = std.fs.cwd().openFile(options.options.@"env-file", .{}) catch |err|
+        switch (err) {
+        error.FileNotFound => null,
+        else => return err,
+    };
+
+    const vars = try Vars.init(allocator, env_file);
 
     var launch_logger = LaunchLogger{
-        .stdout = try getLogFile(.stdout, options.options),
-        .stderr = try getLogFile(.stdout, options.options),
+        .stdout = stdout,
+        .stderr = stderr,
+        .silent = env_options.silent,
     };
 
     const logger = switch (options.options.@"log-format") {
         .development => jetzig.loggers.Logger{
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 allocator,
-                resolveLogLevel(options.options.@"log-level", environment),
+                resolveLogLevel(options.options.@"log-level", jetzig.environment),
+                stdout,
+                stderr,
+            ),
+        },
+        .production => jetzig.loggers.Logger{
+            .production_logger = jetzig.loggers.ProductionLogger.init(
+                allocator,
+                resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 log_queue,
             ),
         },
         .json => jetzig.loggers.Logger{
             .json_logger = jetzig.loggers.JsonLogger.init(
                 allocator,
-                resolveLogLevel(options.options.@"log-level", environment),
+                resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 log_queue,
             ),
         },
@@ -171,7 +239,7 @@ pub fn init(parent_allocator: std.mem.Allocator) !Environment {
     }
 
     const secret_len = jetzig.http.Session.Cipher.key_length;
-    const secret_value = try getSecret(allocator, launch_logger, secret_len, environment);
+    const secret_value = try getSecret(allocator, launch_logger, secret_len, jetzig.environment);
     const secret = if (secret_value.len > secret_len) secret_value[0..secret_len] else secret_value;
 
     if (secret.len != secret_len) {
@@ -200,8 +268,9 @@ pub fn init(parent_allocator: std.mem.Allocator) !Environment {
             "Using `{s}` database adapter with database: `{s}`.",
             .{
                 @tagName(jetzig.database.adapter),
-                switch (environment) {
-                    inline else => |tag| @field(jetzig.jetquery.config.database, @tagName(tag)).database,
+                switch (jetzig.environment) {
+                    inline else => |tag| vars.get("JETQUERY_DATABASE") orelse
+                        @field(jetzig.jetquery.config.database, @tagName(tag)).database,
                 },
             },
         );
@@ -216,7 +285,7 @@ pub fn init(parent_allocator: std.mem.Allocator) !Environment {
         .bind = try allocator.dupe(u8, options.options.bind),
         .port = options.options.port,
         .detach = options.options.detach,
-        .environment = environment,
+        .environment = jetzig.environment,
         .vars = vars,
         .log_queue = log_queue,
     };

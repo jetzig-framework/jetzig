@@ -127,8 +127,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         return error.ZmplVersionNotSupported;
     }
 
-    _ = b.option([]const u8, "seed", "Internal test seed");
-
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
 
@@ -332,6 +330,25 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .target = target,
         .optimize = optimize,
     });
+
+    const auth_user_create_step = b.step("jetzig:auth:user:create", "List all routes in your app");
+    const exe_auth = b.addExecutable(.{
+        .name = "auth",
+        .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe_auth.root_module.addImport("jetquery", jetquery_module);
+    exe_auth.root_module.addImport("jetzig", jetzig_module);
+    exe_auth.root_module.addImport("jetcommon", jetcommon_module);
+    exe_auth.root_module.addImport("Schema", schema_module);
+    exe_auth.root_module.addImport("main", main_module);
+    const run_auth_user_create_cmd = b.addRunArtifact(exe_auth);
+    auth_user_create_step.dependOn(&run_auth_user_create_cmd.step);
+    run_auth_user_create_cmd.addArg("user:create");
+    if (b.option([]const u8, "auth_username", "Auth username")) |username| {
+        run_auth_user_create_cmd.addArg(username);
+    }
 
     const exe_database = b.addExecutable(.{
         .name = "database",

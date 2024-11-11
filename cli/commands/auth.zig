@@ -1,5 +1,6 @@
 const std = @import("std");
 const args = @import("args");
+const util = @import("../util.zig");
 
 /// Command line options for the `update` command.
 pub const Options = struct {
@@ -31,9 +32,9 @@ pub fn run(
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const Action = enum { password };
+    const Action = enum { user_create };
     const map = std.StaticStringMap(Action).initComptime(.{
-        .{ "password", .password },
+        .{ "user:create", .user_create },
     });
 
     const action = if (main_options.positionals.len > 0)
@@ -54,26 +55,19 @@ pub fn run(
         break :blk error.JetzigCommandError;
     } else if (action) |capture|
         switch (capture) {
-            .password => blk: {
+            .user_create => blk: {
                 if (sub_args.len < 1) {
-                    std.debug.print("Missing argument. Expected a password paramater.\n", .{});
+                    std.debug.print("Missing argument. Expected an email/username parameter.\n", .{});
                     break :blk error.JetzigCommandError;
                 } else {
-                    const hash = try hashPassword(alloc, sub_args[0]);
-                    try std.io.getStdOut().writer().print("Password hash: {s}\n", .{hash});
+                    try util.execCommand(allocator, &.{
+                        "zig",
+                        "build",
+                        util.environmentBuildOption(main_options.options.environment),
+                        try std.mem.concat(allocator, u8, &.{ "-Dauth_username=", sub_args[0] }),
+                        "jetzig:auth:user:create",
+                    });
                 }
             },
         };
-}
-
-pub fn hashPassword(allocator: std.mem.Allocator, password: []const u8) ![]const u8 {
-    const buf = try allocator.alloc(u8, 128);
-    return try std.crypto.pwhash.argon2.strHash(
-        password,
-        .{
-            .allocator = allocator,
-            .params = .{ .t = 3, .m = 32, .p = 4 },
-        },
-        buf,
-    );
 }

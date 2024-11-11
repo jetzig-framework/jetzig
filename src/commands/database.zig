@@ -28,7 +28,7 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(allocator);
 
-    if (args.len < 2) return error.JetzigMissingDatabaseArgument;
+    if (args.len < 2) return error.JetzigMissingArgument;
 
     const map = std.StaticStringMap(Action).initComptime(.{
         .{ "migrate", .migrate },
@@ -37,7 +37,7 @@ pub fn main() !void {
         .{ "drop", .drop },
         .{ "reflect", .reflect },
     });
-    const action = map.get(args[1]) orelse return error.JetzigUnrecognizedDatabaseArgument;
+    const action = map.get(args[1]) orelse return error.JetzigUnrecognizedArgument;
 
     switch (action) {
         .migrate => {

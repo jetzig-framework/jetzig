@@ -8,25 +8,30 @@ const Timestamp = jetzig.types.Timestamp;
 const LogLevel = jetzig.loggers.LogLevel;
 
 allocator: std.mem.Allocator,
+stdout: std.fs.File,
+stderr: std.fs.File,
 stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
-log_queue: *jetzig.loggers.LogQueue,
 mutex: *std.Thread.Mutex,
 
 /// Initialize a new Development Logger.
 pub fn init(
     allocator: std.mem.Allocator,
     level: LogLevel,
-    log_queue: *jetzig.loggers.LogQueue,
+    stdout: std.fs.File,
+    stderr: std.fs.File,
 ) DevelopmentLogger {
     const mutex = allocator.create(std.Thread.Mutex) catch unreachable;
+    mutex.* = std.Thread.Mutex{};
+
     return .{
         .allocator = allocator,
         .level = level,
-        .log_queue = log_queue,
-        .stdout_colorized = log_queue.stdout_is_tty,
-        .stderr_colorized = log_queue.stderr_is_tty,
+        .stdout = stdout,
+        .stderr = stderr,
+        .stdout_colorized = stdout.isTty(),
+        .stderr_colorized = stderr.isTty(),
         .mutex = mutex,
     };
 }
@@ -38,6 +43,9 @@ pub fn log(
     comptime message: []const u8,
     args: anytype,
 ) !void {
+    self.mutex.lock();
+    defer self.mutex.unlock();
+
     if (@intFromEnum(level) < @intFromEnum(self.level)) return;
 
     const output = try std.fmt.allocPrint(self.allocator, message, args);
@@ -47,13 +55,11 @@ pub fn log(
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
-    const target = jetzig.loggers.logTarget(level);
     const formatted_level = colorizedLogLevel(level);
 
-    try self.log_queue.print(
+    try self.logWriter(level).print(
         "{s: >5} [{s}] {s}\n",
         .{ formatted_level, iso8601, output },
-        target,
     );
 }
 
@@ -87,7 +93,7 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
 
     const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
 
-    try self.log_queue.print("{s: >5} [{s}] [{s}/{s}/{s}]{s}{s}{s}{s}{s}{s}{s}{s}{s}{s} {s}\n", .{
+    try self.logWriter(.INFO).print("{s: >5} [{s}] [{s}/{s}/{s}]{s}{s}{s}{s}{s}{s}{s}{s}{s}{s} {s}\n", .{
         formatted_level,
         iso8601,
         formatted_duration,
@@ -104,22 +110,15 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
         if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.reset else "",
         if (request.middleware_rendered) |_| "]" else "",
         request.path.path,
-    }, .stdout);
+    });
 }
 
 pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Event) !void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
-
     // XXX: This function does not make any effort to prevent log messages clobbering each other
-    // from multiple threads. JSON logger etc. write in one call and the logger's mutex prevents
+    // from multiple threads. JSON logger etc. write in one call and the log queue prevents
     // clobbering, but this is not the case here.
     const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
-    try self.log_queue.print(
-        "{s} [database] ",
-        .{formatted_level},
-        .stdout,
-    );
+    try self.logWriter(.INFO).print("{s} [database] ", .{formatted_level});
     try self.printSql(event.sql orelse "");
 
     var duration_buf: [256]u8 = undefined;
@@ -129,10 +128,9 @@ pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Even
         self.stdout_colorized,
     ) else "";
 
-    try self.log_queue.print(
+    try self.logWriter(.INFO).print(
         std.fmt.comptimePrint(" [{s}]\n", .{jetzig.colors.cyan("{s}")}),
         .{formatted_duration},
-        .stdout,
     );
 }
 
@@ -170,6 +168,9 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
     const string_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.green;
     const identifier_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.yellow;
     const reset_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.reset;
+    var buf: [4096]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
 
     var index: usize = 0;
     var single_quote: bool = false;
@@ -181,9 +182,9 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
                 if (!single_quote) {
                     double_quote = !double_quote;
                     if (double_quote) {
-                        try self.log_queue.print(identifier_color ++ "\"", .{}, .stdout);
+                        try writer.print(identifier_color ++ "\"", .{});
                     } else {
-                        try self.log_queue.print("\"" ++ reset_color, .{}, .stdout);
+                        try writer.print("\"" ++ reset_color, .{});
                     }
                     index += 1;
                 }
@@ -192,16 +193,16 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
                 if (!double_quote) {
                     single_quote = !single_quote;
                     if (single_quote) {
-                        try self.log_queue.print(string_color ++ "'", .{}, .stdout);
+                        try writer.print(string_color ++ "'", .{});
                     } else {
-                        try self.log_queue.print("'" ++ reset_color, .{}, .stdout);
+                        try writer.print("'" ++ reset_color, .{});
                     }
                 }
                 index += 1;
             },
             '$' => {
                 if (double_quote or single_quote) {
-                    try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                    try writer.print("{c}", .{sql[index]});
                     index += 1;
                 } else {
                     const param = sql[index..][0 .. std.mem.indexOfAny(
@@ -209,29 +210,30 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
                         sql[index..],
                         &std.ascii.whitespace,
                     ) orelse sql.len - index];
-                    try self.log_queue.print(jetzig.colors.magenta("{s}"), .{param}, .stdout);
+                    try writer.print(jetzig.colors.magenta("{s}"), .{param});
                     index += param.len;
                 }
             },
             else => {
                 if (double_quote or single_quote) {
-                    try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                    try writer.print("{c}", .{sql[index]});
                     index += 1;
                 } else {
                     inline for (sql_tokens) |token| {
                         if (std.mem.startsWith(u8, sql[index..], token)) {
-                            try self.log_queue.print(jetzig.colors.cyan(token), .{}, .stdout);
+                            try writer.print(jetzig.colors.cyan(token), .{});
                             index += token.len;
                             break;
                         }
                     } else {
-                        try self.log_queue.print("{c}", .{sql[index]}, .stdout);
+                        try writer.print("{c}", .{sql[index]});
                         index += 1;
                     }
                 }
             },
         }
     }
+    try self.logWriter(.INFO).print("{s}", .{stream.getWritten()});
 }
 
 pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
@@ -245,6 +247,14 @@ pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
     }
 
     try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
+}
+
+fn logWriter(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File.Writer {
+    const target = comptime jetzig.loggers.logTarget(level);
+    return switch (target) {
+        .stdout => self.stdout,
+        .stderr => self.stderr,
+    }.writer();
 }
 
 inline fn colorizedLogLevel(comptime level: LogLevel) []const u8 {

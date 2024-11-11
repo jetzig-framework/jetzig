@@ -78,6 +78,16 @@ pub const jetzig_options = struct {
     /// Database Schema. Set to `@import("Schema")` to load `src/app/database/Schema.zig`.
     pub const Schema = @import("Schema");
 
+    /// HTTP cookie configuration
+    pub const cookies: jetzig.http.Cookies.CookieOptions = .{
+        .domain = switch (jetzig.environment) {
+            .development => "localhost",
+            .testing => "localhost",
+            .production => "www.example.com",
+        },
+        .path = "/",
+    };
+
     /// Key-value store options. Set backend to `.file` to use a file-based store.
     /// When using `.file` backend, you must also set `.file_options`.
     /// The key-value store is exposed as `request.store` in views and is also available in as

@@ -15,8 +15,8 @@
             .hash = "12201d75d73aad5e1c996de4d5ae87a00e58479c8d469bc2eeb5fdeeac8857bc09af",
         },
         .jetquery = .{
-            .url = "https://github.com/jetzig-framework/jetquery/archive/c9df298b5a2d0713257c99d89096f6f981cbc6b6.tar.gz",
-            .hash = "12200417dd5948bd2942c36b4965fb7b68a3e4582a7a74dc05bc30801597ace00849",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/23c9741a407b6c4f93d9d21508f6568be747bdcc.tar.gz",
+            .hash = "122020374e5fd67d5836c0f3d7a8f814262aa076e3b90c1043f44184da1c2997e0bb",
         },
         .jetcommon = .{
             .url = "https://github.com/jetzig-framework/jetcommon/archive/a248776ba56d6cc2b160d593ac3305756adcd26e.tar.gz",
