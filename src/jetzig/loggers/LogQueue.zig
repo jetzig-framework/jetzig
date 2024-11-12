@@ -164,7 +164,6 @@ pub const Reader = struct {
             var stdout_written = false;
             var stderr_written = false;
             var file: std.fs.File = undefined;
-            var colorize = false;
 
             while (try self.queue.popFirst()) |event| {
                 self.queue.writer.mutex.lock();
@@ -175,14 +174,12 @@ pub const Reader = struct {
                         stdout_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stdout_file;
-                            colorize = self.queue.stdout_colorize;
                         }
                     },
                     .stderr => {
                         stderr_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stderr_file;
-                            colorize = self.queue.stderr_colorize;
                         }
                     },
                 }
@@ -199,7 +196,7 @@ pub const Reader = struct {
                     continue;
                 }
 
-                try jetzig.util.writeAnsi(file, writer, event.message[0..event.len]);
+                try writer.writeAll(event.message[0..event.len]);
 
                 self.queue.writer.position -= 1;
 
@@ -268,26 +265,6 @@ fn popFirst(self: *LogQueue) !?Event {
 
 fn initPool(allocator: std.mem.Allocator, T: type) std.heap.MemoryPool(T) {
     return std.heap.MemoryPool(T).initPreheated(allocator, max_pool_len) catch @panic("OOM");
-}
-
-fn writeWindows(file: std.fs.File, writer: anytype, event: Event) !void {
-    var info: std.os.windows.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-    _ = std.os.windows.kernel32.GetConsoleScreenBufferInfo(file.handle, &info);
-
-    var it = std.mem.tokenizeSequence(u8, event.message[0..event.len], "\x1b[");
-    while (it.next()) |token| {
-        if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
-            if (index > 0 and index + 1 < token.len) {
-                if (jetzig.colors.windows_map.get(token[0..index])) |color| {
-                    try std.os.windows.SetConsoleTextAttribute(file.handle, color);
-                    try writer.writeAll(token[index + 1 ..]);
-                    continue;
-                }
-            }
-        }
-        // Fallback
-        try writer.writeAll(token);
-    }
 }
 
 test "print to stdout and stderr" {

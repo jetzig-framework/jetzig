@@ -57,7 +57,8 @@ pub fn log(
 
     const formatted_level = colorizedLogLevel(level);
 
-    try self.logWriter(level).print(
+    try self.print(
+        level,
         "{s: >5} [{s}] {s}\n",
         .{ formatted_level, iso8601, output },
     );
@@ -93,7 +94,7 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
 
     const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
 
-    try self.logWriter(.INFO).print("{s: >5} [{s}] [{s}/{s}/{s}]{s}{s}{s}{s}{s}{s}{s}{s}{s}{s} {s}\n", .{
+    try self.print(.INFO, "{s: >5} [{s}] [{s}/{s}/{s}]{s}{s}{s}{s}{s}{s}{s}{s}{s}{s} {s}\n", .{
         formatted_level,
         iso8601,
         formatted_duration,
@@ -118,7 +119,7 @@ pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Even
     // from multiple threads. JSON logger etc. write in one call and the log queue prevents
     // clobbering, but this is not the case here.
     const formatted_level = if (self.stdout_colorized) colorizedLogLevel(.INFO) else @tagName(.INFO);
-    try self.logWriter(.INFO).print("{s} [database] ", .{formatted_level});
+    try self.print(.INFO, "{s} [database] ", .{formatted_level});
     try self.printSql(event.sql orelse "");
 
     var duration_buf: [256]u8 = undefined;
@@ -128,7 +129,8 @@ pub fn logSql(self: *const DevelopmentLogger, event: jetzig.jetquery.events.Even
         self.stdout_colorized,
     ) else "";
 
-    try self.logWriter(.INFO).print(
+    try self.print(
+        .INFO,
         std.fmt.comptimePrint(" [{s}]\n", .{jetzig.colors.cyan("{s}")}),
         .{formatted_duration},
     );
@@ -233,7 +235,7 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
             },
         }
     }
-    try self.logWriter(.INFO).print("{s}", .{stream.getWritten()});
+    try self.print(.INFO, "{s}", .{stream.getWritten()});
 }
 
 pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
@@ -249,12 +251,41 @@ pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
     try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
 }
 
-fn logWriter(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File.Writer {
+fn logFile(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File {
     const target = comptime jetzig.loggers.logTarget(level);
     return switch (target) {
         .stdout => self.stdout,
         .stderr => self.stderr,
-    }.writer();
+    };
+}
+
+fn logWriter(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File.Writer {
+    return self.logFile(level).writer();
+}
+
+fn print(
+    self: DevelopmentLogger,
+    comptime level: jetzig.loggers.LogLevel,
+    comptime template: []const u8,
+    args: anytype,
+) !void {
+    const log_writer = self.logWriter(level);
+    const count = std.fmt.count(template, args);
+    const buf_size = 4096;
+    if (count <= buf_size) {
+        var buf: [buf_size]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buf);
+        const writer = stream.writer();
+        try writer.print(template, args);
+        try jetzig.util.writeAnsi(self.logFile(level), log_writer, stream.getWritten());
+    } else {
+        const buf = try self.allocator.alloc(u8, count);
+        defer self.allocator.free(buf);
+        var stream = std.io.fixedBufferStream(buf);
+        const writer = stream.writer();
+        try writer.print(template, args);
+        try jetzig.util.writeAnsi(self.logFile(level), log_writer, stream.getWritten());
+    }
 }
 
 inline fn colorizedLogLevel(comptime level: LogLevel) []const u8 {
