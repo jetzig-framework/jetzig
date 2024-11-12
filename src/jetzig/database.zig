@@ -33,7 +33,7 @@ pub fn repo(allocator: std.mem.Allocator, app: anytype) !Repo {
                 .testing => false,
             },
             // Checking field presence here makes setting up test App a bit simpler.
-            .env = if (@hasField(@TypeOf(app), "env")) try repoEnv(app.env) else .{},
+            .env = if (@TypeOf(app) == *const jetzig.App) try repoEnv(app.env) else .{},
         },
     );
 }
