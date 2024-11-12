@@ -49,11 +49,13 @@ pub fn repoEnv(env: jetzig.Environment) !Repo.AdapterOptions {
     return switch (comptime adapter) {
         .null => .{},
         .postgresql => .{
-            .hostname = @as(?[]const u8, env.vars.get("JETQUERY_HOSTNAME")),
-            .port = @as(?u16, try env.vars.getT(u16, "JETQUERY_PORT")),
-            .username = @as(?[]const u8, env.vars.get("JETQUERY_USERNAME")),
-            .password = @as(?[]const u8, env.vars.get("JETQUERY_PASSWORD")),
-            .database = @as(?[]const u8, env.vars.get("JETQUERY_DATABASE")),
+            .hostname = env.vars.get("JETQUERY_HOSTNAME"),
+            .port = try env.vars.getT(u16, "JETQUERY_PORT"),
+            .username = env.vars.get("JETQUERY_USERNAME"),
+            .password = env.vars.get("JETQUERY_PASSWORD"),
+            .database = env.vars.get("JETQUERY_DATABASE"),
+            .pool_size = try env.vars.getT(u16, "JETQUERY_POOL_SIZE"),
+            .timeout = try env.vars.getT(u32, "JETQUERY_TIMEOUT"),
         },
     };
 }

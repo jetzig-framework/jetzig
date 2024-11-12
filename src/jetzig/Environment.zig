@@ -133,7 +133,7 @@ const Options = struct {
             \\Minimum log level. Log events below the given level are ignored. Must be one of: { TRACE, DEBUG, INFO, WARN, ERROR, FATAL } (default: DEBUG in development, INFO in production)
             ,
             .@"log-format" =
-            \\Output logs in the given format. Must be one of: { development, json } (default: development)
+            \\Output logs in the given format. Must be one of: { development, production, json, null } (default: development)
             ,
             .detach =
             \\Run the server in the background. Must be used in conjunction with --log (default: false)
@@ -230,6 +230,9 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
                 resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 log_queue,
             ),
+        },
+        .null => jetzig.loggers.Logger{
+            .null_logger = jetzig.loggers.NullLogger{},
         },
     };
 

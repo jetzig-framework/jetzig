@@ -36,6 +36,8 @@ pub fn main() !void {
                 std.enums.nameCast(jetzig.jetquery.Environment, jetzig.environment),
                 .{ .env = try jetzig.database.repoEnv(env), .context = .cli },
             );
+            defer repo.deinit();
+
             const model = comptime jetzig.config.get(jetzig.auth.AuthOptions, "auth").user_model;
             const stdin = std.io.getStdIn();
             const reader = stdin.reader();
