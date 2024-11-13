@@ -60,13 +60,16 @@ pub fn run(
                     std.debug.print("Missing argument. Expected an email/username parameter.\n", .{});
                     break :blk error.JetzigCommandError;
                 } else {
-                    try util.execCommand(allocator, &.{
-                        "zig",
-                        "build",
-                        util.environmentBuildOption(main_options.options.environment),
-                        try std.mem.concat(allocator, u8, &.{ "-Dauth_username=", sub_args[0] }),
-                        "jetzig:auth:user:create",
-                    });
+                    var argv = std.ArrayList([]const u8).init(allocator);
+                    try argv.append("zig");
+                    try argv.append("build");
+                    try argv.append(util.environmentBuildOption(main_options.options.environment));
+                    try argv.append(try std.mem.concat(allocator, u8, &.{ "-Dauth_username=", sub_args[0] }));
+                    if (sub_args.len > 1) {
+                        try argv.append(try std.mem.concat(allocator, u8, &.{ "-Dauth_password=", sub_args[1] }));
+                    }
+                    try argv.append("jetzig:auth:user:create");
+                    try util.execCommand(allocator, argv.items);
                 }
             },
         };

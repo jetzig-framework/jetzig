@@ -349,6 +349,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     if (b.option([]const u8, "auth_username", "Auth username")) |username| {
         run_auth_user_create_cmd.addArg(username);
     }
+    if (b.option([]const u8, "auth_password", "Auth password")) |password| {
+        run_auth_user_create_cmd.addArg(password);
+    }
 
     const exe_database = b.addExecutable(.{
         .name = "database",

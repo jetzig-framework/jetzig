@@ -42,21 +42,29 @@ pub fn main() !void {
             const stdin = std.io.getStdIn();
             const reader = stdin.reader();
 
-            if (stdin.isTty()) std.debug.print("Enter password: ", .{});
-
-            var buf: [1024]u8 = undefined;
-            if (try reader.readUntilDelimiterOrEof(&buf, '\n')) |input| {
-                const password = std.mem.trim(u8, input, &std.ascii.whitespace);
-                const email = args[2];
-
-                try repo.insert(std.enums.nameCast(std.meta.DeclEnum(Schema), model), .{
-                    .email = email,
-                    .password_hash = try hashPassword(allocator, password),
-                });
-                std.debug.print("Created user: `{s}`.\n", .{email});
-            } else {
+            const password = if (stdin.isTty() and args.len < 4) blk: {
+                std.debug.print("Enter password: ", .{});
+                var buf: [1024]u8 = undefined;
+                if (try reader.readUntilDelimiterOrEof(&buf, '\n')) |input| {
+                    break :blk std.mem.trim(u8, input, &std.ascii.whitespace);
+                } else {
+                    std.debug.print("Blank password. Exiting.\n", .{});
+                    return;
+                }
+            } else if (args.len >= 4)
+                args[3]
+            else {
                 std.debug.print("Blank password. Exiting.\n", .{});
-            }
+                return;
+            };
+
+            const email = args[2];
+
+            try repo.insert(std.enums.nameCast(std.meta.DeclEnum(Schema), model), .{
+                .email = email,
+                .password_hash = try hashPassword(allocator, password),
+            });
+            std.debug.print("Created user: `{s}`.\n", .{email});
         },
     }
 }
