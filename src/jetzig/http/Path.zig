@@ -92,9 +92,9 @@ fn getBasePath(path: []const u8) []const u8 {
             return path[0..query_index];
         }
     } else if (std.mem.lastIndexOfScalar(u8, path, '.')) |extension_index| {
-        return path[0..extension_index];
+        return if (std.mem.eql(u8, path, "/")) path else std.mem.trimRight(u8, path[0..extension_index], "/");
     } else {
-        return path;
+        return if (std.mem.eql(u8, path, "/")) path else std.mem.trimRight(u8, path, "/");
     }
 }
 
@@ -181,6 +181,18 @@ test ".base_path (without extension, without query)" {
     try std.testing.expectEqualStrings("/foo/bar/baz", path.base_path);
 }
 
+test ".base_path (with trailing slash)" {
+    const path = Self.init("/foo/bar/");
+
+    try std.testing.expectEqualStrings("/foo/bar", path.base_path);
+}
+
+test ".base_path (root path)" {
+    const path = Self.init("/");
+
+    try std.testing.expectEqualStrings("/", path.base_path);
+}
+
 test ".directory (with extension, with query)" {
     const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
@@ -227,6 +239,12 @@ test ".resource_id (without extension, without query, without base path)" {
     const path = Self.init("/baz");
 
     try std.testing.expectEqualStrings("baz", path.resource_id);
+}
+
+test ".resource_id (with trailing slash)" {
+    const path = Self.init("/foo/bar/");
+
+    try std.testing.expectEqualStrings("bar", path.resource_id);
 }
 
 test ".extension (with query)" {
