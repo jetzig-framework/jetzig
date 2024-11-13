@@ -21,16 +21,16 @@ pub const Options = struct {
 
 /// Run the `jetzig database` command.
 pub fn run(
-    allocator: std.mem.Allocator,
+    parent_allocator: std.mem.Allocator,
     options: Options,
     writer: anytype,
     T: type,
     main_options: T,
 ) !void {
     _ = options;
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(parent_allocator);
     defer arena.deinit();
-    const alloc = arena.allocator();
+    const allocator = arena.allocator();
 
     const Action = enum { user_create };
     const map = std.StaticStringMap(Action).initComptime(.{
@@ -50,7 +50,7 @@ pub fn run(
         try args.printHelp(Options, "jetzig database", writer);
         break :blk {};
     } else if (action == null) blk: {
-        const available_help = try std.mem.join(alloc, "|", map.keys());
+        const available_help = try std.mem.join(allocator, "|", map.keys());
         std.debug.print("Missing sub-command. Expected: [{s}]\n", .{available_help});
         break :blk error.JetzigCommandError;
     } else if (action) |capture|
