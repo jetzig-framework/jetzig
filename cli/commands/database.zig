@@ -1,8 +1,6 @@
 const std = @import("std");
 
 const args = @import("args");
-const jetquery = @import("jetquery");
-const Migrate = @import("jetquery_migrate");
 
 const util = @import("../util.zig");
 const cli = @import("../cli.zig");
