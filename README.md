@@ -1,5 +1,7 @@
 ![Jetzig Logo](demo/public/jetzig.png)
 
+[![CI](https://github.com/jetzig-framework/jetzig/actions/workflows/CI.yml/badge.svg)](https://github.com/jetzig-framework/jetzig/actions/workflows/CI.yml)
+
 _Jetzig_ is a web framework written in 100% pure [Zig](https://ziglang.org) :lizard: for _Linux_, _OS X_, _Windows_, and any _OS_ that can compile _Zig_ code.
 
 Official website: [jetzig.dev](https://www.jetzig.dev/)
@@ -43,8 +45,8 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * :white_check_mark: Development server auto-reload.
 * :white_check_mark: Testing helpers for testing HTTP requests/responses.
 * :white_check_mark: Custom/non-conventional routes.
+* :white_check_mark: Database integration.
 * :x: Environment configurations (development/production/etc.)
-* :x: Database integration.
 * :x: Email receipt (via SendGrid/AWS SES/etc.)
 
 ## LICENSE
