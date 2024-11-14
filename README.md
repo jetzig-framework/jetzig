@@ -1,6 +1,6 @@
-![Jetzig Logo](demo/public/jetzig.png)
-
 [![CI](https://github.com/jetzig-framework/jetzig/actions/workflows/CI.yml/badge.svg)](https://github.com/jetzig-framework/jetzig/actions/workflows/CI.yml)
+
+![Jetzig Logo](demo/public/jetzig.png)
 
 _Jetzig_ is a web framework written in 100% pure [Zig](https://ziglang.org) :lizard: for _Linux_, _OS X_, _Windows_, and any _OS_ that can compile _Zig_ code.
 
