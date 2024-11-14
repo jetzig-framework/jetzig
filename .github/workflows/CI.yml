@@ -28,7 +28,7 @@ jobs:
       - name: Setup Zig
       # You may pin to the exact commit or the version.
       # uses: goto-bus-stop/setup-zig@41ae19e72e21b9a1380e86ff9f058db709fc8fc6
-        uses: goto-bus-stop/setup-zig@v2.2.0
+        uses: goto-bus-stop/setup-zig@v2
         with:
           version: master
           cache: true # Let's see how this behaves
@@ -40,7 +40,7 @@ jobs:
         run: zig build --verbose
 
       - name: Run Tests
-        run: zig build test
+        run: zig build test --summary all
 
       - name: Run App Tests
         run: |
@@ -67,25 +67,25 @@ jobs:
 
       - name: Upload artifacts Target Windows
         if: ${{ matrix.os == 'ubuntu-latest' && !contains(fromJSON('["pull_request"]'), github.event_name) }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: build-windows
           path: artifacts/x86_64-windows
       - name: Upload artifacts Target Linux
         if: ${{ matrix.os == 'ubuntu-latest' && !contains(fromJSON('["pull_request"]'), github.event_name) }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: build-linux
           path: artifacts/x86_64-linux
       - name: Upload artifacts Target MacOS
         if: ${{ matrix.os == 'ubuntu-latest'  && !contains(fromJSON('["pull_request"]'), github.event_name) }} 
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: build-macos-x86
           path: artifacts/x86_64-macos
       - name: Upload artifacts Target MacOS 2
         if: ${{ matrix.os == 'ubuntu-latest' && !contains(fromJSON('["pull_request"]'), github.event_name) }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: build-macos-aarch64
           path: artifacts/aarch64-macos

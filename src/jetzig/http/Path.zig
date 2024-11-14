@@ -17,8 +17,6 @@ resource_id: []const u8,
 extension: ?[]const u8,
 query: ?[]const u8,
 
-// TODO: Fix edge case `/foo/bar/` <-- strip trailing slash.
-
 const Self = @This();
 
 /// Initialize a new HTTP Path.
@@ -92,9 +90,12 @@ fn getBasePath(path: []const u8) []const u8 {
             return path[0..query_index];
         }
     } else if (std.mem.lastIndexOfScalar(u8, path, '.')) |extension_index| {
-        return if (std.mem.eql(u8, path, "/")) path else std.mem.trimRight(u8, path[0..extension_index], "/");
+        return if (isRootPath(path[0..extension_index]))
+            path[0..extension_index]
+        else
+            std.mem.trimRight(u8, path[0..extension_index], "/");
     } else {
-        return if (std.mem.eql(u8, path, "/")) path else std.mem.trimRight(u8, path, "/");
+        return if (isRootPath(path)) path else std.mem.trimRight(u8, path, "/");
     }
 }
 
@@ -163,6 +164,10 @@ fn getQuery(path: []const u8) ?[]const u8 {
     }
 }
 
+inline fn isRootPath(path: []const u8) bool {
+    return std.mem.eql(u8, path, "/");
+}
+
 test ".base_path (with extension, with query)" {
     const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
@@ -191,6 +196,13 @@ test ".base_path (root path)" {
     const path = Self.init("/");
 
     try std.testing.expectEqualStrings("/", path.base_path);
+}
+
+test ".base_path (root path with extension)" {
+    const path = Self.init("/.json");
+
+    try std.testing.expectEqualStrings("/", path.base_path);
+    try std.testing.expectEqualStrings(".json", path.extension.?);
 }
 
 test ".directory (with extension, with query)" {
