@@ -100,9 +100,11 @@ pub fn main() !void {
                 },
             );
             const schema = try reflect.generateSchema();
-            const path = try cwd.realpathAlloc(
+            const project_dir = try jetzig.util.detectJetzigProjectDir();
+            const project_dir_realpath = try project_dir.realpathAlloc(allocator, ".");
+            const path = try std.fs.path.join(
                 allocator,
-                try std.fs.path.join(allocator, &.{ "src", "app", "database", "Schema.zig" }),
+                &.{ project_dir_realpath, "src", "app", "database", "Schema.zig" },
             );
             try jetzig.util.createFile(path, schema);
             std.log.info("Database schema written to `{s}`.", .{path});
