@@ -11,6 +11,9 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
             \\Example:
             \\
             \\  jetzig generate migration create_iguanas
+            \\  jetzig generate migration create_iguanas table:create:iguanas column:name:string:index column:age:integer
+            \\
+            \\  More information: https://www.jetzig.dev/documentation/sections/database/command_line_tools
             \\
         , .{});
 
