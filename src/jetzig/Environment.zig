@@ -272,8 +272,13 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
             .{
                 @tagName(jetzig.database.adapter),
                 switch (jetzig.environment) {
-                    inline else => |tag| vars.get("JETQUERY_DATABASE") orelse
-                        @field(jetzig.jetquery.config.database, @tagName(tag)).database,
+                    inline else => |tag| vars.get("JETQUERY_DATABASE") orelse blk: {
+                        const config = @field(jetzig.jetquery.config.database, @tagName(tag));
+                        break :blk if (comptime @hasField(@TypeOf(config), "database"))
+                            config.database
+                        else
+                            "[no database]";
+                    },
                 },
             },
         );
