@@ -9,8 +9,8 @@
             .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
         },
         .jetquery = .{
-            .url = "https://github.com/jetzig-framework/jetquery/archive/cc3aca60511079636f38701c790c2751582666b4.tar.gz",
-            .hash = "122042fe961bce870e1b072d346fe21863d4baa3f78906eafd35e3aaae8dab020c78",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/4069610e0aea2dcdf9f73ca55f3aeb96f01fca5e.tar.gz",
+            .hash = "122043f7b1614c94d311df1153c7702492b30fb56210fafbb80b52ab39de08a25092",
         },
     },
     .paths = .{

@@ -39,45 +39,57 @@ pub fn main() !void {
     });
     const action = map.get(args[1]) orelse return error.JetzigUnrecognizedArgument;
 
+    const env = try jetzig.Environment.init(allocator, .{ .silent = true });
+    const repo_env = try jetzig.database.repoEnv(env);
+    const maybe_database = repo_env.database orelse
+        if (comptime @hasField(@TypeOf(config), "database")) config.database else null;
+
+    const database = maybe_database orelse {
+        std.debug.print("Missing `database` option in `config/database.zig` " ++
+            "for current environment or `JETQUERY_DATABASE` environment variable.\n", .{});
+        std.process.exit(1);
+        return;
+    };
+
     switch (action) {
         .migrate => {
-            var repo = try migrationsRepo(action, allocator);
+            var repo = try migrationsRepo(action, allocator, repo_env);
             defer repo.deinit();
             try Migrate(config.adapter).init(&repo).migrate();
         },
         .rollback => {
-            var repo = try migrationsRepo(action, allocator);
+            var repo = try migrationsRepo(action, allocator, repo_env);
             defer repo.deinit();
             try Migrate(config.adapter).init(&repo).rollback();
         },
         .create => {
-            var repo = try migrationsRepo(action, allocator);
+            var repo = try migrationsRepo(action, allocator, repo_env);
             defer repo.deinit();
-            try repo.createDatabase(config.database, .{});
+            try repo.createDatabase(database, .{});
         },
         .drop => {
             if (environment == .production) {
                 const confirm = std.process.getEnvVarOwned(allocator, confirm_drop_env) catch |err| {
                     switch (err) {
                         error.EnvironmentVariableNotFound => {
-                            std.log.err(production_drop_failure_message, .{config.database});
+                            std.log.err(production_drop_failure_message, .{database});
                             std.process.exit(1);
                         },
                         else => return err,
                     }
                 };
-                if (std.mem.eql(u8, confirm, config.database)) {
-                    var repo = try migrationsRepo(action, allocator);
+                if (std.mem.eql(u8, confirm, database)) {
+                    var repo = try migrationsRepo(action, allocator, repo_env);
                     defer repo.deinit();
-                    try repo.dropDatabase(config.database, .{});
+                    try repo.dropDatabase(database, .{});
                 } else {
-                    std.log.err(production_drop_failure_message, .{config.database});
+                    std.log.err(production_drop_failure_message, .{database});
                     std.process.exit(1);
                 }
             } else {
-                var repo = try migrationsRepo(action, allocator);
+                var repo = try migrationsRepo(action, allocator, repo_env);
                 defer repo.deinit();
-                try repo.dropDatabase(config.database, .{});
+                try repo.dropDatabase(database, .{});
             }
         },
         .reflect => {
@@ -88,7 +100,7 @@ pub fn main() !void {
             var repo = try Repo.loadConfig(
                 allocator,
                 std.enums.nameCast(jetquery.Environment, environment),
-                .{ .context = .migration },
+                .{ .context = .migration, .env = repo_env },
             );
             const reflect = @import("jetquery_reflect").Reflect(config.adapter, Schema).init(
                 allocator,
@@ -113,7 +125,7 @@ pub fn main() !void {
 }
 
 const MigrationsRepo = jetquery.Repo(config.adapter, MigrateSchema);
-fn migrationsRepo(action: Action, allocator: std.mem.Allocator) !MigrationsRepo {
+fn migrationsRepo(action: Action, allocator: std.mem.Allocator, repo_env: anytype) !MigrationsRepo {
     return try MigrationsRepo.loadConfig(
         allocator,
         std.enums.nameCast(jetquery.Environment, environment),
@@ -124,6 +136,7 @@ fn migrationsRepo(action: Action, allocator: std.mem.Allocator) !MigrationsRepo 
                 .reflect => unreachable, // We use a separate repo for schema reflection.
             },
             .context = .migration,
+            .env = repo_env,
         },
     );
 }
