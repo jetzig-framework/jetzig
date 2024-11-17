@@ -117,7 +117,7 @@ fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !v
     const function = try std.fmt.allocPrint(
         allocator,
         \\pub fn {s}({s}request: *jetzig.{s}) !jetzig.View {{
-        \\    return request.render({s});
+        \\    {s}return request.render({s});
         \\}}
         \\
         \\
@@ -131,7 +131,7 @@ fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !v
             if (action.static) "StaticRequest" else "Request",
             switch (action.method) {
                 .index, .post, .new => "",
-                .get, .put, .patch, .delete => "\n    _ = id;",
+                .get, .put, .patch, .delete => "_ = id;\n    ",
             },
             switch (action.method) {
                 .index, .get, .new => ".ok",

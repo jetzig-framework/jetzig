@@ -129,15 +129,24 @@ pub fn validateFormat(self: Route, request: *const jetzig.http.Request) bool {
 
 fn renderFn(self: Route, request: *jetzig.http.Request) anyerror!jetzig.views.View {
     return switch (self.view) {
-        .without_id => |func| try func(request),
-        .legacy_without_id => |func| try func(request, request.response_data),
         .with_id => |func| try func(request.path.resource_id, request),
+        .without_id => |func| try func(request),
+        .with_args => |func| try func(
+            try request.path.resourceArgs(self, request.allocator),
+            request,
+        ),
         .legacy_with_id => |func| try func(
             request.path.resource_id,
             request,
             request.response_data,
         ),
-        else => unreachable,
+        .legacy_without_id => |func| try func(request, request.response_data),
+        .legacy_with_args => |func| try func(
+            try request.path.resourceArgs(self, request.allocator),
+            request,
+            request.response_data,
+        ),
+        else => unreachable, // renderStaticFn is called for static routes, we can never get here.
     };
 }
 
