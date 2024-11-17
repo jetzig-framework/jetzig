@@ -186,13 +186,13 @@ test "query string with param without value" {
 
     const foo = data.get("foo").?;
     try switch (foo.*) {
-        .Null => {},
+        .null => {},
         else => std.testing.expect(false),
     };
 
     const bar = data.get("bar").?;
     try switch (bar.*) {
-        .Null => {},
+        .null => {},
         else => std.testing.expect(false),
     };
 }

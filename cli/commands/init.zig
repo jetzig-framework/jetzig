@@ -194,12 +194,16 @@ pub fn run(
         null,
     );
 
-    try util.runCommand(allocator, realpath, &[_][]const u8{
-        "zig",
-        "fetch",
-        "--save",
-        github_url,
-    });
+    try util.runCommandInDir(
+        allocator,
+        &[_][]const u8{
+            "zig",
+            "fetch",
+            "--save",
+            github_url,
+        },
+        .{ .dir = install_dir },
+    );
 
     // TODO: Use arg or interactive prompt to do Git setup in net project, default to no.
     // const git_setup = false;
@@ -322,22 +326,34 @@ fn promptInput(
 
 // Initialize a new Git repository when setting up a new project (optional).
 fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
-    try util.runCommand(allocator, install_dir, &[_][]const u8{
-        "git",
-        "init",
-        ".",
-    });
+    try util.runCommandInDir(
+        allocator,
+        &[_][]const u8{
+            "git",
+            "init",
+            ".",
+        },
+        .{ .path = install_dir },
+    );
 
-    try util.runCommand(allocator, install_dir, &[_][]const u8{
-        "git",
-        "add",
-        ".",
-    });
+    try util.runCommandInDir(
+        allocator,
+        &[_][]const u8{
+            "git",
+            "add",
+            ".",
+        },
+        .{ .path = install_dir },
+    );
 
-    try util.runCommand(allocator, install_dir, &[_][]const u8{
-        "git",
-        "commit",
-        "-m",
-        "Initialize Jetzig project",
-    });
+    try util.runCommandInDir(
+        allocator,
+        &[_][]const u8{
+            "git",
+            "commit",
+            "-m",
+            "Initialize Jetzig project",
+        },
+        .{ .path = install_dir },
+    );
 }

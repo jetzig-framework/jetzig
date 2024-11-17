@@ -141,6 +141,8 @@ const sql_tokens = .{
     "VALUES",
 };
 
-pub fn logError(self: *const ProductionLogger, err: anyerror) !void {
+pub fn logError(self: *const ProductionLogger, stack_trace: ?*std.builtin.StackTrace, err: anyerror) !void {
+    // TODO: Include line number/column if available.
+    _ = stack_trace;
     try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
 }

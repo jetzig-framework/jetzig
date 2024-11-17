@@ -63,9 +63,8 @@ pub fn run(
     );
 
     while (true) {
-        util.runCommand(
+        util.runCommandInDir(
             allocator,
-            realpath,
             &.{
                 "zig",
                 "build",
@@ -75,6 +74,7 @@ pub fn run(
                 "--color",
                 "on",
             },
+            .{ .path = realpath },
         ) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
             try awaitFileChange(allocator, cwd, &mtime);

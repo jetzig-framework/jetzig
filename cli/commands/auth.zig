@@ -5,17 +5,16 @@ const util = @import("../util.zig");
 /// Command line options for the `update` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[password]",
+        .usage_summary = "[init|create]",
         .full_text =
-        \\Generates a password
+        \\Manage user authentication. Initialize with `init` to generate a users table migration.
+        \\
         \\Example:
         \\
-        \\  jetzig update
-        \\  jetzig update web
+        \\  jetzig auth init
+        \\  jetzig auth create bob@jetzig.dev
         ,
-        .option_docs = .{
-            .path = "Set the output path relative to the current directory (default: current directory)",
-        },
+        .option_docs = .{},
     };
 };
 
@@ -32,9 +31,10 @@ pub fn run(
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const Action = enum { user_create };
+    const Action = enum { init, create };
     const map = std.StaticStringMap(Action).initComptime(.{
-        .{ "user:create", .user_create },
+        .{ "init", .init },
+        .{ "create", .create },
     });
 
     const action = if (main_options.positionals.len > 0)
@@ -55,7 +55,20 @@ pub fn run(
         break :blk error.JetzigCommandError;
     } else if (action) |capture|
         switch (capture) {
-            .user_create => blk: {
+            .init => {
+                const argv = [_][]const u8{
+                    "jetzig",
+                    "generate",
+                    "migration",
+                    "create_users",
+                    "table:users",
+                    "column:email:string:index:unique",
+                    "column:password_hash:string",
+                };
+                try util.runCommand(allocator, &argv);
+                try util.print(.success, "Migration created. Run `jetzig database update` to run migration and reflect database.", .{});
+            },
+            .create => blk: {
                 if (sub_args.len < 1) {
                     std.debug.print("Missing argument. Expected an email/username parameter.\n", .{});
                     break :blk error.JetzigCommandError;

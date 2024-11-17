@@ -238,17 +238,13 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
     try self.print(.INFO, "{s}", .{stream.getWritten()});
 }
 
-pub fn logError(self: *const DevelopmentLogger, err: anyerror) !void {
-    if (@errorReturnTrace()) |stack| {
-        try self.log(.ERROR, "\nStack Trace:\n{}", .{stack});
-        var buf = std.ArrayList(u8).init(self.allocator);
-        defer buf.deinit();
-        const writer = buf.writer();
-        try stack.format("", .{}, writer);
-        try self.logger.ERROR("{s}\n", .{buf.items});
+pub fn logError(self: *const DevelopmentLogger, stack_trace: ?*std.builtin.StackTrace, err: anyerror) !void {
+    if (stack_trace) |stack| {
+        try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
+        try self.log(.ERROR, "Stack trace:\n{}", .{stack});
+    } else {
+        try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
     }
-
-    try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
 }
 
 fn logFile(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File {

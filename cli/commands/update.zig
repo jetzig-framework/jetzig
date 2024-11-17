@@ -55,18 +55,15 @@ pub fn run(
     const save_arg = try std.mem.concat(allocator, u8, &[_][]const u8{ "--save=", name });
     defer allocator.free(save_arg);
 
-    var cwd = try util.detectJetzigProjectDir();
-    defer cwd.close();
-
-    const realpath = try std.fs.realpathAlloc(allocator, ".");
-    defer allocator.free(realpath);
-
-    try util.runCommand(allocator, realpath, &[_][]const u8{
-        "zig",
-        "fetch",
-        save_arg,
-        github_url,
-    });
+    try util.runCommand(
+        allocator,
+        &[_][]const u8{
+            "zig",
+            "fetch",
+            save_arg,
+            github_url,
+        },
+    );
 
     std.debug.print(
         \\Update complete.

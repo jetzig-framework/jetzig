@@ -28,12 +28,11 @@ pub const defaults: jetzig.mail.DefaultMailParams = .{
 pub fn deliver(
     allocator: std.mem.Allocator,
     mail: *jetzig.mail.MailParams,
-    data: *jetzig.data.Data,
     params: *jetzig.data.Value,
     env: jetzig.jobs.JobEnv,
 ) !void {
     _ = allocator;
-    try params.put("email_message", data.string("Custom email message"));
+    try params.put("email_message", "Custom email message");
 
     try env.logger.INFO("Delivering email with subject: '{?s}'", .{mail.get(.subject)});
 }

@@ -44,7 +44,7 @@ pub fn deinit(self: *Store) void {
     self.store.deinit();
 }
 
-/// Put a Value or into the key-value store.
+/// Put a or into the key-value store.
 pub fn put(self: *Store, key: []const u8, value: *jetzig.data.Value) !void {
     try self.store.put(key, try value.toJson());
 }

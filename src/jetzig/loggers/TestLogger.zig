@@ -46,7 +46,9 @@ pub fn logSql(self: TestLogger, event: jetzig.jetquery.events.Event) !void {
     try self.log(.INFO, "[database] {?s}", .{event.sql});
 }
 
-pub fn logError(self: TestLogger, err: anyerror) !void {
+pub fn logError(self: TestLogger, stack_trace: ?*std.builtin.StackTrace, err: anyerror) !void {
+    // TODO: Output useful debug info from stack trace
+    _ = stack_trace;
     try self.log(.ERROR, "Encountered error: {s}", .{@errorName(err)});
 }
 
