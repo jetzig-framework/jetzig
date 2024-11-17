@@ -42,7 +42,7 @@ pub fn main() !void {
     const env = try jetzig.Environment.init(allocator, .{ .silent = true });
     const repo_env = try jetzig.database.repoEnv(env);
     const maybe_database = repo_env.database orelse
-        if (comptime @hasField(@TypeOf(config), "database")) config.database else null;
+        if (comptime @hasField(@TypeOf(config), "database")) @as(?[]const u8, config.database) else null;
 
     const database = maybe_database orelse {
         std.debug.print("Missing `database` option in `config/database.zig` " ++
