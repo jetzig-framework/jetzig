@@ -344,6 +344,11 @@ pub fn params(self: *Request) !*jetzig.data.Value {
     }
 }
 
+// TODO
+// pub fn expectParams(self: Request, T: type) ?T {
+//
+// }
+
 /// Retrieve a file from a `multipart/form-data`-encoded request body, if present.
 pub fn file(self: *Request, name: []const u8) !?jetzig.http.File {
     _ = try self.parseQuery();
@@ -692,12 +697,17 @@ pub fn match(self: *Request, route: jetzig.views.Route) !bool {
     };
 }
 
-fn isMatch(self: *Request, match_type: enum { exact, resource_id }, route: jetzig.views.Route) bool {
+fn isMatch(
+    self: *Request,
+    match_type: enum { exact, resource_id },
+    route: jetzig.views.Route,
+) bool {
     const path = switch (match_type) {
         .exact => self.path.base_path,
         .resource_id => self.path.directory,
     };
 
+    // Special case for `/foobar/1/new` -> render `new()`
     if (route.action == .get and std.mem.eql(u8, self.path.resource_id, "new")) return false;
 
     return std.mem.eql(u8, path, route.uri_path);
