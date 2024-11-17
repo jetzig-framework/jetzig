@@ -61,7 +61,7 @@ pub fn parse(self: *Query) !void {
                     else => return error.JetzigQueryParseError,
                 }
             } else {
-                var array = try self.data.createArray();
+                var array = try jetzig.zmpl.Data.createArray(self.data.allocator());
                 try array.append(self.dataValue(item.value));
                 try params.put(key, array);
             }
@@ -72,7 +72,7 @@ pub fn parse(self: *Query) !void {
                     else => return error.JetzigQueryParseError,
                 }
             } else {
-                var object = try self.data.createObject();
+                var object = try jetzig.zmpl.Data.createObject(self.data.allocator());
                 try object.put(mapping.field, self.dataValue(item.value));
                 try params.put(mapping.key, object);
             }
