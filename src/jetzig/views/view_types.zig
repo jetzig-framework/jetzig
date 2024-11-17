@@ -34,7 +34,7 @@ pub const StaticViewWithArgs = *const fn (
 // `Array.append(.array)`, `Array.append(.object)`, `Object.put(key, .array)`, and
 // `Object.put(key, .object)` also remove the need to use `data.array()` and `data.object()`.
 // The only remaining use is `data.root(.object)` and `data.root(.array)` which we can move to
-// `request.responseData(.object)` and `request.responseData(.array)`.
+// `request.data(.object)` and `request.data(.array)`.
 pub const LegacyViewWithoutId = *const fn (
     *jetzig.http.Request,
     *jetzig.data.Data,

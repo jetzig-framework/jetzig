@@ -116,8 +116,7 @@ fn parseAction(arg: []const u8) ?Action {
 fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !void {
     const function = try std.fmt.allocPrint(
         allocator,
-        \\pub fn {s}({s}request: *jetzig.{s}, data: *jetzig.Data) !jetzig.View {{
-        \\    _ = data;{s}
+        \\pub fn {s}({s}request: *jetzig.{s}) !jetzig.View {{
         \\    return request.render({s});
         \\}}
         \\

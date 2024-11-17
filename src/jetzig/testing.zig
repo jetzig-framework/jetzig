@@ -151,7 +151,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
 
     const json_banner = "\n{s}";
 
-    if (data.ref(std.mem.trimLeft(u8, expected_path, &.{'.'}))) |value| {
+    if (data.ref(expected_path)) |value| {
         switch (value.*) {
             .string => |string| switch (@typeInfo(@TypeOf(expected_value))) {
                 .pointer, .array => {
