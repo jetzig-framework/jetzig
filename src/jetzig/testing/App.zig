@@ -345,7 +345,16 @@ fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !R
             if (std.mem.eql(u8, field.name, "body")) continue;
         }
 
-        @compileError("Unrecognized request option: " ++ field.name);
+        @compileError(std.fmt.comptimePrint(
+            "Unrecognized request option `{s}`. Expected: {{ {s}, {s}, {s}, {s} }}",
+            .{
+                jetzig.colors.yellow(field.name),
+                jetzig.colors.cyan("headers"),
+                jetzig.colors.cyan("json"),
+                jetzig.colors.cyan("params"),
+                jetzig.colors.cyan("body"),
+            },
+        ));
     }
 
     return .{

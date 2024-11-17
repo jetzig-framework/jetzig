@@ -1,18 +1,32 @@
 const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
+const view_types = @import("view_types.zig");
 
 const Route = @This();
 
 pub const Action = enum { index, get, new, post, put, patch, delete, custom };
+
+pub const View = union(enum) {
+    with_id: view_types.ViewWithId,
+    without_id: view_types.ViewWithoutId,
+    with_args: view_types.ViewWithArgs,
+
+    static_with_id: view_types.StaticViewWithId,
+    static_without_id: view_types.StaticViewWithoutId,
+    static_with_args: view_types.StaticViewWithArgs,
+
+    legacy_with_id: view_types.LegacyViewWithId,
+    legacy_without_id: view_types.LegacyViewWithoutId,
+    legacy_with_args: view_types.LegacyViewWithArgs,
+
+    legacy_static_with_id: view_types.LegacyStaticViewWithId,
+    legacy_static_without_id: view_types.LegacyStaticViewWithoutId,
+    legacy_static_with_args: view_types.LegacyStaticViewWithArgs,
+};
+
 pub const RenderFn = *const fn (Route, *jetzig.http.Request) anyerror!jetzig.views.View;
 pub const RenderStaticFn = *const fn (Route, *jetzig.http.StaticRequest) anyerror!jetzig.views.View;
-
-pub const ViewWithoutId = *const fn (*jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
-pub const ViewWithId = *const fn (id: []const u8, *jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
-const StaticViewWithoutId = *const fn (*jetzig.http.StaticRequest, *jetzig.data.Data) anyerror!jetzig.views.View;
-pub const ViewWithArgs = *const fn ([]const []const u8, *jetzig.http.Request, *jetzig.data.Data) anyerror!jetzig.views.View;
-const StaticViewWithId = *const fn (id: []const u8, *jetzig.http.StaticRequest, *jetzig.data.Data) anyerror!jetzig.views.View;
 
 pub const Formats = struct {
     index: ?[]const ResponseFormat = null,
@@ -26,47 +40,13 @@ pub const Formats = struct {
 };
 const ResponseFormat = enum { html, json };
 
-pub const DynamicViewType = union(Action) {
-    index: ViewWithoutId,
-    get: ViewWithId,
-    new: ViewWithoutId,
-    post: ViewWithoutId,
-    put: ViewWithId,
-    patch: ViewWithId,
-    delete: ViewWithId,
-    custom: CustomViewType,
-};
-
-pub const StaticViewType = union(Action) {
-    index: StaticViewWithoutId,
-    get: StaticViewWithId,
-    new: StaticViewWithoutId,
-    post: StaticViewWithoutId,
-    put: StaticViewWithId,
-    patch: StaticViewWithId,
-    delete: StaticViewWithId,
-    custom: void,
-};
-
-pub const CustomViewType = union(enum) {
-    with_id: ViewWithId,
-    without_id: ViewWithoutId,
-    with_args: ViewWithArgs,
-};
-
-pub const ViewType = union(enum) {
-    static: StaticViewType,
-    dynamic: DynamicViewType,
-    custom: CustomViewType,
-};
-
 name: []const u8,
 action: Action,
 method: jetzig.http.Request.Method = undefined, // Used by custom routes only
 view_name: []const u8,
 uri_path: []const u8,
 path: ?[]const u8 = null,
-view: ViewType,
+view: View,
 render: RenderFn = renderFn,
 renderStatic: RenderStaticFn = renderStaticFn,
 static: bool = false,
@@ -95,6 +75,14 @@ pub fn deinitParams(self: *const Route) void {
         data.parent_allocator.destroy(data);
     }
     self.params.deinit();
+}
+
+pub fn format(self: Route, _: []const u8, _: anytype, writer: anytype) !void {
+    try writer.print(
+        \\Route{{ .name = "{s}", .action = .{s}, .view_name = "{s}", .static = {} }}
+    ,
+        .{ self.name, @tagName(self.action), self.view_name, self.static },
+    );
 }
 
 /// Match a **custom** route to a request - not used by auto-generated route matching.
@@ -140,46 +128,40 @@ pub fn validateFormat(self: Route, request: *const jetzig.http.Request) bool {
 }
 
 fn renderFn(self: Route, request: *jetzig.http.Request) anyerror!jetzig.views.View {
-    switch (self.view) {
-        .dynamic => {},
-        .custom => |view_type| switch (view_type) {
-            .with_id => |view| return try view(request.path.resourceId(self), request, request.response_data),
-            .without_id => |view| return try view(request, request.response_data),
-            .with_args => |view| return try view(
-                try request.path.resourceArgs(self, request.allocator),
-                request,
-                request.response_data,
-            ),
-        },
-        // We only end up here if a static route is defined but its output is not found in the
-        // file system (e.g. if it was manually deleted after build). This should be avoidable by
-        // including the content as an artifact in the compiled executable (TODO):
-        .static => return error.JetzigMissingStaticContent,
-    }
-
-    switch (self.view.dynamic) {
-        .index => |view| return try view(request, request.response_data),
-        .get => |view| return try view(request.path.resource_id, request, request.response_data),
-        .new => |view| return try view(request, request.response_data),
-        .post => |view| return try view(request, request.response_data),
-        .patch => |view| return try view(request.path.resource_id, request, request.response_data),
-        .put => |view| return try view(request.path.resource_id, request, request.response_data),
-        .delete => |view| return try view(request.path.resource_id, request, request.response_data),
-        .custom => unreachable,
-    }
+    return switch (self.view) {
+        .with_id => |func| try func(request.path.resource_id, request),
+        .without_id => |func| try func(request),
+        .with_args => |func| try func(
+            try request.path.resourceArgs(self, request.allocator),
+            request,
+        ),
+        .legacy_with_id => |func| try func(
+            request.path.resource_id,
+            request,
+            request.response_data,
+        ),
+        .legacy_without_id => |func| try func(request, request.response_data),
+        .legacy_with_args => |func| try func(
+            try request.path.resourceArgs(self, request.allocator),
+            request,
+            request.response_data,
+        ),
+        else => unreachable, // renderStaticFn is called for static routes, we can never get here.
+    };
 }
 
 fn renderStaticFn(self: Route, request: *jetzig.http.StaticRequest) anyerror!jetzig.views.View {
     request.response_data.* = jetzig.data.Data.init(request.allocator);
 
-    switch (self.view.static) {
-        .index => |view| return try view(request, request.response_data),
-        .get => |view| return try view(try request.resourceId(), request, request.response_data),
-        .new => |view| return try view(request, request.response_data),
-        .post => |view| return try view(request, request.response_data),
-        .patch => |view| return try view(try request.resourceId(), request, request.response_data),
-        .put => |view| return try view(try request.resourceId(), request, request.response_data),
-        .delete => |view| return try view(try request.resourceId(), request, request.response_data),
-        .custom => unreachable,
-    }
+    return switch (self.view) {
+        .static_without_id => |func| try func(request),
+        .legacy_static_without_id => |func| try func(request, request.response_data),
+        .static_with_id => |func| try func(try request.resourceId(), request),
+        .legacy_static_with_id => |func| try func(
+            try request.resourceId(),
+            request,
+            request.response_data,
+        ),
+        else => unreachable,
+    };
 }

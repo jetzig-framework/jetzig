@@ -567,7 +567,9 @@ fn matchMiddlewareRoute(request: *const jetzig.http.Request) ?jetzig.middleware.
 fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?jetzig.views.Route {
     for (self.routes) |route| {
         // .index routes always take precedence.
-        if (route.static == static and route.action == .index and try request.match(route.*)) return route.*;
+        if (route.static == static and route.action == .index and try request.match(route.*)) {
+            return route.*;
+        }
     }
 
     for (self.routes) |route| {

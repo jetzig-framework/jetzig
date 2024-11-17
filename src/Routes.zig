@@ -24,6 +24,7 @@ const Function = struct {
     path: []const u8,
     source: []const u8,
     params: std.ArrayList([]const u8),
+    legacy: bool = false,
     static: bool = false,
 
     /// The full name of a route. This **must** match the naming convention used by static route
@@ -179,7 +180,6 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
     );
 
     return try self.buffer.toOwnedSlice();
-    // std.debug.print("routes.zig\n{s}\n", .{self.buffer.items});
 }
 
 pub fn relativePathFrom(
@@ -232,7 +232,10 @@ fn writeRoutes(self: *Routes, writer: anytype) !void {
         const realpath = try dir.realpathAlloc(self.allocator, entry.path);
         defer self.allocator.free(realpath);
 
-        const view_routes = try self.generateRoutesForView(dir, try self.allocator.dupe(u8, realpath));
+        const view_routes = try self.generateRoutesForView(
+            dir,
+            try self.allocator.dupe(u8, realpath),
+        );
 
         for (view_routes.static) |view_route| {
             try self.static_routes.append(view_route);
@@ -272,7 +275,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         \\            .name = "{0s}",
         \\            .action = .{1s},
         \\            .view_name = "{2s}",
-        \\            .view = jetzig.Route.ViewType{{ .{3s} = .{{ .{1s} = @import("{7s}").{1s} }} }},
+        \\            .view = jetzig.Route.View{{ .{3s} = @import("{7s}").{1s} }},
         \\            .path = "{7s}",
         \\            .static = {4s},
         \\            .uri_path = "{5s}",
@@ -296,6 +299,36 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         &[_][]const u8{ view_name, "/", route.name },
     );
 
+    const with_id = std.StaticStringMap(bool).initComptime(.{
+        .{ "index", false },
+        .{ "post", false },
+        .{ "new", false },
+        .{ "get", true },
+        .{ "edit", true },
+        .{ "put", true },
+        .{ "patch", true },
+        .{ "delete", true },
+    }).get(route.name).?;
+
+    const tag = if (!route.legacy and !route.static and with_id)
+        "with_id"
+    else if (!route.legacy and !route.static and !with_id)
+        "without_id"
+    else if (!route.legacy and route.static and with_id)
+        "static_with_id"
+    else if (!route.legacy and route.static and !with_id)
+        "static_without_id"
+    else if (route.legacy and !route.static and with_id)
+        "legacy_with_id"
+    else if (route.legacy and !route.static and !with_id)
+        "legacy_without_id"
+    else if (route.legacy and route.static and with_id)
+        "legacy_static_with_id"
+    else if (route.legacy and route.static and !with_id)
+        "legacy_static_without_id"
+    else
+        unreachable;
+
     std.mem.replaceScalar(u8, module_path, '\\', '/');
     try self.module_paths.append(try self.allocator.dupe(u8, module_path));
 
@@ -305,7 +338,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         full_name,
         route.name,
         view_name,
-        if (route.static) "static" else "dynamic",
+        tag,
         if (route.static) "true" else "false",
         uri_path,
         template,
@@ -325,7 +358,14 @@ const RouteSet = struct {
 
 fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !RouteSet {
     const stat = try dir.statFile(path);
-    const source = try dir.readFileAllocOptions(self.allocator, path, @intCast(stat.size), null, @alignOf(u8), 0);
+    const source = try dir.readFileAllocOptions(
+        self.allocator,
+        path,
+        @intCast(stat.size),
+        null,
+        @alignOf(u8),
+        0,
+    );
     defer self.allocator.free(source);
 
     self.ast = try std.zig.Ast.parse(self.allocator, source, .zig);
@@ -336,15 +376,25 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
     for (self.ast.nodes.items(.tag), 0..) |tag, index| {
         switch (tag) {
-            .fn_proto_multi => {
-                const function = try self.parseFunction(index, path, source);
+            .fn_proto_multi, .fn_proto_one, .fn_proto_simple => |function_tag| {
+                var function = try self.parseFunction(function_tag, index, path, source);
                 if (function) |*capture| {
-                    for (capture.args) |arg| {
+                    if (capture.args.len == 0) {
+                        std.debug.print(
+                            "Expected at least 1 argument for view function `{s}` in `{s}`",
+                            .{ capture.name, path },
+                        );
+                        return error.JetzigMissingViewArgument;
+                    }
+
+                    for (capture.args, 0..) |arg, arg_index| {
                         if (std.mem.eql(u8, try arg.typeBasename(), "StaticRequest")) {
-                            @constCast(capture).static = true;
+                            capture.static = true;
+                            capture.legacy = arg_index + 1 < capture.args.len;
                             try static_routes.append(capture.*);
-                        }
-                        if (std.mem.eql(u8, try arg.typeBasename(), "Request")) {
+                        } else if (std.mem.eql(u8, try arg.typeBasename(), "Request")) {
+                            capture.static = false;
+                            capture.legacy = arg_index + 1 < capture.args.len;
                             try dynamic_routes.append(capture.*);
                         }
                     }
@@ -529,14 +579,21 @@ fn isStaticParamsDecl(self: *Routes, decl: std.zig.Ast.full.VarDecl) bool {
 
 fn parseFunction(
     self: *Routes,
+    function_type: std.zig.Ast.Node.Tag,
     index: usize,
     path: []const u8,
     source: []const u8,
 ) !?Function {
-    const fn_proto = self.ast.fnProtoMulti(@as(u32, @intCast(index)));
+    var buf: [1]std.zig.Ast.Node.Index = undefined;
+
+    const fn_proto = switch (function_type) {
+        .fn_proto_multi => self.ast.fnProtoMulti(@as(u32, @intCast(index))),
+        .fn_proto_one => self.ast.fnProtoOne(&buf, @as(u32, @intCast(index))),
+        .fn_proto_simple => self.ast.fnProtoSimple(&buf, @as(u32, @intCast(index))),
+        else => unreachable,
+    };
     if (fn_proto.name_token) |token| {
         const function_name = try self.allocator.dupe(u8, self.ast.tokenSlice(token));
-        var it = fn_proto.iterate(&self.ast);
         var args = std.ArrayList(Arg).init(self.allocator);
         defer args.deinit();
 
@@ -545,6 +602,7 @@ fn parseFunction(
             return null;
         }
 
+        var it = fn_proto.iterate(&self.ast);
         while (it.next()) |arg| {
             if (arg.name_token) |arg_token| {
                 const arg_name = self.ast.tokenSlice(arg_token);

@@ -116,9 +116,8 @@ fn parseAction(arg: []const u8) ?Action {
 fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !void {
     const function = try std.fmt.allocPrint(
         allocator,
-        \\pub fn {s}({s}request: *jetzig.{s}, data: *jetzig.Data) !jetzig.View {{
-        \\    _ = data;{s}
-        \\    return request.render({s});
+        \\pub fn {s}({s}request: *jetzig.{s}) !jetzig.View {{
+        \\    {s}return request.render({s});
         \\}}
         \\
         \\
@@ -132,7 +131,7 @@ fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !v
             if (action.static) "StaticRequest" else "Request",
             switch (action.method) {
                 .index, .post, .new => "",
-                .get, .put, .patch, .delete => "\n    _ = id;",
+                .get, .put, .patch, .delete => "_ = id;\n    ",
             },
             switch (action.method) {
                 .index, .get, .new => ".ok",

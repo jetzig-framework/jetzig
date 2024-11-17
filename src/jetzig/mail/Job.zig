@@ -129,7 +129,10 @@ fn defaultHtml(
     params: *jetzig.data.Value,
 ) !?[]const u8 {
     var data = jetzig.data.Data.init(allocator);
-    data.value = if (params.get("params")) |capture| capture else try data.createObject();
+    data.value = if (params.get("params")) |capture|
+        capture
+    else
+        try jetzig.zmpl.Data.createObject(data.allocator());
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
     return if (jetzig.zmpl.findPrefixed("mailers", mailer.html_template)) |template|
@@ -144,7 +147,10 @@ fn defaultText(
     params: *jetzig.data.Value,
 ) !?[]const u8 {
     var data = jetzig.data.Data.init(allocator);
-    data.value = if (params.get("params")) |capture| capture else try data.createObject();
+    data.value = if (params.get("params")) |capture|
+        capture
+    else
+        try jetzig.zmpl.Data.createObject(data.allocator());
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
     return if (jetzig.zmpl.findPrefixed("mailers", mailer.text_template)) |template|

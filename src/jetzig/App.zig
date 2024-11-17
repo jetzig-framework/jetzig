@@ -166,6 +166,9 @@ pub fn route(
     @memcpy(&view_name, module_name);
     std.mem.replaceScalar(u8, &view_name, '.', '/');
 
+    const args_fields = std.meta.fields(std.meta.ArgsTuple(@TypeOf(viewFn)));
+    const legacy = args_fields.len > 0 and args_fields[args_fields.len - 1].type == *jetzig.Data;
+
     self.custom_routes.append(.{
         .id = "custom",
         .name = member,
@@ -175,9 +178,18 @@ pub fn route(
         .uri_path = path,
         .layout = if (@hasDecl(module, "layout")) module.layout else null,
         .view = comptime switch (viewType(path)) {
-            .with_id => .{ .custom = .{ .with_id = viewFn } },
-            .with_args => .{ .custom = .{ .with_args = viewFn } },
-            .without_id => .{ .custom = .{ .without_id = viewFn } },
+            .with_id => if (legacy)
+                .{ .legacy_with_id = viewFn }
+            else
+                .{ .with_id = viewFn },
+            .without_id => if (legacy)
+                .{ .legacy_without_id = viewFn }
+            else
+                .{ .without_id = viewFn },
+            .with_args => if (legacy)
+                .{ .legacy_with_args = viewFn }
+            else
+                .{ .with_args = viewFn },
         },
         .template = self.allocator.dupe(u8, &template) catch @panic("OOM"),
         .json_params = &.{},

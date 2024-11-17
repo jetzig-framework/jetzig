@@ -3,6 +3,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const types = @import("types.zig");
+const jetzig = @import("../jetzig.zig");
 
 // Must be consistent with `std.io.tty.Color` for Windows compatibility.
 pub const codes = .{
@@ -108,6 +109,8 @@ pub fn colorize(color: std.io.tty.Color, buf: []u8, input: []const u8, is_colori
 }
 
 fn wrap(comptime attribute: []const u8, comptime message: []const u8) []const u8 {
+    if (comptime jetzig.environment == .production) return message;
+
     return codes.escape ++ attribute ++ message ++ codes.escape ++ codes.reset;
 }
 

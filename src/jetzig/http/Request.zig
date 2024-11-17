@@ -23,6 +23,7 @@ status_code: jetzig.http.status_codes.StatusCode = .not_found,
 response_data: *jetzig.data.Data,
 query_params: ?*jetzig.http.Query = null,
 query_body: ?*jetzig.http.Query = null,
+_params_info: ?jetzig.http.params.ParamsInfo = null,
 multipart: ?jetzig.http.MultipartQuery = null,
 parsed_multipart: ?*jetzig.data.Data = null,
 _cookies: ?*jetzig.http.Cookies = null,
@@ -170,6 +171,15 @@ pub fn respond(self: *Request) !void {
     const status = jetzig.http.status_codes.get(self.response.status_code);
     self.httpz_response.status = try status.getCodeInt();
     self.httpz_response.body = self.response.content;
+}
+
+/// Set the root value for response data.
+/// ```zig
+/// var root = request.data(.object)
+/// var root = request.data(.array)
+/// ```
+pub fn data(self: Request, comptime root: @TypeOf(.enum_literal)) !*jetzig.Data.Value {
+    return try self.response_data.root(root);
 }
 
 /// Render a response. This function can only be called once per request (repeat calls will
@@ -330,18 +340,44 @@ pub fn params(self: *Request) !*jetzig.data.Value {
         .JSON => {
             if (self.body.len == 0) return self.queryParams();
 
-            var data = try self.allocator.create(jetzig.data.Data);
-            data.* = jetzig.data.Data.init(self.allocator);
-            data.fromJson(self.body) catch |err| {
+            var params_data = try self.allocator.create(jetzig.data.Data);
+            params_data.* = jetzig.data.Data.init(self.allocator);
+            params_data.fromJson(self.body) catch |err| {
                 switch (err) {
                     error.SyntaxError, error.UnexpectedEndOfInput => return error.JetzigBodyParseError,
                     else => return err,
                 }
             };
-            return data.value.?;
+            return params_data.value.?;
         },
         .HTML, .UNKNOWN => return self.parseQuery(),
     }
+}
+
+/// Expect params that match a struct defined by `T`. If any required params are missing (or
+/// cannot be matched to an enum param) then `null` is returned, otherwise a new `T` is returned
+/// with values populated from matched params.
+/// In both cases, `request.paramsInfo()` returns a hashmap keyed by all fields specified by `T`
+/// and with values of `ParamInfo`.
+/// A field in `T` can be an `enum`. In this case, if the param is a string (always true for
+/// query params) then it is coerced to the target enum type if possible.
+pub fn expectParams(self: *Request, T: type) !?T {
+    return try jetzig.http.params.expectParams(self, T);
+}
+
+/// Information about request parameters after a call to `request.expectParams`. Call
+/// `request.paramsInfo()` to initialize.
+///
+/// Use `get` to fetch information about a specific param.
+///
+/// ```zig
+/// const params = try request.expectParams(struct { foo: []const u8 });
+/// const params_info = try request.paramsInfo();
+/// const foo_info = params_info.get("foo");
+/// ```
+pub fn paramsInfo(self: Request) !?jetzig.http.params.ParamsInfo {
+    const params_info = self._params_info orelse return null;
+    return try params_info.init(self.allocator);
 }
 
 /// Retrieve a file from a `multipart/form-data`-encoded request body, if present.
@@ -359,13 +395,13 @@ pub fn file(self: *Request, name: []const u8) !?jetzig.http.File {
 pub fn queryParams(self: *Request) !*jetzig.data.Value {
     if (self.query_params) |parsed| return parsed.data.value.?;
 
-    const data = try self.allocator.create(jetzig.data.Data);
-    data.* = jetzig.data.Data.init(self.allocator);
+    const params_data = try self.allocator.create(jetzig.data.Data);
+    params_data.* = jetzig.data.Data.init(self.allocator);
     self.query_params = try self.allocator.create(jetzig.http.Query);
     self.query_params.?.* = jetzig.http.Query.init(
         self.allocator,
         self.path.query orelse "",
-        data,
+        params_data,
     );
     try self.query_params.?.parse();
     return self.query_params.?.data.value.?;
@@ -390,13 +426,13 @@ fn parseQuery(self: *Request) !*jetzig.data.Value {
         return self.parsed_multipart.?.value.?;
     }
 
-    const data = try self.allocator.create(jetzig.data.Data);
-    data.* = jetzig.data.Data.init(self.allocator);
+    const params_data = try self.allocator.create(jetzig.data.Data);
+    params_data.* = jetzig.data.Data.init(self.allocator);
     self.query_body = try self.allocator.create(jetzig.http.Query);
     self.query_body.?.* = jetzig.http.Query.init(
         self.allocator,
         self.body,
-        data,
+        params_data,
     );
 
     try self.query_body.?.parse();
@@ -692,12 +728,17 @@ pub fn match(self: *Request, route: jetzig.views.Route) !bool {
     };
 }
 
-fn isMatch(self: *Request, match_type: enum { exact, resource_id }, route: jetzig.views.Route) bool {
+fn isMatch(
+    self: *Request,
+    match_type: enum { exact, resource_id },
+    route: jetzig.views.Route,
+) bool {
     const path = switch (match_type) {
         .exact => self.path.base_path,
         .resource_id => self.path.directory,
     };
 
+    // Special case for `/foobar/1/new` -> render `new()`
     if (route.action == .get and std.mem.eql(u8, self.path.resource_id, "new")) return false;
 
     return std.mem.eql(u8, path, route.uri_path);
