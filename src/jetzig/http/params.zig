@@ -13,7 +13,13 @@ pub fn expectParams(request: *jetzig.http.Request, T: type) !?T {
     var failed = false;
 
     inline for (fields, 0..) |field, index| {
-        if (actual_params.get(field.name)) |value| {
+        var maybe_value = actual_params.get(field.name);
+
+        if (isBlank(maybe_value)) {
+            maybe_value = null;
+        }
+
+        if (maybe_value) |value| {
             switch (@typeInfo(field.type)) {
                 .optional => |info| if (value.coerce(info.child)) |coerced| {
                     @field(t, field.name) = coerced;
@@ -64,6 +70,12 @@ pub fn expectParams(request: *jetzig.http.Request, T: type) !?T {
     }
 
     return t;
+}
+
+fn isBlank(maybe_value: ?*const jetzig.Data.Value) bool {
+    if (maybe_value) |value| {
+        return value.* == .string and jetzig.util.strip(value.string.value).len == 0;
+    } else return true;
 }
 
 /// See `Request.paramsInfo`.

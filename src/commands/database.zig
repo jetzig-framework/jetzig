@@ -7,6 +7,7 @@ const jetzig = @import("jetzig");
 const Migrate = @import("jetquery_migrate").Migrate;
 const MigrateSchema = @import("jetquery_migrate").MigrateSchema;
 const Schema = @import("Schema");
+const util = @import("util.zig");
 
 const confirm_drop_env = "JETZIG_DROP_PRODUCTION_DATABASE";
 const production_drop_failure_message = "To drop a production database, " ++
@@ -19,6 +20,15 @@ const Action = enum { migrate, rollback, create, drop, reflect };
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer std.debug.assert(gpa.deinit() == .ok);
+
+    if (comptime !@hasField(@TypeOf(config), "adapter") or config.adapter == .null) {
+        try util.print(
+            .failure,
+            "Database is currently not configured. Update `config/database.zig` before running database commands.",
+            .{},
+        );
+        std.process.exit(1);
+    }
 
     const gpa_allocator = gpa.allocator();
     var arena = std.heap.ArenaAllocator.init(gpa_allocator);

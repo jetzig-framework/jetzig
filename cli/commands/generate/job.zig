@@ -47,7 +47,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         \\//
         \\// Arguments:
         \\// * allocator: Arena allocator for use during the job execution process.
-        \\// * params:    Params assigned to a job (from a request, any values added to `data`).
+        \\// * params:    Params assigned to a job (from a request, values added to response data).
         \\// * env:       Provides the following fields:
         \\//              - logger:      Logger attached to the same stream as the Jetzig server.
         \\//              - environment: Enum of `{ production, development }`.

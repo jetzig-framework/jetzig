@@ -4,7 +4,6 @@ const jetzig = @import("../../jetzig.zig");
 pub const DeliverFn = *const fn (
     std.mem.Allocator,
     *jetzig.mail.MailParams,
-    *jetzig.data.Data,
     *jetzig.data.Value,
     jetzig.jobs.JobEnv,
 ) anyerror!void;

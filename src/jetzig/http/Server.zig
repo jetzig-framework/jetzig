@@ -166,7 +166,7 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
-        const rendered = try self.renderInternalServerError(request, err);
+        const rendered = try self.renderInternalServerError(request, @errorReturnTrace(), err);
         request.setResponse(rendered, .{});
         return;
     };
@@ -220,7 +220,11 @@ fn renderHTML(
         if (zmpl.findPrefixed("views", matched_route.template)) |template| {
             const rendered = self.renderView(matched_route, request, template) catch |err| {
                 if (isUnhandledError(err)) return err;
-                const rendered_error = try self.renderInternalServerError(request, err);
+                const rendered_error = try self.renderInternalServerError(
+                    request,
+                    @errorReturnTrace(),
+                    err,
+                );
                 return request.setResponse(rendered_error, .{});
             };
             return request.setResponse(rendered, .{});
@@ -229,7 +233,7 @@ fn renderHTML(
             // assigned in a view.
             const rendered = self.renderView(matched_route, request, null) catch |err| {
                 if (isUnhandledError(err)) return err;
-                const rendered_error = try self.renderInternalServerError(request, err);
+                const rendered_error = try self.renderInternalServerError(request, @errorReturnTrace(), err);
                 return request.setResponse(rendered_error, .{});
             };
 
@@ -296,10 +300,9 @@ fn renderView(
     // `return request.render(.ok)`, but the actual rendered view is stored in
     // `request.rendered_view`.
     _ = route.render(route, request) catch |err| {
-        try self.logger.ERROR("Encountered error: {s}", .{@errorName(err)});
         if (isUnhandledError(err)) return err;
         if (isBadRequest(err)) return try self.renderBadRequest(request);
-        return try self.renderInternalServerError(request, err);
+        return try self.renderInternalServerError(request, @errorReturnTrace(), err);
     };
 
     if (request.failed) {
@@ -414,10 +417,15 @@ fn isBadHttpError(err: anyerror) bool {
     };
 }
 
-fn renderInternalServerError(self: *Server, request: *jetzig.http.Request, err: anyerror) !RenderedView {
+fn renderInternalServerError(
+    self: *Server,
+    request: *jetzig.http.Request,
+    stack_trace: ?*std.builtin.StackTrace,
+    err: anyerror,
+) !RenderedView {
     request.response_data.reset();
 
-    try self.logger.logError(err);
+    try self.logger.logError(stack_trace, err);
 
     const status = .internal_server_error;
     return try self.renderError(request, status);
@@ -460,13 +468,11 @@ fn renderErrorView(
 
             _ = route.render(route.*, request) catch |err| {
                 if (isUnhandledError(err)) return err;
-                try self.logger.logError(err);
+                try self.logger.logError(@errorReturnTrace(), err);
                 try self.logger.ERROR(
                     "Unexepected error occurred while rendering error page: {s}",
                     .{@errorName(err)},
                 );
-                const stack = @errorReturnTrace();
-                if (stack) |capture| try self.logStackTrace(capture, request.allocator);
                 return try renderDefaultError(request, status_code);
             };
 

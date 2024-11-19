@@ -19,7 +19,8 @@ pub inline fn logRequest(self: @This(), request: *const jetzig.http.Request) !vo
     _ = request;
 }
 
-pub inline fn logError(self: @This(), err: anyerror) !void {
+pub inline fn logError(self: @This(), stack_trace: ?*std.builtin.StackTrace, err: anyerror) !void {
     _ = self;
+    _ = stack_trace;
     std.debug.print("Error: {s}\n", .{@errorName(err)});
 }

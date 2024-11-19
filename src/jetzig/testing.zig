@@ -205,7 +205,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                 },
                 else => {},
             },
-            .Null => switch (@typeInfo(@TypeOf(expected_value))) {
+            .null => switch (@typeInfo(@TypeOf(expected_value))) {
                 .optional => {
                     if (expected_value == null) return;
                 },
@@ -264,7 +264,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
                     else => unreachable,
                 }
             },
-            .Null => {
+            .null => {
                 logFailure(
                     "Expected value in " ++ jetzig.colors.cyan("{s}") ++ ", found " ++ jetzig.colors.green("null") ++ "\nJSON:" ++ json_banner,
                     .{ expected_path, try jsonPretty(response) },

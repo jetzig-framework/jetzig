@@ -83,9 +83,13 @@ pub const Logger = union(enum) {
         }
     }
 
-    pub fn logError(self: *const Logger, err: anyerror) !void {
+    pub fn logError(
+        self: *const Logger,
+        stack_trace: ?*std.builtin.StackTrace,
+        err: anyerror,
+    ) !void {
         switch (self.*) {
-            inline else => |*logger| try logger.logError(err),
+            inline else => |*logger| try logger.logError(stack_trace, err),
         }
     }
 

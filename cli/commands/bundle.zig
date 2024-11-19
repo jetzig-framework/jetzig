@@ -149,7 +149,7 @@ pub fn run(
     const tmpdir_real_path = try tmpdir.realpathAlloc(allocator, ".");
     defer allocator.free(tmpdir_real_path);
 
-    try util.runCommand(allocator, tmpdir_real_path, tar_argv.items);
+    try util.runCommandInDir(allocator, tar_argv.items, .{ .path = tmpdir_real_path });
 
     switch (builtin.os.tag) {
         .windows => {},
@@ -215,7 +215,7 @@ fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Op
     defer project_dir.close();
     project_dir.makePath(".bundle") catch {};
 
-    try util.runCommand(allocator, path, install_argv.items);
+    try util.runCommandInDir(allocator, install_argv.items, .{ .path = path });
 
     const install_bin_path = try std.fs.path.join(allocator, &[_][]const u8{ ".bundle", "bin" });
     defer allocator.free(install_bin_path);

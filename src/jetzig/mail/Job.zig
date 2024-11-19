@@ -4,7 +4,7 @@ const jetzig = @import("../../jetzig.zig");
 /// Default Mail Job. Send an email with the given params in the background.
 pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig.jobs.JobEnv) !void {
     const mailer_name = if (params.get("mailer_name")) |param| switch (param.*) {
-        .Null => null,
+        .null => null,
         .string => |string| string.value,
         else => null,
     } else null;
@@ -34,9 +34,7 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
         .defaults = mailer.defaults,
     };
 
-    var data = jetzig.data.Data.init(allocator);
-
-    try mailer.deliverFn(allocator, &mail_params, &data, params.get("params").?, env);
+    try mailer.deliverFn(allocator, &mail_params, params.get("params").?, env);
 
     const mail = jetzig.mail.Mail.init(allocator, env, .{
         .subject = mail_params.get(.subject) orelse "(No subject)",
@@ -62,7 +60,7 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
 fn resolveSubject(subject: ?*const jetzig.data.Value) ?[]const u8 {
     if (subject) |capture| {
         return switch (capture.*) {
-            .Null => null,
+            .null => null,
             .string => |string| string.value,
             else => unreachable,
         };
@@ -73,7 +71,7 @@ fn resolveSubject(subject: ?*const jetzig.data.Value) ?[]const u8 {
 
 fn resolveFrom(from: ?*const jetzig.data.Value) ?[]const u8 {
     return if (from) |capture| switch (capture.*) {
-        .Null => null,
+        .null => null,
         .string => |string| string.value,
         else => unreachable,
     } else null;
@@ -97,7 +95,7 @@ fn resolveText(
 ) !?[]const u8 {
     if (text) |capture| {
         return switch (capture.*) {
-            .Null => try defaultText(allocator, mailer, params),
+            .null => try defaultText(allocator, mailer, params),
             .string => |string| string.value,
             else => unreachable,
         };
@@ -114,7 +112,7 @@ fn resolveHtml(
 ) !?[]const u8 {
     if (text) |capture| {
         return switch (capture.*) {
-            .Null => try defaultHtml(allocator, mailer, params),
+            .null => try defaultHtml(allocator, mailer, params),
             .string => |string| string.value,
             else => unreachable,
         };

@@ -60,8 +60,9 @@ pub const RequestStore = struct {
     }
 
     /// Get a String from the store.
-    pub fn put(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
-        try self.store.put(key, value);
+    pub fn put(self: RequestStore, key: []const u8, value: anytype) !void {
+        const alloc = (try self.data()).allocator();
+        try self.store.put(key, try jetzig.Data.zmplValue(value, alloc));
     }
 
     /// Remove a String to from the key-value store and return it if found.
@@ -75,13 +76,15 @@ pub const RequestStore = struct {
     }
 
     /// Append a Value to the end of an Array in the key-value store.
-    pub fn append(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
-        try self.store.append(key, value);
+    pub fn append(self: RequestStore, key: []const u8, value: anytype) !void {
+        const alloc = (try self.data()).allocator();
+        try self.store.append(key, try jetzig.Data.zmplValue(value, alloc));
     }
 
     /// Prepend a Value to the start of an Array in the key-value store.
-    pub fn prepend(self: RequestStore, key: []const u8, value: *jetzig.data.Value) !void {
-        try self.store.prepend(key, value);
+    pub fn prepend(self: RequestStore, key: []const u8, value: anytype) !void {
+        const alloc = (try self.data()).allocator();
+        try self.store.prepend(key, try jetzig.Data.zmplValue(value, alloc));
     }
 
     /// Pop a String from an Array in the key-value store.
@@ -660,7 +663,7 @@ pub fn joinPath(self: *const Request, args: anytype) ![]const u8 {
                     @compileError("Cannot coerce type `" ++ @typeName(field.type) ++ "` to string."),
                 else => args[index], // Assume []const u8, let Zig do the work.
             },
-            .int, .float => try std.fmt.allocPrint(self.allocator, "{d}", args[index]),
+            .int, .float => try std.fmt.allocPrint(self.allocator, "{d}", .{args[index]}),
             else => @compileError("Cannot coerce type `" ++ @typeName(field.type) ++ "` to string."),
         };
     }

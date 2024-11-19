@@ -42,6 +42,14 @@ test "post query params" {
         },
     });
     try response2.expectStatus(.unprocessable_entity);
+
+    const response3 = try app.request(.POST, "/params", .{
+        .params = .{
+            .name = "", // empty param
+            .favorite_animal = "raccoon",
+        },
+    });
+    try response3.expectStatus(.unprocessable_entity);
 }
 
 test "post json" {

@@ -112,7 +112,13 @@ pub fn logSql(self: *const JsonLogger, event: jetzig.jetquery.events.Event) !voi
     try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
 }
 
-pub fn logError(self: *const JsonLogger, err: anyerror) !void {
+pub fn logError(
+    self: *const JsonLogger,
+    stack_trace: ?*std.builtin.StackTrace,
+    err: anyerror,
+) !void {
+    // TODO: Format this as JSON and include line number/column if available.
+    _ = stack_trace;
     try self.log(.ERROR, "Encountered error: {s}", .{@errorName(err)});
 }
 

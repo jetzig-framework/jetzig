@@ -1,8 +1,7 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
 
@@ -13,9 +12,9 @@ pub const static_params = .{
     },
 };
 
-pub fn get(id: []const u8, request: *jetzig.StaticRequest, data: *jetzig.Data) !jetzig.View {
-    var object = try data.object();
-    try object.put("id", data.string(id));
+pub fn get(id: []const u8, request: *jetzig.StaticRequest) !jetzig.View {
+    var object = try request.data(.object);
+    try object.put("id", id);
     const params = try request.params();
     if (params.get("foo")) |value| try object.put("foo", value);
     return request.render(.ok);

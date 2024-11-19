@@ -1,13 +1,12 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
 
-pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.root(.object);
+pub fn post(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
 
     const params = try request.params();
 
