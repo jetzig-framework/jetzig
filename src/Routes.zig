@@ -280,6 +280,8 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         \\            .static = {4s},
         \\            .uri_path = "{5s}",
         \\            .template = "{6s}",
+        \\            .before_callbacks = jetzig.callbacks.beforeCallbacks(@import("{7s}")),
+        \\            .after_callbacks = jetzig.callbacks.afterCallbacks(@import("{7s}")),
         \\            .layout = if (@hasDecl(@import("{7s}"), "layout")) @import("{7s}").layout else null,
         \\            .json_params = &[_][]const u8 {{ {8s} }},
         \\            .formats = if (@hasDecl(@import("{7s}"), "formats")) @import("{7s}").formats else null,
@@ -389,7 +391,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
                     for (capture.args, 0..) |arg, arg_index| {
                         if (std.mem.eql(u8, try arg.typeBasename(), "StaticRequest")) {
-                            capture.static = true;
+                            capture.static = jetzig.build_options.build_static;
                             capture.legacy = arg_index + 1 < capture.args.len;
                             try static_routes.append(capture.*);
                         } else if (std.mem.eql(u8, try arg.typeBasename(), "Request")) {

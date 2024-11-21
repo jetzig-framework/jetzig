@@ -15,6 +15,8 @@ multipart_boundary: ?[]const u8 = null,
 logger: jetzig.loggers.Logger,
 server: Server,
 repo: *jetzig.database.Repo,
+cookies: *jetzig.http.Cookies,
+session: *jetzig.http.Session,
 
 const Server = struct { logger: jetzig.loggers.Logger };
 
@@ -47,6 +49,13 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
     const app = try alloc.create(App);
     const repo = try alloc.create(jetzig.database.Repo);
 
+    const cookies = try alloc.create(jetzig.http.Cookies);
+    cookies.* = jetzig.http.Cookies.init(alloc, "");
+    try cookies.parse();
+
+    const session = try alloc.create(jetzig.http.Session);
+    session.* = jetzig.http.Session.init(alloc, cookies, jetzig.testing.secret);
+
     app.* = App{
         .arena = arena,
         .allocator = allocator,
@@ -57,6 +66,8 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
         .logger = logger,
         .server = .{ .logger = logger },
         .repo = repo,
+        .cookies = cookies,
+        .session = session,
     };
 
     repo.* = try jetzig.database.repo(alloc, app.*);
@@ -149,30 +160,61 @@ pub fn request(
     try server.decodeStaticParams();
 
     var buf: [1024]u8 = undefined;
-    var httpz_request = try stubbedRequest(allocator, &buf, method, path, self.multipart_boundary, options);
+    var httpz_request = try stubbedRequest(
+        allocator,
+        &buf,
+        method,
+        path,
+        self.multipart_boundary,
+        options,
+        self.cookies,
+    );
     var httpz_response = try stubbedResponse(allocator);
+
     try server.processNextRequest(&httpz_request, &httpz_response);
-    var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(self.arena.allocator());
-    for (0..httpz_response.headers.len) |index| {
-        try headers.append(.{
-            .name = try self.arena.allocator().dupe(u8, httpz_response.headers.keys[index]),
-            .value = try self.arena.allocator().dupe(u8, httpz_response.headers.values[index]),
-        });
+
+    {
+        const cookies = try allocator.create(jetzig.http.Cookies);
+        cookies.* = jetzig.http.Cookies.init(allocator, "");
+        try cookies.parse();
+        self.cookies = cookies;
     }
+
+    var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(allocator);
+    for (0..httpz_response.headers.len) |index| {
+        const key = httpz_response.headers.keys[index];
+        const value = httpz_response.headers.values[index];
+
+        try headers.append(.{
+            .name = try allocator.dupe(u8, key),
+            .value = try allocator.dupe(u8, httpz_response.headers.values[index]),
+        });
+
+        if (std.ascii.eqlIgnoreCase(key, "set-cookie")) {
+            // FIXME: We only expect one set-cookie header at the moment.
+            const cookies = try allocator.create(jetzig.http.Cookies);
+            cookies.* = jetzig.http.Cookies.init(allocator, value);
+            self.cookies = cookies;
+            try self.cookies.parse();
+        }
+    }
+
     var data = jetzig.data.Data.init(allocator);
     defer data.deinit();
 
-    var jobs = std.ArrayList(jetzig.testing.TestResponse.Job).init(self.arena.allocator());
+    var jobs = std.ArrayList(jetzig.testing.TestResponse.Job).init(allocator);
     while (try self.job_queue.popFirst(&data, "__jetzig_jobs")) |value| {
         if (value.getT(.string, "__jetzig_job_name")) |job_name| try jobs.append(.{
-            .name = try self.arena.allocator().dupe(u8, job_name),
+            .name = try allocator.dupe(u8, job_name),
         });
     }
 
+    try self.initSession();
+
     return .{
-        .allocator = self.arena.allocator(),
+        .allocator = allocator,
         .status = httpz_response.status,
-        .body = try self.arena.allocator().dupe(u8, httpz_response.body),
+        .body = try allocator.dupe(u8, httpz_response.body),
         .headers = try headers.toOwnedSlice(),
         .jobs = try jobs.toOwnedSlice(),
     };
@@ -187,6 +229,16 @@ pub fn params(self: App, args: anytype) []Param {
         array.append(.{ .key = field.name, .value = value }) catch @panic("OOM");
     }
     return array.toOwnedSlice() catch @panic("OOM");
+}
+
+pub fn initSession(self: *App) !void {
+    const allocator = self.arena.allocator();
+
+    var local_session = try allocator.create(jetzig.http.Session);
+    local_session.* = jetzig.http.Session.init(allocator, self.cookies, jetzig.testing.secret);
+    try local_session.parse();
+
+    self.session = local_session;
 }
 
 /// Encode an arbitrary struct to a JSON string for use as a request body.
@@ -245,15 +297,29 @@ fn stubbedRequest(
     comptime path: []const u8,
     multipart_boundary: ?[]const u8,
     options: RequestOptions,
+    maybe_cookies: ?*const jetzig.http.Cookies,
 ) !httpz.Request {
     // TODO: Use httpz.testing
     var request_headers = try keyValue(allocator, 32);
     for (options.headers) |header| request_headers.add(header.name, header.value);
+
+    if (maybe_cookies) |cookies| {
+        var cookie_buf = std.ArrayList(u8).init(allocator);
+        const cookie_writer = cookie_buf.writer();
+        try cookie_writer.print("{}", .{cookies});
+        const cookie = try cookie_buf.toOwnedSlice();
+        request_headers.add("cookie", cookie);
+    }
+
     if (options.json != null) {
         request_headers.add("accept", "application/json");
         request_headers.add("content-type", "application/json");
     } else if (multipart_boundary) |boundary| {
-        const header = try std.mem.concat(allocator, u8, &.{ "multipart/form-data; boundary=", boundary });
+        const header = try std.mem.concat(
+            allocator,
+            u8,
+            &.{ "multipart/form-data; boundary=", boundary },
+        );
         request_headers.add("content-type", header);
     }
 
@@ -358,7 +424,10 @@ fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !R
     }
 
     return .{
-        .headers = if (@hasField(@TypeOf(args), "headers")) try buildHeaders(allocator, args.headers) else &.{},
+        .headers = if (@hasField(@TypeOf(args), "headers"))
+            try buildHeaders(allocator, args.headers)
+        else
+            &.{},
         .json = if (@hasField(@TypeOf(args), "json")) app.json(args.json) else null,
         .params = if (@hasField(@TypeOf(args), "params")) app.params(args.params) else null,
         .body = if (@hasField(@TypeOf(args), "body")) args.body else null,
@@ -368,7 +437,12 @@ fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !R
 fn buildHeaders(allocator: std.mem.Allocator, args: anytype) ![]const jetzig.testing.TestResponse.Header {
     var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(allocator);
     inline for (std.meta.fields(@TypeOf(args))) |field| {
-        try headers.append(jetzig.testing.TestResponse.Header{ .name = field.name, .value = @field(args, field.name) });
+        try headers.append(
+            jetzig.testing.TestResponse.Header{
+                .name = field.name,
+                .value = @field(args, field.name),
+            },
+        );
     }
     return try headers.toOwnedSlice();
 }

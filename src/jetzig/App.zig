@@ -17,8 +17,8 @@ pub fn deinit(self: *const App) void {
     @constCast(self).custom_routes.deinit();
 }
 
-// Not used yet, but allows us to add new options to `start()` without breaking
-// backward-compatibility.
+/// Specify a global value accessible as `request.server.global`.
+/// Must specify type by defining `pub const Global` in your app's `src/main.zig`.
 const AppOptions = struct {
     global: *anyopaque = undefined,
 };
@@ -228,6 +228,8 @@ pub fn createRoutes(
             .template = const_route.template,
             .json_params = const_route.json_params,
             .formats = const_route.formats,
+            .before_callbacks = const_route.before_callbacks,
+            .after_callbacks = const_route.after_callbacks,
         };
 
         try var_route.initParams(allocator);

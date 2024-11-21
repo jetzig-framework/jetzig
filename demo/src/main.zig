@@ -12,6 +12,8 @@ pub const jetzig_options = struct {
     /// Middleware chain. Add any custom middleware here, or use middleware provided in
     /// `jetzig.middleware` (e.g. `jetzig.middleware.HtmxMiddleware`).
     pub const middleware: []const type = &.{
+        // jetzig.middleware.AuthMiddleware,
+        // jetzig.middleware.AntiCsrfMiddleware,
         // jetzig.middleware.HtmxMiddleware,
         // jetzig.middleware.CompressionMiddleware,
         // @import("app/middleware/DemoMiddleware.zig"),
@@ -79,13 +81,16 @@ pub const jetzig_options = struct {
     pub const Schema = @import("Schema");
 
     /// HTTP cookie configuration
-    pub const cookies: jetzig.http.Cookies.CookieOptions = .{
-        .domain = switch (jetzig.environment) {
-            .development => "localhost",
-            .testing => "localhost",
-            .production => "www.example.com",
+    pub const cookies: jetzig.http.Cookies.CookieOptions = switch (jetzig.environment) {
+        .development, .testing => .{
+            .domain = "localhost",
+            .path = "/",
         },
-        .path = "/",
+        .production => .{
+            .same_site = true,
+            .secure = true,
+            .http_only = true,
+        },
     };
 
     /// Key-value store options. Set backend to `.file` to use a file-based store.

@@ -17,6 +17,9 @@ pub const jobs = @import("jobs.zig");
 pub const mail = @import("mail.zig");
 pub const kv = @import("kv.zig");
 pub const db = @import("database.zig");
+pub const Environment = @import("Environment.zig");
+pub const environment = std.enums.nameCast(Environment.EnvironmentName, build_options.environment);
+pub const build_options = @import("build_options");
 
 const root = @import("root");
 
@@ -149,11 +152,26 @@ pub const smtp: mail.SMTPConfig = .{
 };
 
 /// HTTP cookie configuration
-pub const cookies: http.Cookies.CookieOptions = .{
-    .domain = "localhost",
-    .path = "/",
+pub const cookies: http.Cookies.CookieOptions = switch (environment) {
+    .development, .testing => .{
+        .domain = "localhost",
+        .path = "/",
+    },
+    .production => .{
+        .secure = true,
+        .http_only = true,
+        .same_site = true,
+        .path = "/",
+    },
 };
 
+/// Override the default anti-CSRF authenticity token name that is stored in the encrypted
+/// session. This value is also used by `context.authenticityFormElement()` to render an HTML
+/// element: the element's `name` attribute is set to this value.
+pub const authenticity_token_name: []const u8 = "_jetzig_authenticity_token";
+
+/// When using `AuthMiddleware`, set this value to override the default JetQuery model name that
+/// maps the users table.
 pub const auth: @import("auth.zig").AuthOptions = .{
     .user_model = "User",
 };

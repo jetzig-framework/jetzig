@@ -147,7 +147,7 @@ fn renderMarkdown(
 
         if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
             view.data.content = .{ .data = content };
-            return try layout.render(view.data);
+            return try layout.render(view.data, jetzig.TemplateContext, .{}, .{});
         } else {
             std.debug.print("Unknown layout: {s}\n", .{layout_name});
             return content;
@@ -170,13 +170,18 @@ fn renderZmplTemplate(
             defer allocator.free(prefixed_name);
 
             if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
-                return try template.renderWithOptions(view.data, .{ .layout = layout });
+                return try template.render(
+                    view.data,
+                    jetzig.TemplateContext,
+                    .{},
+                    .{ .layout = layout },
+                );
             } else {
                 std.debug.print("Unknown layout: {s}\n", .{layout_name});
                 return try allocator.dupe(u8, "");
             }
         } else {
-            return try template.render(view.data);
+            return try template.render(view.data, jetzig.TemplateContext, .{}, .{});
         }
     } else return null;
 }

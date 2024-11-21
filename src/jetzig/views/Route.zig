@@ -56,6 +56,8 @@ json_params: []const []const u8,
 params: std.ArrayList(*jetzig.data.Data) = undefined,
 id: []const u8,
 formats: ?Formats = null,
+before_callbacks: []const jetzig.callbacks.BeforeCallback = &.{},
+after_callbacks: []const jetzig.callbacks.AfterCallback = &.{},
 
 /// Initializes a route's static params on server launch. Converts static params (JSON strings)
 /// to `jetzig.data.Data` values. Memory is owned by caller (`App.start()`).
