@@ -27,12 +27,11 @@
             .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
         },
         .pg = .{
-            .url = "https://github.com/karlseguin/pg.zig/archive/9226a0a256cd000eee2f9652c8c03af8dcbed79b.tar.gz",
-            .hash = "12202b30ebf018ca398f665e51cae6d000fdfe2d08d5ec369e3110f762c548b154a4",
+            .url = "https://github.com/karlseguin/pg.zig/archive/f376f4b30c63f1fdf90bc3afe246d3bc4175cd46.tar.gz",
+            .hash = "12200a55304988e942015b6244570b2dc0e87e5764719c9e7d5c812cd7ad34f6b138"
         },
         .smtp_client = .{
-            // Pending https://github.com/karlseguin/smtp_client.zig/pull/9 before using mainline
-            .url = "https://github.com/bobf/smtp_client.zig/archive/945554f22f025ba8a1efd01e56bda427bb4e22ca.tar.gz",
+            .url = "https://github.com/karlseguin/smtp_client.zig/archive/3cbe8f269e4c3a6bce407e7ae48b2c76307c559f.tar.gz",
             .hash = "1220de146446d0cae4396e346cb8283dd5e086491f8577ddbd5e03ad0928111d8bc6",
         },
         .httpz = .{
