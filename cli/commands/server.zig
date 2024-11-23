@@ -9,22 +9,20 @@ pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
 /// Command line options for the `server` command.
 pub const Options = struct {
     reload: bool = true,
+    debug: bool = true,
 
     pub const meta = .{
         .full_text =
         \\Launches a development server.
         \\
-        \\The development server reloads when files in `src/` are updated.
-        \\
-        \\To disable this behaviour, pass `--reload=false`
-        \\
         \\Example:
         \\
         \\  jetzig server
-        \\  jetzig server --reload=false
+        \\  jetzig server --reload=false --debug=false
         ,
         .option_docs = .{
             .reload = "Enable or disable automatic reload on update (default: true)",
+            .debug = "Enable or disable the development debug console (default: true)",
         },
     };
 };
@@ -62,19 +60,27 @@ pub fn run(
         },
     );
 
+    var argv = std.ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
+
+    try argv.appendSlice(&.{
+        "zig",
+        "build",
+        util.environmentBuildOption(main_options.options.environment),
+        "-Djetzig_runner=true",
+    });
+
+    if (options.debug) try argv.append("-Ddebug_console=true");
+    try argv.appendSlice(&.{
+        "install",
+        "--color",
+        "on",
+    });
+
     while (true) {
         util.runCommandInDir(
             allocator,
-            &.{
-                "zig",
-                "build",
-                util.environmentBuildOption(main_options.options.environment),
-                "-Djetzig_runner=true",
-                "-Ddebug_console=true",
-                "install",
-                "--color",
-                "on",
-            },
+            argv.items,
             .{ .path = realpath },
         ) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
@@ -89,10 +95,9 @@ pub fn run(
             std.process.exit(1);
         }
 
-        const argv = &[_][]const u8{exe_path.?};
         defer allocator.free(exe_path.?);
 
-        var process = std.process.Child.init(argv, allocator);
+        var process = std.process.Child.init(&.{exe_path.?}, allocator);
         process.stdin_behavior = .Inherit;
         process.stdout_behavior = .Inherit;
         process.stderr_behavior = .Inherit;
