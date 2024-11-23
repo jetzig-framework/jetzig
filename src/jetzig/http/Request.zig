@@ -11,6 +11,16 @@ pub const Method = enum { DELETE, GET, PATCH, POST, HEAD, PUT, CONNECT, OPTIONS,
 pub const Modifier = enum { edit, new };
 pub const Format = enum { HTML, JSON, UNKNOWN };
 pub const Protocol = enum { http, https };
+pub const RequestState = enum {
+    initial, // No processing has taken place
+    processed, // Request headers have been processed
+    after_request, // Initial middleware processing
+    rendered, // Rendered by middleware or view
+    redirected, // Redirected by middleware or view
+    failed, // Failed by middleware or view
+    before_response, // Post middleware processing
+    finalized, // Response generated
+};
 
 allocator: std.mem.Allocator,
 path: jetzig.http.Path,
@@ -30,19 +40,12 @@ parsed_multipart: ?*jetzig.data.Data = null,
 _cookies: ?*jetzig.http.Cookies = null,
 _session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
-state: enum { initial, processed } = .initial,
-response_started: bool = false,
+state: RequestState = .initial,
 dynamic_assigned_template: ?[]const u8 = null,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
-// TODO: Squash rendered/redirected/failed into
-// `state: enum { initial, rendered, redirected, failed }`
-rendered: bool = false,
-redirected: bool = false,
-failed: bool = false,
 redirect_state: ?RedirectState = null,
 middleware_rendered: ?struct { name: []const u8, action: []const u8 } = null,
-middleware_rendered_during_response: bool = false,
 middleware_data: jetzig.http.middleware.MiddlewareData = undefined,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
@@ -177,6 +180,7 @@ pub fn respond(self: *Request) !void {
     const status = jetzig.http.status_codes.get(self.response.status_code);
     self.httpz_response.status = try status.getCodeInt();
     self.httpz_response.body = self.response.content;
+    self.state = .finalized;
 }
 
 /// Set the root value for response data.
@@ -191,10 +195,9 @@ pub fn data(self: Request, comptime root: @TypeOf(.enum_literal)) !*jetzig.Data.
 /// Render a response. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    if (self.rendered or self.failed) self.rendered_multiple = true;
+    if (self.isRendered()) self.rendered_multiple = true;
 
-    self.rendered = true;
-    if (self.response_started) self.middleware_rendered_during_response = true;
+    self.state = .rendered;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
 }
@@ -202,13 +205,18 @@ pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) 
 /// Render an error. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    if (self.rendered or self.redirected) self.rendered_multiple = true;
+    if (self.isRendered()) self.rendered_multiple = true;
 
-    self.rendered = true;
-    self.failed = true;
-    if (self.response_started) self.middleware_rendered_during_response = true;
+    self.state = .failed;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
+}
+
+pub inline fn isRendered(self: *const Request) bool {
+    return switch (self.state) {
+        .initial, .processed, .after_request, .before_response => false,
+        .rendered, .redirected, .failed, .finalized => true,
+    };
 }
 
 /// Issue a redirect to a new location.
@@ -224,11 +232,9 @@ pub fn redirect(
     location: []const u8,
     redirect_status: enum { moved_permanently, found },
 ) jetzig.views.View {
-    if (self.rendered or self.failed) self.rendered_multiple = true;
+    if (self.isRendered()) self.rendered_multiple = true;
 
-    self.rendered = true;
-    self.redirected = true;
-    if (self.response_started) self.middleware_rendered_during_response = true;
+    self.state = .redirected;
 
     const status_code = switch (redirect_status) {
         .moved_permanently => jetzig.http.status_codes.StatusCode.moved_permanently,
@@ -685,6 +691,19 @@ pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) !
 /// Override default template name for a matched route.
 pub fn setTemplate(self: *Request, name: []const u8) void {
     self.dynamic_assigned_template = name;
+}
+
+/// Set a custom template and render the response.
+/// ```zig
+/// return request.renderTemplate("blogs/comments/get", .ok);
+/// ```
+pub fn renderTemplate(
+    self: *Request,
+    name: []const u8,
+    status_code: jetzig.http.StatusCode,
+) jetzig.views.View {
+    self.dynamic_assigned_template = name;
+    return self.render(status_code);
 }
 
 pub fn joinPath(self: *const Request, args: anytype) ![]const u8 {

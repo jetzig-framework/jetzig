@@ -15,8 +15,6 @@ jobs:
   build:
     strategy:
       matrix:
-        #Deactivated windows for I don't know why it fails
-        #os: [ubuntu-latest, macos-latest, windows-latest]
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:

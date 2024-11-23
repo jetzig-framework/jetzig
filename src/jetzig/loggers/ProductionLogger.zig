@@ -86,7 +86,7 @@ pub fn logRequest(self: ProductionLogger, request: *const jetzig.http.Request) !
         if (request.middleware_rendered) |_| ":" else "",
         if (request.middleware_rendered) |middleware| middleware.action else "",
         if (request.middleware_rendered) |_| ":" else "",
-        if (request.middleware_rendered) |_| if (request.redirected) "redirect" else "render" else "",
+        if (request.middleware_rendered) |_| @tagName(request.state) else "",
         if (request.middleware_rendered) |_| "]" else "",
         request.path.path,
     }, .stdout);

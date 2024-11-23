@@ -60,8 +60,11 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
         }
     }
 
+    request.state = .after_request;
+
     inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "afterRequest")) continue;
+
         if (comptime @hasDecl(middleware, "init")) {
             const data = middleware_data.get(index).?;
             try @call(
@@ -72,7 +75,8 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
         } else {
             try @call(.always_inline, middleware.afterRequest, .{request});
         }
-        if (request.rendered or request.redirected) {
+
+        if (request.state != .after_request) {
             request.middleware_rendered = .{ .name = @typeName(middleware), .action = "afterRequest" };
             break;
         }
@@ -86,11 +90,11 @@ pub fn beforeResponse(
     middleware_data: *MiddlewareData,
     request: *jetzig.http.Request,
 ) !void {
-    request.response_started = true;
+    request.state = .before_response;
 
     inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "beforeResponse")) continue;
-        if (!request.middleware_rendered_during_response) {
+        if (request.state == .before_response) {
             if (comptime @hasDecl(middleware, "init")) {
                 const data = middleware_data.get(index).?;
                 try @call(
@@ -99,11 +103,19 @@ pub fn beforeResponse(
                     .{ @as(*middleware, @ptrCast(@alignCast(data))), request, request.response },
                 );
             } else {
-                try @call(.always_inline, middleware.beforeResponse, .{ request, request.response });
+                try @call(
+                    .always_inline,
+                    middleware.beforeResponse,
+                    .{ request, request.response },
+                );
             }
         }
-        if (request.middleware_rendered_during_response) {
-            request.middleware_rendered = .{ .name = @typeName(middleware), .action = "beforeResponse" };
+
+        if (request.state != .before_response) {
+            request.middleware_rendered = .{
+                .name = @typeName(middleware),
+                .action = "beforeResponse",
+            };
             break;
         }
     }

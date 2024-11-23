@@ -23,6 +23,7 @@ pub const testing = @import("jetzig/testing.zig");
 pub const config = @import("jetzig/config.zig");
 pub const auth = @import("jetzig/auth.zig");
 pub const callbacks = @import("jetzig/callbacks.zig");
+pub const debug = @import("jetzig/debug.zig");
 pub const TemplateContext = @import("jetzig/TemplateContext.zig");
 
 pub const DateTime = jetcommon.types.DateTime;

@@ -20,7 +20,11 @@ pub fn afterRequest(request: *jetzig.http.Request) !void {
 /// If a redirect was issued during request processing, reset any response data, set response
 /// status to `200 OK` and replace the `Location` header with a `HX-Redirect` header.
 pub fn beforeResponse(request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
-    if (response.status_code != .moved_permanently and response.status_code != .found) return;
+    switch (response.status_code) {
+        .moved_permanently, .found => {},
+        else => return,
+    }
+
     if (request.headers.get("HX-Request") == null) return;
 
     if (response.headers.get("Location")) |location| {

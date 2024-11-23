@@ -138,7 +138,8 @@ pub fn processNextRequest(
 
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
-    if (request.middleware_rendered) |_| { // Request processing ends when a middleware renders or redirects.
+    if (request.middleware_rendered) |_| {
+        // Request processing ends when a middleware renders or redirects.
         if (request.redirect_state) |state| {
             try request.renderRedirect(state);
         } else if (request.rendered_view) |rendered| {
@@ -150,8 +151,8 @@ pub fn processNextRequest(
     } else {
         try self.renderResponse(&request);
         try request.response.headers.append("Content-Type", response.content_type);
-        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
 
+        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
         try request.respond();
         try jetzig.http.middleware.afterResponse(&middleware_data, &request);
         jetzig.http.middleware.deinit(&middleware_data, &request);
@@ -197,9 +198,12 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
         for (route.before_callbacks) |callback| {
             try callback(request, route);
             if (request.rendered_view) |view| {
-                if (request.failed) {
-                    request.setResponse(try self.renderError(request, view.status_code), .{});
-                } else if (request.rendered) {
+                if (request.state == .failed) {
+                    request.setResponse(
+                        try self.renderError(request, view.status_code, .{}),
+                        .{},
+                    );
+                } else if (request.state == .rendered) {
                     // TODO: Allow callbacks to set content
                 }
                 return;
@@ -259,7 +263,9 @@ fn renderHTML(
                 return request.setResponse(rendered_error, .{});
             };
 
-            return if (request.redirected or request.failed or request.dynamic_assigned_template != null)
+            return if (request.state == .redirected or
+                request.state == .failed or
+                request.dynamic_assigned_template != null)
                 request.setResponse(rendered, .{})
             else
                 request.setResponse(try self.renderNotFound(request), .{});
@@ -327,12 +333,12 @@ fn renderView(
         return try self.renderInternalServerError(request, @errorReturnTrace(), err);
     };
 
-    if (request.failed) {
+    if (request.state == .failed) {
         const view: jetzig.views.View = request.rendered_view orelse .{
             .data = request.response_data,
             .status_code = .internal_server_error,
         };
-        return try self.renderError(request, view.status_code);
+        return try self.renderError(request, view.status_code, .{});
     }
 
     const template: ?zmpl.Template = if (request.dynamic_assigned_template) |request_template|
@@ -343,7 +349,7 @@ fn renderView(
     if (request.rendered_multiple) return error.JetzigMultipleRenderError;
 
     if (request.rendered_view) |rendered_view| {
-        if (request.redirected) return .{ .view = rendered_view, .content = "" };
+        if (request.state == .redirected) return .{ .view = rendered_view, .content = "" };
 
         if (template) |capture| {
             return .{
@@ -352,12 +358,21 @@ fn renderView(
             };
         } else {
             return switch (request.requestFormat()) {
-                .HTML, .UNKNOWN => try self.renderNotFound(request),
+                .HTML, .UNKNOWN => blk: {
+                    try self.logger.DEBUG(
+                        "Missing template for route `{s}.{s}`. Expected: `src/app/views/{s}.zmpl`.",
+                        .{ route.view_name, @tagName(route.action), route.template },
+                    );
+                    if (comptime jetzig.build_options.debug_console) {
+                        return error.ZmplTemplateNotFound;
+                    }
+                    break :blk try self.renderNotFound(request);
+                },
                 .JSON => .{ .view = rendered_view, .content = "" },
             };
         }
     } else {
-        if (!request.redirected) {
+        if (request.state == .processed) {
             try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
         }
         request.response_data.reset();
@@ -461,29 +476,39 @@ fn renderInternalServerError(
     stack_trace: ?*std.builtin.StackTrace,
     err: anyerror,
 ) !RenderedView {
-    request.response_data.reset();
-
     try self.logger.logError(stack_trace, err);
 
-    const status = .internal_server_error;
-    return try self.renderError(request, status);
+    const status = jetzig.http.StatusCode.internal_server_error;
+
+    return try self.renderError(request, status, .{ .stack_trace = stack_trace, .err = err });
 }
 
 fn renderNotFound(self: *Server, request: *jetzig.http.Request) !RenderedView {
     request.response_data.reset();
 
     const status: jetzig.http.StatusCode = .not_found;
-    return try self.renderError(request, status);
+    return try self.renderError(request, status, .{});
 }
 
 fn renderBadRequest(self: *Server, request: *jetzig.http.Request) !RenderedView {
     request.response_data.reset();
 
     const status: jetzig.http.StatusCode = .bad_request;
-    return try self.renderError(request, status);
+    return try self.renderError(request, status, .{});
 }
 
 fn renderError(
+    self: Server,
+    request: *jetzig.http.Request,
+    status_code: jetzig.http.StatusCode,
+    error_info: jetzig.debug.ErrorInfo,
+) !RenderedView {
+    if (comptime jetzig.build_options.debug_console) {
+        return try self.renderDebugConsole(request, status_code, error_info);
+    } else return try self.renderGeneralError(request, status_code);
+}
+
+fn renderGeneralError(
     self: Server,
     request: *jetzig.http.Request,
     status_code: jetzig.http.StatusCode,
@@ -492,6 +517,42 @@ fn renderError(
     if (try renderStaticErrorPage(request, status_code)) |view| return view;
 
     return try renderDefaultError(request, status_code);
+}
+
+fn renderDebugConsole(
+    self: Server,
+    request: *jetzig.http.Request,
+    status_code: jetzig.http.StatusCode,
+    error_info: jetzig.debug.ErrorInfo,
+) !RenderedView {
+    if (comptime jetzig.build_options.debug_console) {
+        var buf = std.ArrayList(u8).init(request.allocator);
+        const writer = buf.writer();
+
+        if (error_info.stack_trace) |stack_trace| {
+            const debug_content = jetzig.debug.HtmlStackTrace{
+                .allocator = request.allocator,
+                .stack_trace = stack_trace,
+            };
+            const error_name = if (error_info.err) |err| @errorName(err) else "[UnknownError]";
+            try writer.print(
+                jetzig.debug.console_template,
+                .{
+                    error_name,
+                    debug_content,
+                    try request.response_data.toJsonOptions(.{ .pretty = true }),
+                    @embedFile("../../assets/debug.css"),
+                },
+            );
+        } else return try self.renderGeneralError(request, status_code);
+
+        const content = try buf.toOwnedSlice();
+
+        return .{
+            .view = .{ .data = request.response_data, .status_code = status_code },
+            .content = if (content.len == 0) "" else content,
+        };
+    } else unreachable;
 }
 
 fn renderErrorView(
@@ -641,6 +702,13 @@ const StaticResource = struct {
 };
 
 fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticResource {
+    if (comptime jetzig.build_options.debug_console) {
+        if (std.mem.eql(u8, request.path.path, "/_jetzig_debug.js")) return .{
+            .content = @embedFile("../../assets/debug.js"),
+            .mime_type = "text/javascript",
+        };
+    }
+
     // TODO: Map public and static routes at launch to avoid accessing the file system when
     // matching any route - currently every request causes file system traversal.
     const public_resource = try self.matchPublicContent(request);

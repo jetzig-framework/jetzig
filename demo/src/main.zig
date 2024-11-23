@@ -90,6 +90,7 @@ pub const jetzig_options = struct {
             .same_site = true,
             .secure = true,
             .http_only = true,
+            .path = "/",
         },
     };
 
