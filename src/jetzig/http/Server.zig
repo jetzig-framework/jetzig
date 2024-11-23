@@ -138,7 +138,8 @@ pub fn processNextRequest(
 
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
 
-    if (request.middleware_rendered) |_| { // Request processing ends when a middleware renders or redirects.
+    if (request.middleware_rendered) |_| {
+        // Request processing ends when a middleware renders or redirects.
         if (request.redirect_state) |state| {
             try request.renderRedirect(state);
         } else if (request.rendered_view) |rendered| {
@@ -150,8 +151,8 @@ pub fn processNextRequest(
     } else {
         try self.renderResponse(&request);
         try request.response.headers.append("Content-Type", response.content_type);
-        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
 
+        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
         try request.respond();
         try jetzig.http.middleware.afterResponse(&middleware_data, &request);
         jetzig.http.middleware.deinit(&middleware_data, &request);
@@ -371,7 +372,7 @@ fn renderView(
             };
         }
     } else {
-        if (request.state != .redirected) {
+        if (request.state == .processed) {
             try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
         }
         request.response_data.reset();
@@ -475,8 +476,6 @@ fn renderInternalServerError(
     stack_trace: ?*std.builtin.StackTrace,
     err: anyerror,
 ) !RenderedView {
-    // request.response_data.reset();
-
     try self.logger.logError(stack_trace, err);
 
     const status = jetzig.http.StatusCode.internal_server_error;
