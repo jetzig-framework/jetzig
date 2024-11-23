@@ -107,7 +107,7 @@ pub fn logRequest(self: DevelopmentLogger, request: *const jetzig.http.Request) 
         if (request.middleware_rendered) |middleware| middleware.action else "",
         if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.white ++ ":" else "",
         if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.bright_cyan else "",
-        if (request.middleware_rendered) |_| if (request.redirected) "redirect" else "render" else "",
+        if (request.middleware_rendered) |_| @tagName(request.state) else "",
         if (request.middleware_rendered) |_| jetzig.colors.codes.escape ++ jetzig.colors.codes.reset else "",
         if (request.middleware_rendered) |_| "]" else "",
         request.path.path,

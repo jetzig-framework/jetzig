@@ -30,16 +30,11 @@ parsed_multipart: ?*jetzig.data.Data = null,
 _cookies: ?*jetzig.http.Cookies = null,
 _session: ?*jetzig.http.Session = null,
 body: []const u8 = undefined,
-state: enum { initial, processed } = .initial,
+state: enum { initial, rendered, redirected, failed, processed } = .initial,
 response_started: bool = false,
 dynamic_assigned_template: ?[]const u8 = null,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
-// TODO: Squash rendered/redirected/failed into
-// `state: enum { initial, rendered, redirected, failed }`
-rendered: bool = false,
-redirected: bool = false,
-failed: bool = false,
 redirect_state: ?RedirectState = null,
 middleware_rendered: ?struct { name: []const u8, action: []const u8 } = null,
 middleware_rendered_during_response: bool = false,
@@ -191,9 +186,9 @@ pub fn data(self: Request, comptime root: @TypeOf(.enum_literal)) !*jetzig.Data.
 /// Render a response. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    if (self.rendered or self.failed) self.rendered_multiple = true;
+    if (self.state != .processed) self.rendered_multiple = true;
 
-    self.rendered = true;
+    self.state = .rendered;
     if (self.response_started) self.middleware_rendered_during_response = true;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
@@ -202,10 +197,9 @@ pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) 
 /// Render an error. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
-    if (self.rendered or self.redirected) self.rendered_multiple = true;
+    if (self.state != .processed) self.rendered_multiple = true;
 
-    self.rendered = true;
-    self.failed = true;
+    self.state = .failed;
     if (self.response_started) self.middleware_rendered_during_response = true;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
     return self.rendered_view.?;
@@ -224,10 +218,9 @@ pub fn redirect(
     location: []const u8,
     redirect_status: enum { moved_permanently, found },
 ) jetzig.views.View {
-    if (self.rendered or self.failed) self.rendered_multiple = true;
+    if (self.state != .processed) self.rendered_multiple = true;
 
-    self.rendered = true;
-    self.redirected = true;
+    self.state = .redirected;
     if (self.response_started) self.middleware_rendered_during_response = true;
 
     const status_code = switch (redirect_status) {
@@ -685,6 +678,19 @@ pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) !
 /// Override default template name for a matched route.
 pub fn setTemplate(self: *Request, name: []const u8) void {
     self.dynamic_assigned_template = name;
+}
+
+/// Set a custom template and render the response.
+/// ```zig
+/// return request.renderTemplate("blogs/comments/get", .ok);
+/// ```
+pub fn renderTemplate(
+    self: *Request,
+    name: []const u8,
+    status_code: jetzig.http.StatusCode,
+) jetzig.views.View {
+    self.dynamic_assigned_template = name;
+    return self.render(status_code);
 }
 
 pub fn joinPath(self: *const Request, args: anytype) ![]const u8 {

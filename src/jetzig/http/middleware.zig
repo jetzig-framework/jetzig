@@ -72,7 +72,7 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
         } else {
             try @call(.always_inline, middleware.afterRequest, .{request});
         }
-        if (request.rendered or request.redirected) {
+        if (request.state != .initial) {
             request.middleware_rendered = .{ .name = @typeName(middleware), .action = "afterRequest" };
             break;
         }
@@ -103,7 +103,10 @@ pub fn beforeResponse(
             }
         }
         if (request.middleware_rendered_during_response) {
-            request.middleware_rendered = .{ .name = @typeName(middleware), .action = "beforeResponse" };
+            request.middleware_rendered = .{
+                .name = @typeName(middleware),
+                .action = "beforeResponse",
+            };
             break;
         }
     }

@@ -197,9 +197,9 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
         for (route.before_callbacks) |callback| {
             try callback(request, route);
             if (request.rendered_view) |view| {
-                if (request.failed) {
+                if (request.state == .failed) {
                     request.setResponse(try self.renderError(request, view.status_code), .{});
-                } else if (request.rendered) {
+                } else if (request.state == .rendered) {
                     // TODO: Allow callbacks to set content
                 }
                 return;
@@ -259,7 +259,9 @@ fn renderHTML(
                 return request.setResponse(rendered_error, .{});
             };
 
-            return if (request.redirected or request.failed or request.dynamic_assigned_template != null)
+            return if (request.state == .redirected or
+                request.state == .failed or
+                request.dynamic_assigned_template != null)
                 request.setResponse(rendered, .{})
             else
                 request.setResponse(try self.renderNotFound(request), .{});
@@ -327,7 +329,7 @@ fn renderView(
         return try self.renderInternalServerError(request, @errorReturnTrace(), err);
     };
 
-    if (request.failed) {
+    if (request.state == .failed) {
         const view: jetzig.views.View = request.rendered_view orelse .{
             .data = request.response_data,
             .status_code = .internal_server_error,
@@ -343,7 +345,7 @@ fn renderView(
     if (request.rendered_multiple) return error.JetzigMultipleRenderError;
 
     if (request.rendered_view) |rendered_view| {
-        if (request.redirected) return .{ .view = rendered_view, .content = "" };
+        if (request.state == .redirected) return .{ .view = rendered_view, .content = "" };
 
         if (template) |capture| {
             return .{
@@ -351,13 +353,17 @@ fn renderView(
                 .content = try self.renderTemplateWithLayout(request, capture, rendered_view, route),
             };
         } else {
+            try self.logger.DEBUG(
+                "Missing template for route `{s}.{s}`. Expected: `src/app/views/{s}.zmpl`.",
+                .{ route.view_name, @tagName(route.action), route.template },
+            );
             return switch (request.requestFormat()) {
                 .HTML, .UNKNOWN => try self.renderNotFound(request),
                 .JSON => .{ .view = rendered_view, .content = "" },
             };
         }
     } else {
-        if (!request.redirected) {
+        if (request.state != .redirected) {
             try self.logger.WARN("`request.render` was not invoked. Rendering empty content.", .{});
         }
         request.response_data.reset();
