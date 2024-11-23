@@ -10,6 +10,7 @@ const default_content_type = "text/html";
 pub const Method = enum { DELETE, GET, PATCH, POST, HEAD, PUT, CONNECT, OPTIONS, TRACE };
 pub const Modifier = enum { edit, new };
 pub const Format = enum { HTML, JSON, UNKNOWN };
+pub const Protocol = enum { http, https };
 
 allocator: std.mem.Allocator,
 path: jetzig.http.Path,
@@ -34,6 +35,8 @@ response_started: bool = false,
 dynamic_assigned_template: ?[]const u8 = null,
 layout: ?[]const u8 = null,
 layout_disabled: bool = false,
+// TODO: Squash rendered/redirected/failed into
+// `state: enum { initial, rendered, redirected, failed }`
 rendered: bool = false,
 redirected: bool = false,
 failed: bool = false,
@@ -249,7 +252,10 @@ pub fn middleware(
     unreachable;
 }
 
-const RedirectState = struct { location: []const u8, status_code: jetzig.http.status_codes.StatusCode };
+const RedirectState = struct {
+    location: []const u8,
+    status_code: jetzig.http.status_codes.StatusCode,
+};
 
 pub fn renderRedirect(self: *Request, state: RedirectState) !void {
     self.response_data.reset();
@@ -275,7 +281,12 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
         .HTML, .UNKNOWN => if (maybe_template) |template| blk: {
             try view.data.addConst("jetzig_view", view.data.string("internal"));
             try view.data.addConst("jetzig_action", view.data.string(@tagName(state.status_code)));
-            break :blk try template.render(self.response_data);
+            break :blk try template.render(
+                self.response_data,
+                jetzig.TemplateContext,
+                .{ .request = self },
+                .{},
+            );
         } else try std.fmt.allocPrint(self.allocator, "Redirecting to {s}", .{state.location}),
         .JSON => blk: {
             break :blk try std.json.stringifyAlloc(
@@ -484,6 +495,31 @@ pub fn session(self: *Request) !*jetzig.http.Session {
 
     self._session = local_session;
     return local_session;
+}
+
+/// Return the anti-CSRF token cookie value. If no cookie exist, create it.
+pub fn authenticityToken(self: *Request) ![]const u8 {
+    var local_session = try self.session();
+
+    return local_session.getT(.string, jetzig.authenticity_token_name) orelse blk: {
+        const token = try jetzig.util.generateSecret(self.allocator, 32);
+        try local_session.put(jetzig.authenticity_token_name, token);
+        break :blk local_session.getT(.string, jetzig.authenticity_token_name).?;
+    };
+}
+
+pub fn resourceId(self: *const Request) ![]const u8 {
+    return self.path.resource_id;
+}
+
+/// Return the protocol used to serve the current request by detecting the `X-Forwarded-Proto`
+/// header.
+pub fn protocol(self: *const Request) Protocol {
+    return if (self.headers.get("x-forwarded-proto")) |x_forwarded_proto|
+        if (std.ascii.eqlIgnoreCase(x_forwarded_proto, "https")) .https else .http
+    else
+        // TODO: Extend login when we support serving HTTPS directly.
+        .http;
 }
 
 /// Create a new Job. Receives a job name which must resolve to `src/app/jobs/<name>.zig`

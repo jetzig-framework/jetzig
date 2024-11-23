@@ -11,11 +11,11 @@ const user_model = jetzig.config.get(jetzig.auth.AuthOptions, "auth").user_model
 /// they can also be modified.
 user: ?@TypeOf(jetzig.database.Query(user_model).find(0)).ResultType,
 
-const Self = @This();
+const AuthMiddleware = @This();
 
 /// Initialize middleware.
-pub fn init(request: *jetzig.http.Request) !*Self {
-    const middleware = try request.allocator.create(Self);
+pub fn init(request: *jetzig.http.Request) !*AuthMiddleware {
+    const middleware = try request.allocator.create(AuthMiddleware);
     middleware.* = .{ .user = null };
     return middleware;
 }
@@ -31,8 +31,11 @@ const map = std.StaticStringMap(void).initComptime(.{
 ///
 /// User ID is accessible from a request:
 /// ```zig
-///
-pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
+/// if (request.middleware(.auth).user) |user| {
+///     try request.server.log(.DEBUG, "{}", .{user.id});
+/// }
+/// ```
+pub fn afterRequest(self: *AuthMiddleware, request: *jetzig.http.Request) !void {
     if (request.path.extension) |extension| {
         if (map.get(extension) == null) return;
     }
@@ -47,6 +50,6 @@ pub fn afterRequest(self: *Self, request: *jetzig.http.Request) !void {
 /// Invoked after `afterRequest` is called, use this function to do any clean-up.
 /// Note that `request.allocator` is an arena allocator, so any allocations are automatically
 /// done before the next request starts processing.
-pub fn deinit(self: *Self, request: *jetzig.http.Request) void {
+pub fn deinit(self: *AuthMiddleware, request: *jetzig.http.Request) void {
     request.allocator.destroy(self);
 }

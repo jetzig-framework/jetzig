@@ -109,6 +109,7 @@ pub fn build(b: *std.Build) !void {
     main_tests.root_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     const test_build_options = b.addOptions();
     test_build_options.addOption(Environment, "environment", .testing);
+    test_build_options.addOption(bool, "build_static", true);
     const run_main_tests = b.addRunArtifact(main_tests);
     main_tests.root_module.addOptions("build_options", test_build_options);
 
@@ -137,6 +138,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         "environment",
         "Jetzig server environment.",
     ) orelse .development;
+    const build_static = b.option(
+        bool,
+        "build_static",
+        "Pre-render static routes. [default: false in development, true in testing/production]",
+    ) orelse (environment != .development);
 
     const jetzig_dep = b.dependency(
         "jetzig",
@@ -164,6 +170,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const build_options = b.addOptions();
     build_options.addOption(Environment, "environment", environment);
+    build_options.addOption(bool, "build_static", build_static);
     jetzig_module.addOptions("build_options", build_options);
 
     exe.root_module.addImport("jetzig", jetzig_module);
@@ -253,15 +260,23 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_static_routes.root_module.addImport("zmpl", zmpl_module);
 
     const markdown_fragments_write_files = b.addWriteFiles();
-    const path = markdown_fragments_write_files.add("markdown_fragments.zig", try generateMarkdownFragments(b));
+    const path = markdown_fragments_write_files.add(
+        "markdown_fragments.zig",
+        try generateMarkdownFragments(b),
+    );
     const markdown_fragments_module = b.createModule(.{ .root_source_file = path });
     exe_static_routes.root_module.addImport("markdown_fragments", markdown_fragments_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     const static_outputs_path = run_static_routes_cmd.addOutputFileArg("static.zig");
-    const static_module = b.createModule(.{ .root_source_file = static_outputs_path });
-    exe.root_module.addImport("static", static_module);
+    const static_module = if (build_static)
+        b.createModule(.{ .root_source_file = static_outputs_path })
+    else
+        b.createModule(.{
+            .root_source_file = jetzig_dep.builder.path("src/jetzig/development_static.zig"),
+        });
 
+    exe.root_module.addImport("static", static_module);
     run_static_routes_cmd.expectExitCode(0);
 
     const run_tests_file_cmd = b.addRunArtifact(exe_routes_file);

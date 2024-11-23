@@ -67,25 +67,25 @@ pub inline fn unquote(input: []const u8) []const u8 {
 }
 
 /// Generate a secure random string of `len` characters (for cryptographic purposes).
-pub fn generateSecret(allocator: std.mem.Allocator, comptime len: u10) ![]const u8 {
+pub fn generateSecret(allocator: std.mem.Allocator, len: u10) ![]const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    var secret: [len]u8 = undefined;
+    const secret = try allocator.alloc(u8, len);
 
     for (0..len) |index| {
-        secret[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len)];
+        secret[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len - 1)];
     }
 
-    return try allocator.dupe(u8, &secret);
+    return secret;
 }
 
 pub fn generateRandomString(buf: []u8) []const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     for (0..buf.len) |index| {
-        buf[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len)];
+        buf[index] = chars[std.crypto.random.intRangeAtMost(u8, 0, chars.len - 1)];
     }
 
-    return buf;
+    return buf[0..];
 }
 
 /// Calculate a duration from a given start time (in nanoseconds) to the current time.

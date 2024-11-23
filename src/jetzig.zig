@@ -22,10 +22,14 @@ pub const database = @import("jetzig/database.zig");
 pub const testing = @import("jetzig/testing.zig");
 pub const config = @import("jetzig/config.zig");
 pub const auth = @import("jetzig/auth.zig");
+pub const callbacks = @import("jetzig/callbacks.zig");
+pub const TemplateContext = @import("jetzig/TemplateContext.zig");
 
 pub const DateTime = jetcommon.types.DateTime;
 pub const Time = jetcommon.types.Time;
 pub const Date = jetcommon.types.Date;
+
+pub const authenticity_token_name = config.get([]const u8, "authenticity_token_name");
 
 pub const build_options = @import("build_options");
 pub const environment = std.enums.nameCast(Environment.EnvironmentName, build_options.environment);
@@ -45,6 +49,9 @@ pub const Request = http.Request;
 /// when building the application and then returned immediately to the client for matching
 /// requests.
 pub const StaticRequest = http.StaticRequest;
+
+/// An HTTP response generated during request processing.
+pub const Response = http.Response;
 
 /// Generic, JSON-compatible data type. Provides `Value` which in turn provides `Object`,
 /// `Array`, `String`, `Integer`, `Float`, `Boolean`, and `NullType`.
@@ -78,7 +85,8 @@ pub const Logger = loggers.Logger;
 
 pub const root = @import("root");
 pub const Global = if (@hasDecl(root, "Global")) root.Global else DefaultGlobal;
-pub const DefaultGlobal = struct { __jetzig_default: bool };
+pub const DefaultGlobal = struct { comptime __jetzig_default: bool = true };
+pub const default_global = DefaultGlobal{};
 
 pub const initHook: ?*const fn (*App) anyerror!void = if (@hasDecl(root, "init")) root.init else null;
 

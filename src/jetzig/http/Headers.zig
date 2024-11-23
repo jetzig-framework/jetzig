@@ -46,10 +46,9 @@ pub fn getAll(self: Headers, name: []const u8) []const []const u8 {
     var headers = std.ArrayList([]const u8).init(self.allocator);
 
     for (self.httpz_headers.keys, 0..) |key, index| {
-        var buf: [max_bytes_header_name]u8 = undefined;
-        const lower = std.ascii.lowerString(&buf, name);
-
-        if (std.mem.eql(u8, lower, key)) headers.append(self.httpz_headers.values[index]) catch @panic("OOM");
+        if (std.ascii.eqlIgnoreCase(name, key)) {
+            headers.append(self.httpz_headers.values[index]) catch @panic("OOM");
+        }
     }
     return headers.toOwnedSlice() catch @panic("OOM");
 }

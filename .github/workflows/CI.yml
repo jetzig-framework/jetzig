@@ -45,7 +45,7 @@ jobs:
       - name: Run App Tests
         run: |
           cd demo
-          zig build jetzig:test
+          zig build -Denvironment=testing jetzig:test
 
       - name: Build artifacts
         if: ${{ matrix.os == 'ubuntu-latest' }}
