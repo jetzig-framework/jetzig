@@ -1,0 +1,121 @@
+/* reset https://www.joshwcomeau.com/css/custom-css-reset/ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+input, button, textarea, select {
+  font: inherit;
+}
+
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+}
+
+#root, #__next {
+  isolation: isolate;
+}
+
+/* styles */
+
+body {
+  background-color: #222;
+}
+
+h1 {
+  font-family: monospace;
+  color: #e55;
+  padding: 1rem;
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-family: monospace;
+  color: #a0a0a0;
+  padding: 1rem;
+  font-size: 1.6rem;
+}
+
+.stack-trace {
+  /* background-color: #e555; */
+  padding: 1rem;
+  font-family: monospace;
+}
+
+.stack-trace .stack-source-line .file-name {
+  color: #90bfd7;
+  display: block;
+  padding: 0.4rem;
+  font-weight: bold;
+}
+
+.stack-trace .stack-source-line {
+  background-color: #333;
+  padding: 1rem;
+  margin: 0;
+  border-bottom: 1px solid #ffa3;
+}
+
+.stack-trace .stack-source-line:last-child {
+  border-bottom: none;
+}
+
+.stack-trace .stack-source-line .line-content {
+  margin: 0;
+  padding: 0;
+}
+
+.stack-trace .stack-source-line .line-content.surrounding {
+  color: #ffa;
+}
+
+.stack-trace .stack-source-line .line-content.target {
+  color: #faa;
+  background-color: #e552;
+}
+
+.stack-trace .stack-source-line .line-content .line-number {
+  display: inline;
+
+}
+
+pre {
+  display: inline;
+  margin-right: 1rem;
+}
+
+.response-data {
+  color: #fff;
+  background-color: #333;
+  padding: 1rem;
+  margin: 1rem;
+}
+
+/* PrismJS 1.29.0
+https://prismjs.com/download.html#themes=prism-tomorrow&languages=json+zig */
+code[class*=language-],pre[class*=language-]{color:#ccc;font-family:monospace;text-align:left;white-space:pre;word-spacing:normal;word-break:normal;word-wrap:normal;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-hyphens:none;-moz-hyphens:none;-ms-hyphens:none;hyphens:none}pre[class*=language-]{overflow:auto}:not(pre)>code[class*=language-],pre[class*=language-]:not(pre)>code[class*=language-]{white-space:normal}.token.block-comment,.token.cdata,.token.comment,.token.doctype,.token.prolog{color:#999}.token.punctuation{color:#ccc}.token.attr-name,.token.deleted,.token.namespace,.token.tag{color:#e2777a}.token.function-name{color:#6196cc}.token.boolean,.token.function,.token.number{color:#f08d49}.token.class-name,.token.constant,.token.property,.token.symbol{color:#f8c555}.token.atrule,.token.builtin,.token.important,.token.keyword,.token.selector{color:#cc99cd}.token.attr-value,.token.char,.token.regex,.token.string,.token.variable{color:#7ec699}.token.entity,.token.operator,.token.url{color:#67cdcc}.token.bold,.token.important{font-weight:700}.token.italic{font-style:italic}.token.entity{cursor:help}.token.inserted{color:green}
+
+.stack-trace .stack-source-line .line-number {
+  color: #ffa !important;
+}

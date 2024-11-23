@@ -70,6 +70,7 @@ pub fn run(
                 "build",
                 util.environmentBuildOption(main_options.options.environment),
                 "-Djetzig_runner=true",
+                "-Ddebug_console=true",
                 "install",
                 "--color",
                 "on",

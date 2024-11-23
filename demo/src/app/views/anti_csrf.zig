@@ -1,7 +1,12 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub const layout = "application";
+// Anti-CSRF middleware can be included in the view's `actions` declaration to apply CSRF
+// protection just to this specific view, or it can be added to your application's global
+// middleware stack defined in `jetzig_options` in `src/main.zig`.
+//
+// Use `{{context.authenticityToken()}}` or `{{context.authenticityFormField()}}` in a Zmpl
+// template to generate a token, store it in the user's session, and inject it into the page.
 
 pub const actions = .{
     .before = .{jetzig.middleware.AntiCsrfMiddleware},

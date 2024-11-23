@@ -6,3 +6,5 @@
 
     <input type="submit" value="Submit Spam" />
 </form>
+
+<div>Try clearing `_jetzig_session` cookie before clicking "Submit Spam"</div>
