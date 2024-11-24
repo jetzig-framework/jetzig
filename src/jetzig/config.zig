@@ -160,7 +160,7 @@ pub const cookies: http.Cookies.CookieOptions = switch (environment) {
     .production => .{
         .secure = true,
         .http_only = true,
-        .same_site = true,
+        .same_site = .lax,
         .path = "/",
     },
 };
