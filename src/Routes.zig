@@ -54,10 +54,20 @@ const Function = struct {
         defer self.routes.allocator.free(relative_path);
 
         const path = relative_path[0 .. relative_path.len - std.fs.path.extension(relative_path).len];
-        if (std.mem.eql(u8, path, "root")) return try self.routes.allocator.dupe(u8, "/");
+        const is_root = std.mem.eql(u8, path, "root");
+        const is_new = std.mem.eql(u8, self.name, "new");
+        const is_edit = std.mem.eql(u8, self.name, "edit");
+        if (is_root) {
+            if (is_edit) return try self.routes.allocator.dupe(u8, "/edit");
+            if (is_new) return try self.routes.allocator.dupe(u8, "/new");
+            return try self.routes.allocator.dupe(u8, "/");
+        }
 
-        const maybe_new = if (std.mem.eql(u8, self.name, "new")) "/new" else "";
-        return try std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ "/", path, maybe_new });
+        const maybe_new = if (is_new) ("/new") else "";
+        // jetzig.http.Path.actionPath translates `/foo/bar/1/edit` to `/foo/bar/edit`
+        const maybe_edit = if (is_edit) ("/edit") else "";
+
+        return try std.mem.concat(self.routes.allocator, u8, &[_][]const u8{ "/", path, maybe_new, maybe_edit });
     }
 
     pub fn lessThanFn(context: void, lhs: Function, rhs: Function) bool {
@@ -305,6 +315,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         .{ "index", false },
         .{ "post", false },
         .{ "new", false },
+        .{ "edit", true },
         .{ "get", true },
         .{ "edit", true },
         .{ "put", true },

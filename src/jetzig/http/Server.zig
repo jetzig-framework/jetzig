@@ -786,7 +786,7 @@ fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8
                             self.decoded_static_route_params[index].get("params"),
                             route,
                             request,
-                            params,
+                            params.*,
                         )) return switch (request_format) {
                             .HTML, .UNKNOWN => static_output.output.html,
                             .JSON => static_output.output.json,
@@ -822,7 +822,7 @@ fn matchStaticOutput(
     maybe_expected_params: ?*jetzig.data.Value,
     route: jetzig.views.Route,
     request: *const jetzig.http.Request,
-    params: *jetzig.data.Value,
+    params: jetzig.data.Value,
 ) bool {
     return if (maybe_expected_params) |expected_params| blk: {
         const params_match = expected_params.count() == 0 or expected_params.eql(params);

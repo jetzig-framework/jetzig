@@ -43,7 +43,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     const action_args = if (args.len > 1)
         args[1..]
     else
-        &[_][]const u8{ "index", "get", "new", "post", "put", "patch", "delete" };
+        &[_][]const u8{ "index", "get", "new", "edit", "post", "put", "patch", "delete" };
 
     var actions = std.ArrayList(Action).init(allocator);
     defer actions.deinit();
@@ -92,7 +92,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     std.debug.print("Generated view: {s}\n", .{realpath});
 }
 
-const Method = enum { index, get, new, post, put, patch, delete };
+const Method = enum { index, get, new, edit, post, put, patch, delete };
 const Action = struct {
     method: Method,
     static: bool,
@@ -126,15 +126,15 @@ fn writeAction(allocator: std.mem.Allocator, writer: anytype, action: Action) !v
             @tagName(action.method),
             switch (action.method) {
                 .index, .post, .new => "",
-                .get, .put, .patch, .delete => "id: []const u8, ",
+                .get, .edit, .put, .patch, .delete => "id: []const u8, ",
             },
             if (action.static) "StaticRequest" else "Request",
             switch (action.method) {
                 .index, .post, .new => "",
-                .get, .put, .patch, .delete => "_ = id;\n    ",
+                .get, .edit, .put, .patch, .delete => "_ = id;\n    ",
             },
             switch (action.method) {
-                .index, .get, .new => ".ok",
+                .index, .get, .edit, .new => ".ok",
                 .post => ".created",
                 .put, .patch, .delete => ".ok",
             },
@@ -164,17 +164,18 @@ fn writeTest(allocator: std.mem.Allocator, writer: anytype, name: []const u8, ac
         .{
             @tagName(action.method),
             switch (action.method) {
-                .index, .get, .new => "GET",
+                .index, .get, .edit, .new => "GET",
                 .put, .patch, .delete, .post => action_upper,
             },
             name,
             switch (action.method) {
                 .index, .post => "",
+                .edit => "/example-id/edit",
                 .new => "/new",
                 .get, .put, .patch, .delete => "/example-id",
             },
             switch (action.method) {
-                .index, .get, .new => ".ok",
+                .index, .get, .new, .edit => ".ok",
                 .post => ".created",
                 .put, .patch, .delete => ".ok",
             },
@@ -208,7 +209,7 @@ fn writeStaticParams(allocator: std.mem.Allocator, actions: []Action, writer: an
                 defer allocator.free(output);
                 try writer.writeAll(output);
             },
-            .get, .put, .patch, .delete => {
+            .get, .put, .patch, .delete, .edit => {
                 const output = try std.fmt.allocPrint(
                     allocator,
                     \\    .{s} = .{{
