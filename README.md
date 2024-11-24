@@ -20,6 +20,7 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 * [ZTS](https://github.com/zigster64/zts)
 * [Zine](https://github.com/kristoff-it/zine)
 * [Zinc](https://github.com/zon-dev/zinc/)
+* [zUI](https://github.com/thienpow/zui)
 
 ## Checklist
 
@@ -57,4 +58,5 @@ If you are interested in _Jetzig_ you will probably find these tools interesting
 
 * [Zackary Housend](https://github.com/z1fire)
 * [Andreas Stührk](https://github.com/Trundle)
+* [Karl Seguin](https://github.com/karlseguin)
 * [Bob Farrell](https://github.com/bobf)
