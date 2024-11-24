@@ -5,7 +5,7 @@ const view_types = @import("view_types.zig");
 
 const Route = @This();
 
-pub const Action = enum { index, get, new, post, put, patch, delete, custom };
+pub const Action = enum { index, get, new, edit, post, put, patch, delete, custom };
 
 pub const View = union(enum) {
     with_id: view_types.ViewWithId,
@@ -32,6 +32,7 @@ pub const Formats = struct {
     index: ?[]const ResponseFormat = null,
     get: ?[]const ResponseFormat = null,
     new: ?[]const ResponseFormat = null,
+    edit: ?[]const ResponseFormat = null,
     post: ?[]const ResponseFormat = null,
     put: ?[]const ResponseFormat = null,
     patch: ?[]const ResponseFormat = null,
@@ -114,6 +115,7 @@ pub fn validateFormat(self: Route, request: *const jetzig.http.Request) bool {
         .index => formats.index orelse return true,
         .get => formats.get orelse return true,
         .new => formats.new orelse return true,
+        .edit => formats.edit orelse return true,
         .post => formats.post orelse return true,
         .put => formats.put orelse return true,
         .patch => formats.patch orelse return true,

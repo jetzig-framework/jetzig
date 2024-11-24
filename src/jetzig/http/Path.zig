@@ -16,11 +16,12 @@ file_path: []const u8,
 resource_id: []const u8,
 extension: ?[]const u8,
 query: ?[]const u8,
+method: ?jetzig.Request.Method,
 
-const Self = @This();
+const Path = @This();
 
 /// Initialize a new HTTP Path.
-pub fn init(path: []const u8) Self {
+pub fn init(path: []const u8) Path {
     const base_path = getBasePath(path);
 
     return .{
@@ -31,18 +32,19 @@ pub fn init(path: []const u8) Self {
         .resource_id = getResourceId(base_path),
         .extension = getExtension(path),
         .query = getQuery(path),
+        .method = getMethod(path),
     };
 }
 
 /// No-op - no allocations currently performed.
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Path) void {
     _ = self;
 }
 
 /// For a given route with a possible `:id` placeholder, return the matching URL segment for that
 /// placeholder. e.g. route with path `/foo/:id/bar` and request path `/foo/1234/bar` returns
 /// `"1234"`.
-pub fn resourceId(self: Self, route: jetzig.views.Route) []const u8 {
+pub fn resourceId(self: Path, route: jetzig.views.Route) []const u8 {
     var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
     var base_path_it = std.mem.splitScalar(u8, self.base_path, '/');
 
@@ -54,7 +56,7 @@ pub fn resourceId(self: Self, route: jetzig.views.Route) []const u8 {
     return self.resource_id;
 }
 
-pub fn resourceArgs(self: Self, route: jetzig.views.Route, allocator: std.mem.Allocator) ![]const []const u8 {
+pub fn resourceArgs(self: Path, route: jetzig.views.Route, allocator: std.mem.Allocator) ![]const []const u8 {
     var args = std.ArrayList([]const u8).init(allocator);
     var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
     var path_it = std.mem.splitScalar(u8, self.base_path, '/');
@@ -82,21 +84,41 @@ pub fn resourceArgs(self: Self, route: jetzig.views.Route, allocator: std.mem.Al
 // * `"/foo/bar/baz"`
 // * `"/foo/bar/baz.html"`
 // * `"/foo/bar/baz.html?qux=quux&corge=grault"`
+// * `"/foo/bar/baz/_PATCH"`
 fn getBasePath(path: []const u8) []const u8 {
-    if (std.mem.indexOfScalar(u8, path, '?')) |query_index| {
+    const base = if (std.mem.indexOfScalar(u8, path, '?')) |query_index| blk: {
         if (std.mem.lastIndexOfScalar(u8, path[0..query_index], '.')) |extension_index| {
-            return path[0..extension_index];
+            break :blk path[0..extension_index];
         } else {
-            return path[0..query_index];
+            break :blk path[0..query_index];
         }
-    } else if (std.mem.lastIndexOfScalar(u8, path, '.')) |extension_index| {
-        return if (isRootPath(path[0..extension_index]))
+    } else if (std.mem.lastIndexOfScalar(u8, path, '.')) |extension_index| blk: {
+        break :blk if (isRootPath(path[0..extension_index]))
             path[0..extension_index]
         else
             std.mem.trimRight(u8, path[0..extension_index], "/");
-    } else {
-        return if (isRootPath(path)) path else std.mem.trimRight(u8, path, "/");
+    } else blk: {
+        break :blk if (isRootPath(path)) path else std.mem.trimRight(u8, path, "/");
+    };
+
+    if (std.mem.lastIndexOfScalar(u8, base, '/')) |last_index| {
+        if (std.mem.startsWith(u8, base[last_index..], "/_")) {
+            return base[0..last_index];
+        } else {
+            return base;
+        }
+    } else return base;
+}
+
+fn getMethod(path: []const u8) ?jetzig.Request.Method {
+    var it = std.mem.splitBackwardsScalar(u8, path, '/');
+    const last_segment = it.next() orelse return null;
+    inline for (comptime std.enums.values(jetzig.Request.Method)) |method| {
+        if (std.mem.startsWith(u8, last_segment, "_" ++ @tagName(method))) {
+            return method;
+        }
     }
+    return null;
 }
 
 // Extract `"/foo/bar"` from:
@@ -131,6 +153,9 @@ fn getFilePath(path: []const u8) []const u8 {
 // * `"/baz"`
 fn getResourceId(base_path: []const u8) []const u8 {
     var it = std.mem.splitBackwardsScalar(u8, base_path, '/');
+
+    if (std.mem.endsWith(u8, base_path, "/edit")) _ = it.next();
+
     while (it.next()) |segment| return segment;
     return base_path;
 }
@@ -164,169 +189,228 @@ fn getQuery(path: []const u8) ?[]const u8 {
     }
 }
 
+// Extract `/foo/bar/edit` from `/foo/bar/1/edit`
+// Extract `/foo/bar` from `/foo/bar/1`
+pub fn actionPath(self: Path, buf: *[2048]u8) []const u8 {
+    if (self.path.len > 2048) return self.path; // Should never happen but we don't want to panic or overflow.
+
+    if (std.mem.endsWith(u8, self.path, "/edit")) {
+        var it = std.mem.tokenizeScalar(u8, self.path, '/');
+        var cursor: usize = 0;
+        const count = std.mem.count(u8, self.path, "/");
+        var index: usize = 0;
+
+        buf[0] = '/';
+        cursor += 1;
+
+        while (it.next()) |segment| : (index += 1) {
+            if (index + 2 == count) continue; // Skip ID - we special-case this in `resourceId`
+            @memcpy(buf[cursor .. cursor + segment.len], segment);
+            cursor += segment.len;
+            if (index + 1 < count) {
+                @memcpy(buf[cursor .. cursor + 1], "/");
+                cursor += 1;
+            }
+        }
+
+        return buf[0..cursor];
+    } else return self.path;
+}
+
 inline fn isRootPath(path: []const u8) bool {
     return std.mem.eql(u8, path, "/");
 }
 
 test ".base_path (with extension, with query)" {
-    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.base_path);
 }
 
 test ".base_path (with extension, without query)" {
-    const path = Self.init("/foo/bar/baz.html");
+    const path = Path.init("/foo/bar/baz.html");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.base_path);
 }
 
 test ".base_path (without extension, without query)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.base_path);
 }
 
 test ".base_path (with trailing slash)" {
-    const path = Self.init("/foo/bar/");
+    const path = Path.init("/foo/bar/");
 
     try std.testing.expectEqualStrings("/foo/bar", path.base_path);
 }
 
 test ".base_path (root path)" {
-    const path = Self.init("/");
+    const path = Path.init("/");
 
     try std.testing.expectEqualStrings("/", path.base_path);
 }
 
 test ".base_path (root path with extension)" {
-    const path = Self.init("/.json");
+    const path = Path.init("/.json");
 
     try std.testing.expectEqualStrings("/", path.base_path);
     try std.testing.expectEqualStrings(".json", path.extension.?);
 }
 
 test ".directory (with extension, with query)" {
-    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings("/foo/bar", path.directory);
 }
 
 test ".directory (with extension, without query)" {
-    const path = Self.init("/foo/bar/baz.html");
+    const path = Path.init("/foo/bar/baz.html");
 
     try std.testing.expectEqualStrings("/foo/bar", path.directory);
 }
 
 test ".directory (without extension, without query)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expectEqualStrings("/foo/bar", path.directory);
 }
 
 test ".directory (without extension, without query, root path)" {
-    const path = Self.init("/");
+    const path = Path.init("/");
 
     try std.testing.expectEqualStrings("/", path.directory);
 }
 
 test ".resource_id (with extension, with query)" {
-    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings("baz", path.resource_id);
 }
 
 test ".resource_id (with extension, without query)" {
-    const path = Self.init("/foo/bar/baz.html");
+    const path = Path.init("/foo/bar/baz.html");
 
     try std.testing.expectEqualStrings("baz", path.resource_id);
 }
 
 test ".resource_id (without extension, without query)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expectEqualStrings("baz", path.resource_id);
 }
 
 test ".resource_id (without extension, without query, without base path)" {
-    const path = Self.init("/baz");
+    const path = Path.init("/baz");
 
     try std.testing.expectEqualStrings("baz", path.resource_id);
 }
 
 test ".resource_id (with trailing slash)" {
-    const path = Self.init("/foo/bar/");
+    const path = Path.init("/foo/bar/");
 
     try std.testing.expectEqualStrings("bar", path.resource_id);
 }
 
 test ".extension (with query)" {
-    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings(".html", path.extension.?);
 }
 
 test ".extension (without query)" {
-    const path = Self.init("/foo/bar/baz.html");
+    const path = Path.init("/foo/bar/baz.html");
 
     try std.testing.expectEqualStrings(".html", path.extension.?);
 }
 
 test ".extension (without extension)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expect(path.extension == null);
 }
 
 test ".query (with extension, with query)" {
-    const path = Self.init("/foo/bar/baz.html?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.html?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings(path.query.?, "qux=quux&corge=grault");
 }
 
 test ".query (without extension, with query)" {
-    const path = Self.init("/foo/bar/baz?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings(path.query.?, "qux=quux&corge=grault");
 }
 
 test ".query (with extension, without query)" {
-    const path = Self.init("/foo/bar/baz.json");
+    const path = Path.init("/foo/bar/baz.json");
 
     try std.testing.expect(path.query == null);
 }
 
 test ".query (without extension, without query)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expect(path.query == null);
 }
 
 test ".query (with empty query)" {
-    const path = Self.init("/foo/bar/baz?");
+    const path = Path.init("/foo/bar/baz?");
 
     try std.testing.expect(path.query == null);
 }
 
 test ".file_path (with extension, with query)" {
-    const path = Self.init("/foo/bar/baz.json?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz.json?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings("/foo/bar/baz.json", path.file_path);
 }
 
 test ".file_path (with extension, without query)" {
-    const path = Self.init("/foo/bar/baz.json");
+    const path = Path.init("/foo/bar/baz.json");
 
     try std.testing.expectEqualStrings("/foo/bar/baz.json", path.file_path);
 }
 
 test ".file_path (without extension, without query)" {
-    const path = Self.init("/foo/bar/baz");
+    const path = Path.init("/foo/bar/baz");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.file_path);
 }
 
 test ".file_path (without extension, with query)" {
-    const path = Self.init("/foo/bar/baz?qux=quux&corge=grault");
+    const path = Path.init("/foo/bar/baz?qux=quux&corge=grault");
 
     try std.testing.expectEqualStrings("/foo/bar/baz", path.file_path);
+}
+
+test ".resource_id (/foo/bar/123/edit)" {
+    const path = Path.init("/foo/bar/123/edit");
+
+    try std.testing.expectEqualStrings("123", path.resource_id);
+}
+
+test ".actionPath (/foo/bar/123/edit)" {
+    var buf: [2048]u8 = undefined;
+    const path = Path.init("/foo/bar/123/edit").actionPath(&buf);
+
+    try std.testing.expectEqualStrings("/foo/bar/edit", path);
+}
+
+test ".actionPath (/foo/bar)" {
+    var buf: [2048]u8 = undefined;
+    const path = Path.init("/foo/bar").actionPath(&buf);
+
+    try std.testing.expectEqualStrings("/foo/bar", path);
+}
+
+test ".base_path (/foo/bar/1/_PATCH" {
+    const path = Path.init("/foo/bar/1/_PATCH");
+    try std.testing.expectEqualStrings("/foo/bar/1", path.base_path);
+    try std.testing.expectEqualStrings("1", path.resource_id);
+}
+
+test ".method (/foo/bar/1/_PATCH" {
+    const path = Path.init("/foo/bar/1/_PATCH");
+    try std.testing.expect(path.method.? == .PATCH);
 }

@@ -119,7 +119,11 @@ pub fn init(
     response: *jetzig.http.Response,
     repo: *jetzig.database.Repo,
 ) !Request {
-    const method = switch (httpz_request.method) {
+    const path = jetzig.http.Path.init(httpz_request.url.raw);
+
+    // We can fake the HTTP method by appending `/_PATCH` (e.g.) to the end of the URL.
+    // This allows using PATCH, PUT, DELETE from HTML forms.
+    const method = path.method orelse switch (httpz_request.method) {
         .DELETE => Method.DELETE,
         .GET => Method.GET,
         .PATCH => Method.PATCH,
@@ -134,7 +138,7 @@ pub fn init(
 
     return .{
         .allocator = allocator,
-        .path = jetzig.http.Path.init(httpz_request.url.raw),
+        .path = path,
         .method = method,
         .headers = jetzig.http.Headers.init(allocator, httpz_request.headers),
         .server = server,
@@ -764,6 +768,7 @@ pub fn match(self: *Request, route: jetzig.views.Route) !bool {
             .index => self.isMatch(.exact, route),
             .get => self.isMatch(.resource_id, route),
             .new => self.isMatch(.exact, route),
+            .edit => self.isMatch(.exact, route),
             else => false,
         },
         .POST => switch (route.action) {
@@ -796,8 +801,18 @@ fn isMatch(
         .resource_id => self.path.directory,
     };
 
-    // Special case for `/foobar/1/new` -> render `new()`
-    if (route.action == .get and std.mem.eql(u8, self.path.resource_id, "new")) return false;
+    if (route.action == .get) {
+        // Special case for `/foobar/1/new` -> render `new()` - prevent matching `get`
+        if (std.mem.eql(u8, self.path.resource_id, "new")) return false;
+        // Special case for `/foobar/1/edit` -> render `edit()` - prevent matching `get`
+        if (std.mem.eql(u8, self.path.resource_id, "edit")) return false;
+    }
+
+    if (route.action == .edit and std.mem.endsWith(u8, self.path.path, "/edit")) {
+        var buf: [2048]u8 = undefined;
+        const action_path = self.path.actionPath(&buf);
+        if (std.mem.eql(u8, action_path, route.uri_path)) return true;
+    }
 
     return std.mem.eql(u8, path, route.uri_path);
 }

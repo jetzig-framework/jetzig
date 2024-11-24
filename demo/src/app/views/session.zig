@@ -15,6 +15,11 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     return request.render(.ok);
 }
 
+pub fn edit(id: []const u8, request: *jetzig.Request) !jetzig.View {
+    try request.server.logger.INFO("id: {s}", .{id});
+    return request.render(.ok);
+}
+
 pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     _ = data;
     const params = try request.params();

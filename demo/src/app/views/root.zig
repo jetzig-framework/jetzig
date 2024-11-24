@@ -16,6 +16,12 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     return request.render(.ok);
 }
 
+pub fn edit(id: []const u8, request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
+    try root.put("id", id);
+    return request.render(.ok);
+}
+
 fn customFunction(a: i32, b: i32, c: i32) i32 {
     return a + b + c;
 }
