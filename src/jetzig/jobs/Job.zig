@@ -25,6 +25,8 @@ pub const JobEnv = struct {
     store: *jetzig.kv.Store,
     /// Global cache
     cache: *jetzig.kv.Store,
+    /// Database repo
+    repo: *jetzig.database.Repo,
     /// Global mutex - use with caution if it is necessary to guarantee thread safety/consistency
     /// between concurrent job workers
     mutex: *std.Thread.Mutex,

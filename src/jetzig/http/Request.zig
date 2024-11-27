@@ -610,6 +610,7 @@ const RequestMail = struct {
                     .store = self.request.server.store,
                     .cache = self.request.server.cache,
                     .mutex = undefined,
+                    .repo = self.request.repo,
                 },
             ),
         }
