@@ -120,6 +120,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
             .mailers = &routes_module.mailers,
             .store = &store,
             .cache = &cache,
+            .repo = &repo,
             .mutex = &mutex,
         },
     );

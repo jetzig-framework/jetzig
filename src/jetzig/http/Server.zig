@@ -73,17 +73,20 @@ const Dispatcher = struct {
 pub fn listen(self: *Server) !void {
     try self.decodeStaticParams();
 
+    const worker_count = jetzig.config.get(u16, "worker_count");
+    const thread_count: u16 = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount());
+
     var httpz_server = try httpz.Server(Dispatcher).init(
         self.allocator,
         .{
             .port = self.env.port,
             .address = self.env.bind,
             .thread_pool = .{
-                .count = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount()),
+                .count = thread_count,
                 .buffer_size = jetzig.config.get(usize, "buffer_size"),
             },
             .workers = .{
-                .count = jetzig.config.get(u16, "worker_count"),
+                .count = worker_count,
                 .max_conn = jetzig.config.get(u16, "max_connections"),
                 .retain_allocated_bytes = jetzig.config.get(usize, "arena_size"),
             },
@@ -95,10 +98,12 @@ pub fn listen(self: *Server) !void {
     );
     defer httpz_server.deinit();
 
-    try self.logger.INFO("Listening on http://{s}:{} [{s}]", .{
+    try self.logger.INFO("Listening on http://{s}:{d} [{s}] [workers:{d} threads:{d}]", .{
         self.env.bind,
         self.env.port,
         @tagName(self.env.environment),
+        worker_count,
+        thread_count,
     });
 
     self.initialized = true;
