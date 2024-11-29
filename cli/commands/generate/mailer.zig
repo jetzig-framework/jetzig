@@ -39,6 +39,11 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     };
 
     try mailer_file.writeAll(
+        \\const std = @import("std");
+        \\const jetzig = @import("jetzig");
+        \\
+        \\
+        \\
         \\// The `deliver` function is invoked every time this mailer is used to send an email.
         \\// Use this function to set default mail params (e.g. a default `from` address or
         \\// `subject`) before the mail is delivered.
