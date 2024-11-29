@@ -166,9 +166,16 @@ const sql_tokens = .{
     "VALUES",
 };
 
+const sql_statement_map = std.StaticStringMap(jetzig.colors.Color).initComptime(.{
+    .{ "SELECT", .blue },
+    .{ "DELETE", .red },
+    .{ "UPDATE", .yellow },
+    .{ "INSERT", .green },
+});
+
 fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
     const string_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.green;
-    const identifier_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.yellow;
+    const identifier_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.white;
     const reset_color = jetzig.colors.codes.escape ++ jetzig.colors.codes.reset;
     var buf: [4096]u8 = undefined;
     var stream = std.io.fixedBufferStream(&buf);
@@ -221,9 +228,16 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
                     try writer.print("{c}", .{sql[index]});
                     index += 1;
                 } else {
+                    @setEvalBranchQuota(2000);
                     inline for (sql_tokens) |token| {
                         if (std.mem.startsWith(u8, sql[index..], token)) {
-                            try writer.print(jetzig.colors.cyan(token), .{});
+                            const formatted_token = if (sql_statement_map.get(token)) |color|
+                                switch (color) {
+                                    inline else => |tag| jetzig.colors.bold(tag, token),
+                                }
+                            else
+                                jetzig.colors.cyan(token);
+                            try writer.print("{s}", .{formatted_token});
                             index += token.len;
                             break;
                         }
