@@ -5,6 +5,25 @@ const builtin = @import("builtin");
 const types = @import("types.zig");
 const jetzig = @import("../jetzig.zig");
 
+pub const Color = enum {
+    black,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white,
+    bright_black,
+    bright_red,
+    bright_green,
+    bright_yellow,
+    bright_blue,
+    bright_magenta,
+    bright_cyan,
+    bright_white,
+};
+
 // Must be consistent with `std.io.tty.Color` for Windows compatibility.
 pub const codes = .{
     .escape = "\x1b[",
@@ -53,12 +72,7 @@ const ansi_colors = .{
     .{ "2", .dim },
     .{ "0", .reset },
 };
-pub const codes_map = if (@hasDecl(std, "ComptimeStringMap"))
-    std.ComptimeStringMap(std.io.tty.Color, ansi_colors)
-else if (@hasDecl(std, "StaticStringMap"))
-    std.StaticStringMap(std.io.tty.Color).initComptime(ansi_colors)
-else
-    unreachable;
+pub const codes_map = std.StaticStringMap(std.io.tty.Color).initComptime(ansi_colors);
 
 // Map basic ANSI color codes to Windows TextAttribute colors
 // used by std.os.windows.SetConsoleTextAttribute()
@@ -83,12 +97,7 @@ const windows_colors = .{
     .{ "2", 7 },
     .{ "0", 7 },
 };
-pub const windows_map = if (@hasDecl(std, "ComptimeStringMap"))
-    std.ComptimeStringMap(u16, windows_colors)
-else if (@hasDecl(std, "StaticStringMap"))
-    std.StaticStringMap(u16).initComptime(windows_colors)
-else
-    unreachable;
+pub const windows_map = std.StaticStringMap(u16).initComptime(windows_colors);
 
 /// Colorize a log message. Note that we force `.escape_codes` when we are a TTY even on Windows.
 /// `jetzig.loggers.LogQueue` parses the ANSI codes and uses `std.io.tty.Config.setColor` to
@@ -122,8 +131,8 @@ fn runtimeWrap(allocator: std.mem.Allocator, attribute: []const u8, message: []c
     );
 }
 
-pub fn bold(comptime message: []const u8) []const u8 {
-    return codes.escape ++ codes.bold ++ message ++ codes.escape ++ codes.reset;
+pub fn bold(comptime color: Color, comptime message: []const u8) []const u8 {
+    return codes.escape ++ @field(codes, @tagName(color)) ++ codes.escape ++ codes.bold ++ message ++ codes.escape ++ codes.reset;
 }
 
 pub fn black(comptime message: []const u8) []const u8 {

@@ -24,9 +24,10 @@ pub fn main() !void {
             .get => jetzig.colors.cyan("{s: <7}"),
             .index => jetzig.colors.blue("{s: <7}"),
             .new => jetzig.colors.green("{s: <7}"),
+            .edit => jetzig.colors.bold(.yellow, "{s: <7}"),
             .post => jetzig.colors.yellow("{s: <7}"),
             .put => jetzig.colors.magenta("{s: <7}"),
-            .patch => jetzig.colors.bright_magenta("{s: <7}"),
+            .patch => jetzig.colors.bold(.magenta, "{s: <7}"),
             .delete => jetzig.colors.red("{s: <7}"),
             .custom => unreachable,
         };
@@ -36,6 +37,7 @@ pub fn main() !void {
             route.uri_path ++ switch (route.action) {
                 .index, .post => "",
                 .new => "/new",
+                .edit => "/:id/edit",
                 .get, .put, .patch, .delete => "/:id",
                 .custom => "",
             },
@@ -54,7 +56,7 @@ pub fn main() !void {
 
     for (jetzig_app.custom_routes.items) |route| {
         log(
-            "  " ++ jetzig.colors.bold(jetzig.colors.white("{s: <7}")) ++ "  " ++ padded_path ++ " {s}:{s}",
+            "  " ++ jetzig.colors.bold(.white, "{s: <7}") ++ "  " ++ padded_path ++ " {s}:{s}",
             .{ route.name, route.uri_path, route.view_name, route.name },
         );
     }
