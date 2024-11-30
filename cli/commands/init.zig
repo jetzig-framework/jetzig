@@ -217,7 +217,7 @@ pub fn run(
         \\
         \\    $ cd {s}
         \\
-        \\    $ zig build run
+        \\    $ zig build run or jetzig server
         \\
         \\And then browse to http://localhost:8080/
         \\
