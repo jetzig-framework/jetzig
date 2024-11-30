@@ -3,7 +3,7 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 const cli = @import("../cli.zig");
-
+const uPrint = @import("unicodeprint.zig");
 const init_data = @import("init_data").init_data;
 
 /// Command line options for the `init` command.
@@ -209,7 +209,7 @@ pub fn run(
     // const git_setup = false;
     // if (git_setup) try gitSetup(allocator, install_dir);
 
-    std.debug.print(
+    try uPrint.unicodePrint(
         \\
         \\Setup complete! ✈️ 🦎
         \\
