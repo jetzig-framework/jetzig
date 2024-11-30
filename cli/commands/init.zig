@@ -3,7 +3,6 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 const cli = @import("../cli.zig");
-
 const init_data = @import("init_data").init_data;
 
 /// Command line options for the `init` command.
@@ -209,7 +208,7 @@ pub fn run(
     // const git_setup = false;
     // if (git_setup) try gitSetup(allocator, install_dir);
 
-    std.debug.print(
+    try util.unicodePrint(
         \\
         \\Setup complete! ✈️ 🦎
         \\
@@ -217,7 +216,7 @@ pub fn run(
         \\
         \\    $ cd {s}
         \\
-        \\    $ zig build run
+        \\    $ zig build run or jetzig server
         \\
         \\And then browse to http://localhost:8080/
         \\
