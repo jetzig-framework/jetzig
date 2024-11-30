@@ -21,6 +21,7 @@ cache: *jetzig.kv.Store,
 repo: *jetzig.database.Repo,
 global: *anyopaque,
 decoded_static_route_params: []*jetzig.data.Value = &.{},
+debug_mutex: std.Thread.Mutex = .{},
 
 const Server = @This();
 
@@ -92,6 +93,7 @@ pub fn listen(self: *Server) !void {
             },
             .request = .{
                 .max_multiform_count = jetzig.config.get(usize, "max_multipart_form_fields"),
+                .max_body_size = jetzig.config.get(usize, "max_bytes_request_body"),
             },
         },
         Dispatcher{ .server = self },
@@ -116,7 +118,11 @@ pub fn errorHandlerFn(self: *Server, request: *httpz.Request, response: *httpz.R
 
     self.logger.ERROR("Encountered error: {s} {s}", .{ @errorName(err), request.url.raw }) catch {};
     const stack = @errorReturnTrace();
-    if (stack) |capture| self.logStackTrace(capture, request.arena) catch {};
+    if (stack) |capture| {
+        self.debug_mutex.lock();
+        defer self.debug_mutex.unlock();
+        self.logStackTrace(capture, request.arena) catch {};
+    }
 
     response.body = "500 Internal Server Error";
 }
@@ -128,6 +134,9 @@ pub fn processNextRequest(
 ) !void {
     const start_time = std.time.nanoTimestamp();
 
+    var repo = try self.repo.bindConnect(.{ .allocator = httpz_response.arena });
+    defer repo.release();
+
     var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
     var request = try jetzig.http.Request.init(
         httpz_response.arena,
@@ -136,7 +145,7 @@ pub fn processNextRequest(
         httpz_request,
         httpz_response,
         &response,
-        self.repo,
+        &repo,
     );
 
     try request.process();
