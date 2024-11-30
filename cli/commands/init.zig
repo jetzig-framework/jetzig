@@ -3,7 +3,7 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 const cli = @import("../cli.zig");
-const uPrint = @import("unicodeprint.zig");
+const uPrint = @import("library/unicodeprint.zig");
 const init_data = @import("init_data").init_data;
 
 /// Command line options for the `init` command.
