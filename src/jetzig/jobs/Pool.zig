@@ -5,7 +5,7 @@ const jetzig = @import("../../jetzig.zig");
 const Pool = @This();
 
 allocator: std.mem.Allocator,
-job_queue: *jetzig.kv.Store,
+job_queue: *jetzig.kv.Store.JobQueueStore,
 job_env: jetzig.jobs.JobEnv,
 pool: std.Thread.Pool = undefined,
 workers: std.ArrayList(*jetzig.jobs.Worker),
@@ -13,7 +13,7 @@ workers: std.ArrayList(*jetzig.jobs.Worker),
 /// Initialize a new worker thread pool.
 pub fn init(
     allocator: std.mem.Allocator,
-    job_queue: *jetzig.kv.Store,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
     job_env: jetzig.jobs.JobEnv,
 ) Pool {
     return .{

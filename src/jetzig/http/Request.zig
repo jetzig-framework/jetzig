@@ -50,65 +50,75 @@ middleware_data: jetzig.http.middleware.MiddlewareData = undefined,
 rendered_multiple: bool = false,
 rendered_view: ?jetzig.views.View = null,
 start_time: i128,
-store: RequestStore,
-cache: RequestStore,
+store: RequestStore(jetzig.kv.Store.GeneralStore),
+cache: RequestStore(jetzig.kv.Store.CacheStore),
 repo: *jetzig.database.Repo,
 global: *jetzig.Global,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
-pub const RequestStore = struct {
-    allocator: std.mem.Allocator,
-    store: *jetzig.kv.Store,
+pub fn RequestStore(T: type) type {
+    return struct {
+        allocator: std.mem.Allocator,
+        store: *T,
 
-    /// Put a String or into the key-value store.
-    pub fn get(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
-        return try self.store.get(try self.data(), key);
-    }
+        const Self = @This();
 
-    /// Get a String from the store.
-    pub fn put(self: RequestStore, key: []const u8, value: anytype) !void {
-        const alloc = (try self.data()).allocator();
-        try self.store.put(key, try jetzig.Data.zmplValue(value, alloc));
-    }
+        /// Get a Value from the store.
+        pub fn get(self: Self, key: []const u8) !?*jetzig.data.Value {
+            return try self.store.get(try self.data(), key);
+        }
 
-    /// Remove a String to from the key-value store and return it if found.
-    pub fn fetchRemove(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
-        return try self.store.fetchRemove(try self.data(), key);
-    }
+        /// Store a Value in the key-value store.
+        pub fn put(self: Self, key: []const u8, value: anytype) !void {
+            const alloc = (try self.data()).allocator;
+            try self.store.put(key, try jetzig.Data.zmplValue(value, alloc));
+        }
 
-    /// Remove a String to from the key-value store.
-    pub fn remove(self: RequestStore, key: []const u8) !void {
-        try self.store.remove(key);
-    }
+        /// Store a Value in the key-value store with an expiration time in seconds.
+        pub fn putExpire(self: Self, key: []const u8, value: anytype, expiration: i32) !void {
+            const alloc = (try self.data()).allocator;
+            try self.store.putExpire(key, try jetzig.Data.zmplValue(value, alloc), expiration);
+        }
 
-    /// Append a Value to the end of an Array in the key-value store.
-    pub fn append(self: RequestStore, key: []const u8, value: anytype) !void {
-        const alloc = (try self.data()).allocator();
-        try self.store.append(key, try jetzig.Data.zmplValue(value, alloc));
-    }
+        /// Remove a String to from the key-value store and return it if found.
+        pub fn fetchRemove(self: Self, key: []const u8) !?*jetzig.data.Value {
+            return try self.store.fetchRemove(try self.data(), key);
+        }
 
-    /// Prepend a Value to the start of an Array in the key-value store.
-    pub fn prepend(self: RequestStore, key: []const u8, value: anytype) !void {
-        const alloc = (try self.data()).allocator();
-        try self.store.prepend(key, try jetzig.Data.zmplValue(value, alloc));
-    }
+        /// Remove a String to from the key-value store.
+        pub fn remove(self: Self, key: []const u8) !void {
+            try self.store.remove(key);
+        }
 
-    /// Pop a String from an Array in the key-value store.
-    pub fn pop(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
-        return try self.store.pop(try self.data(), key);
-    }
+        /// Append a Value to the end of an Array in the key-value store.
+        pub fn append(self: Self, key: []const u8, value: anytype) !void {
+            const alloc = (try self.data()).allocator;
+            try self.store.append(key, try jetzig.Data.zmplValue(value, alloc));
+        }
 
-    /// Left-pop a String from an Array in the key-value store.
-    pub fn popFirst(self: RequestStore, key: []const u8) !?*jetzig.data.Value {
-        return try self.store.popFirst(try self.data(), key);
-    }
+        /// Prepend a Value to the start of an Array in the key-value store.
+        pub fn prepend(self: Self, key: []const u8, value: anytype) !void {
+            const alloc = (try self.data()).allocator;
+            try self.store.prepend(key, try jetzig.Data.zmplValue(value, alloc));
+        }
 
-    fn data(self: RequestStore) !*jetzig.data.Data {
-        const arena_data = try self.allocator.create(jetzig.data.Data);
-        arena_data.* = jetzig.data.Data.init(self.allocator);
-        return arena_data;
-    }
-};
+        /// Pop a String from an Array in the key-value store.
+        pub fn pop(self: Self, key: []const u8) !?*jetzig.data.Value {
+            return try self.store.pop(try self.data(), key);
+        }
+
+        /// Left-pop a String from an Array in the key-value store.
+        pub fn popFirst(self: Self, key: []const u8) !?*jetzig.data.Value {
+            return try self.store.popFirst(try self.data(), key);
+        }
+
+        fn data(self: Self) !*jetzig.data.Data {
+            const arena_data = try self.allocator.create(jetzig.data.Data);
+            arena_data.* = jetzig.data.Data.init(self.allocator);
+            return arena_data;
+        }
+    };
+}
 
 pub fn init(
     allocator: std.mem.Allocator,

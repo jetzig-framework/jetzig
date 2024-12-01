@@ -4,13 +4,14 @@ const jetzig = @import("../../jetzig.zig");
 const httpz = @import("httpz");
 
 const App = @This();
+const MemoryStore = jetzig.kv.Store.Generic(.{ .backend = .memory });
 
 allocator: std.mem.Allocator,
 routes: []const jetzig.views.Route,
 arena: *std.heap.ArenaAllocator,
-store: *jetzig.kv.Store,
-cache: *jetzig.kv.Store,
-job_queue: *jetzig.kv.Store,
+store: *MemoryStore,
+cache: *MemoryStore,
+job_queue: *MemoryStore,
 multipart_boundary: ?[]const u8 = null,
 logger: jetzig.loggers.Logger,
 server: Server,
@@ -60,9 +61,9 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
         .arena = arena,
         .allocator = allocator,
         .routes = &routes_module.routes,
-        .store = try createStore(arena.allocator()),
-        .cache = try createStore(arena.allocator()),
-        .job_queue = try createStore(arena.allocator()),
+        .store = try createStore(arena.allocator(), logger, .general),
+        .cache = try createStore(arena.allocator(), logger, .cache),
+        .job_queue = try createStore(arena.allocator(), logger, .jobs),
         .logger = logger,
         .server = .{ .logger = logger },
         .repo = repo,
@@ -391,9 +392,17 @@ fn multiFormKeyValue(allocator: std.mem.Allocator, max: usize) !*httpz.key_value
     return key_value;
 }
 
-fn createStore(allocator: std.mem.Allocator) !*jetzig.kv.Store {
-    const store = try allocator.create(jetzig.kv.Store);
-    store.* = try jetzig.kv.Store.init(allocator, .{});
+fn createStore(
+    allocator: std.mem.Allocator,
+    logger: jetzig.loggers.Logger,
+    role: jetzig.kv.Store.Role,
+) !*MemoryStore {
+    const store = try allocator.create(MemoryStore);
+    store.* = try MemoryStore.init(
+        allocator,
+        logger,
+        role,
+    );
     return store;
 }
 

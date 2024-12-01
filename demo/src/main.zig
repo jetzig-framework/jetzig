@@ -94,43 +94,54 @@ pub const jetzig_options = struct {
         },
     };
 
-    /// Key-value store options. Set backend to `.file` to use a file-based store.
-    /// When using `.file` backend, you must also set `.file_options`.
-    /// The key-value store is exposed as `request.store` in views and is also available in as
-    /// `env.store` in all jobs/mailers.
-    pub const store: jetzig.kv.Store.KVOptions = .{
+    /// Key-value store options.
+    /// Available backends:
+    /// * memory: Simple, in-memory hashmap-backed store.
+    /// * file: Rudimentary file-backed store.
+    /// * valkey: Valkey-backed store with connection pool.
+    ///
+    /// When using `.file` or `.valkey` backend, you must also set `.file_options` or
+    /// `.valkey_options` respectively.
+    ///
+    /// ## File backend:
+    // .backend = .file,
+    // .file_options = .{
+    //     .path = "/path/to/jetkv-store.db",
+    //     .truncate = false, // Set to `true` to clear the store on each server launch.
+    //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+    // },
+    //
+    // ## Valkey backend
+    // .backend = .valkey,
+    // .valkey_options = .{
+    //     .host = "localhost",
+    //     .port = 6379,
+    //     .timeout = 1000, // in milliseconds, i.e. 1 second.
+    //     .connect = .lazy, // Connect on first use, or `auto` to connect on server startup.
+    //     .buffer_size = 8192,
+    //     .pool_size = 8,
+    // },
+    /// Available configuration options for `store`, `job_queue`, and `cache` are identical.
+    ///
+    /// For production deployment, the `valkey` backend is recommended for all use cases.
+    ///
+    /// The general-purpose key-value store is exposed as `request.store` in views and is also
+    /// available in as `env.store` in all jobs/mailers.
+    pub const store: jetzig.kv.Store.Options = .{
         .backend = .memory,
-        // .backend = .file,
-        // .file_options = .{
-        //     .path = "/path/to/jetkv-store.db",
-        //     .truncate = false, // Set to `true` to clear the store on each server launch.
-        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
-        // },
     };
 
     /// Job queue options. Identical to `store` options, but allows using different
     /// backends (e.g. `.memory` for key-value store, `.file` for jobs queue.
     /// The job queue is managed internally by Jetzig.
-    pub const job_queue: jetzig.kv.Store.KVOptions = .{
+    pub const job_queue: jetzig.kv.Store.Options = .{
         .backend = .memory,
-        // .backend = .file,
-        // .file_options = .{
-        //     .path = "/path/to/jetkv-queue.db",
-        //     .truncate = false, // Set to `true` to clear the store on each server launch.
-        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
-        // },
     };
 
     /// Cache options. Identical to `store` options, but allows using different
     /// backends (e.g. `.memory` for key-value store, `.file` for cache.
-    pub const cache: jetzig.kv.Store.KVOptions = .{
+    pub const cache: jetzig.kv.Store.Options = .{
         .backend = .memory,
-        // .backend = .file,
-        // .file_options = .{
-        //     .path = "/path/to/jetkv-cache.db",
-        //     .truncate = false, // Set to `true` to clear the store on each server launch.
-        //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
-        // },
     };
 
     /// SMTP configuration for Jetzig Mail. It is recommended to use a local SMTP relay,

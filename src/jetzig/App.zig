@@ -48,22 +48,13 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         self.allocator.free(custom_route.template);
     };
 
-    var store = try jetzig.kv.Store.init(
-        self.allocator,
-        jetzig.config.get(jetzig.kv.Store.KVOptions, "store"),
-    );
+    var store = try jetzig.kv.Store.GeneralStore.init(self.allocator, self.env.logger, .general);
     defer store.deinit();
 
-    var job_queue = try jetzig.kv.Store.init(
-        self.allocator,
-        jetzig.config.get(jetzig.kv.Store.KVOptions, "job_queue"),
-    );
+    var job_queue = try jetzig.kv.Store.JobQueueStore.init(self.allocator, self.env.logger, .jobs);
     defer job_queue.deinit();
 
-    var cache = try jetzig.kv.Store.init(
-        self.allocator,
-        jetzig.config.get(jetzig.kv.Store.KVOptions, "cache"),
-    );
+    var cache = try jetzig.kv.Store.CacheStore.init(self.allocator, self.env.logger, .cache);
     defer cache.deinit();
 
     var repo = try jetzig.database.repo(self.allocator, self);

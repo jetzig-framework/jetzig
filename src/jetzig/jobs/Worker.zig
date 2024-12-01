@@ -6,14 +6,14 @@ const Worker = @This();
 allocator: std.mem.Allocator,
 job_env: jetzig.jobs.JobEnv,
 id: usize,
-job_queue: *jetzig.kv.Store,
+job_queue: *jetzig.kv.Store.JobQueueStore,
 interval: usize,
 
 pub fn init(
     allocator: std.mem.Allocator,
     job_env: jetzig.jobs.JobEnv,
     id: usize,
-    job_queue: *jetzig.kv.Store,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
     interval: usize,
 ) Worker {
     return .{
