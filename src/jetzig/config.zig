@@ -107,38 +107,38 @@ pub const Schema: type = struct {};
 /// When using `.file` backend, you must also set `.file_options`.
 /// The key-value store is exposed as `request.store` in views and is also available in as
 /// `env.store` in all jobs/mailers.
-pub const store: kv.Store.KVOptions = .{
+pub const store: kv.Store.Options = .{
     .backend = .memory,
     // .backend = .file,
     // .file_options = .{
     //     .path = "/path/to/jetkv-store.db",
     //     .truncate = false, // Set to `true` to clear the store on each server launch.
-    //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+    //     .address_space_size = jetzig.jetkv.FileBackend.addressSpace(4096),
     // },
 };
 
 /// Job queue options. Identical to `store` options, but allows using different
 /// backends (e.g. `.memory` for key-value store, `.file` for jobs queue.
 /// The job queue is managed internally by Jetzig.
-pub const job_queue: kv.Store.KVOptions = .{
+pub const job_queue: kv.Store.Options = .{
     .backend = .memory,
     // .backend = .file,
     // .file_options = .{
     //     .path = "/path/to/jetkv-queue.db",
     //     .truncate = false, // Set to `true` to clear the store on each server launch.
-    //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+    //     .address_space_size = jetzig.jetkv.JetKV.addressSpace(4096),
     // },
 };
 
 /// Cache. Identical to `store` options, but allows using different
 /// backends (e.g. `.memory` for key-value store, `.file` for cache.
-pub const cache: kv.Store.KVOptions = .{
+pub const cache: kv.Store.Options = .{
     .backend = .memory,
     // .backend = .file,
     // .file_options = .{
     //     .path = "/path/to/jetkv-cache.db",
     //     .truncate = false, // Set to `true` to clear the store on each server launch.
-    //     .address_space_size = jetzig.jetkv.JetKV.FileBackend.addressSpace(4096),
+    //     .address_space_size = jetzig.jetkv.JetKV.addressSpace(4096),
     // },
 };
 

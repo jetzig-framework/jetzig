@@ -22,9 +22,9 @@ pub const JobEnv = struct {
     /// All jobs detected by Jetzig on startup
     jobs: []const jetzig.JobDefinition,
     /// Global key-value store
-    store: *jetzig.kv.Store,
+    store: *jetzig.kv.Store.GeneralStore,
     /// Global cache
-    cache: *jetzig.kv.Store,
+    cache: *jetzig.kv.Store.CacheStore,
     /// Database repo
     repo: *jetzig.database.Repo,
     /// Global mutex - use with caution if it is necessary to guarantee thread safety/consistency
@@ -33,9 +33,9 @@ pub const JobEnv = struct {
 };
 
 allocator: std.mem.Allocator,
-store: *jetzig.kv.Store,
-job_queue: *jetzig.kv.Store,
-cache: *jetzig.kv.Store,
+store: *jetzig.kv.Store.GeneralStore,
+job_queue: *jetzig.kv.Store.JobQueueStore,
+cache: *jetzig.kv.Store.CacheStore,
 logger: jetzig.loggers.Logger,
 name: []const u8,
 definition: ?JobDefinition,
@@ -47,9 +47,9 @@ const Job = @This();
 /// Initialize a new Job
 pub fn init(
     allocator: std.mem.Allocator,
-    store: *jetzig.kv.Store,
-    job_queue: *jetzig.kv.Store,
-    cache: *jetzig.kv.Store,
+    store: *jetzig.kv.Store.GeneralStore,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
+    cache: *jetzig.kv.Store.CacheStore,
     logger: jetzig.loggers.Logger,
     jobs: []const JobDefinition,
     name: []const u8,

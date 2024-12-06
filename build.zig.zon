@@ -7,12 +7,12 @@
             .hash = "1220d0e8734628fd910a73146e804d10a3269e3e7d065de6bb0e3e88d5ba234eb163",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/ef1930b08e1f174ddb02a3a0a01b35aa8a4af235.tar.gz",
-            .hash = "1220a7bacb828f12cd013b0906da61a17fac6819ab8cee81e00d9ae1aa0faa992720",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/7b5e0309ee49c06b99c242fecd218d3f3d15cd40.tar.gz",
+            .hash = "12204d61eb58ee860f748e5817ef9300ad56c9d5efef84864ae590c87baf2e0380a1",
         },
         .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/2b1130a48979ea2871c8cf6ca89c38b1e7062839.tar.gz",
-            .hash = "12201d75d73aad5e1c996de4d5ae87a00e58479c8d469bc2eeb5fdeeac8857bc09af",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/acaa30db281f1c331d20c48cfe6539186549ad45.tar.gz",
+            .hash = "1220b260b20cb65d801a00a39dc6506387f5faa1a225f85160e011bd2aabd2ce6e0b",
         },
         .jetquery = .{
             .url = "https://github.com/jetzig-framework/jetquery/archive/52e1cf900c94f3c103727ade6ba2dab3057c8663.tar.gz",

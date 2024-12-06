@@ -61,7 +61,7 @@ pub fn parse(self: *Query) !void {
                     else => return error.JetzigQueryParseError,
                 }
             } else {
-                var array = try jetzig.zmpl.Data.createArray(self.data.allocator());
+                var array = try jetzig.zmpl.Data.createArray(self.data.allocator);
                 try array.append(self.dataValue(item.value));
                 try params.put(key, array);
             }
@@ -72,7 +72,7 @@ pub fn parse(self: *Query) !void {
                     else => return error.JetzigQueryParseError,
                 }
             } else {
-                var object = try jetzig.zmpl.Data.createObject(self.data.allocator());
+                var object = try jetzig.zmpl.Data.createObject(self.data.allocator);
                 try object.put(mapping.field, self.dataValue(item.value));
                 try params.put(mapping.key, object);
             }
@@ -109,10 +109,10 @@ fn mappingParam(input: []const u8) ?struct { key: []const u8, field: []const u8 
 
 fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
     if (value) |item_value| {
-        const duped = self.data.allocator().dupe(u8, item_value) catch @panic("OOM");
+        const duped = self.data.allocator.dupe(u8, item_value) catch @panic("OOM");
         return self.data.string(uriDecode(duped));
     } else {
-        return jetzig.zmpl.Data._null(self.data.allocator());
+        return jetzig.zmpl.Data._null(self.data.allocator);
     }
 }
 
