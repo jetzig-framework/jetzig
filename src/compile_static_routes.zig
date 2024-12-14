@@ -147,7 +147,7 @@ fn renderMarkdown(
 
         if (zmpl.findPrefixed("views", prefixed_name)) |layout| {
             view.data.content = .{ .data = content };
-            return try layout.render(view.data, jetzig.TemplateContext, .{}, .{});
+            return try layout.render(view.data, jetzig.TemplateContext, .{}, &.{}, .{});
         } else {
             std.debug.print("Unknown layout: {s}\n", .{layout_name});
             return content;
@@ -174,6 +174,7 @@ fn renderZmplTemplate(
                     view.data,
                     jetzig.TemplateContext,
                     .{},
+                    &.{},
                     .{ .layout = layout },
                 );
             } else {
@@ -181,7 +182,7 @@ fn renderZmplTemplate(
                 return try allocator.dupe(u8, "");
             }
         } else {
-            return try template.render(view.data, jetzig.TemplateContext, .{}, .{});
+            return try template.render(view.data, jetzig.TemplateContext, .{}, &.{}, .{});
         }
     } else return null;
 }
