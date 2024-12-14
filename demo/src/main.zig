@@ -15,6 +15,7 @@ pub const jetzig_options = struct {
         // jetzig.middleware.AuthMiddleware,
         // jetzig.middleware.AntiCsrfMiddleware,
         // jetzig.middleware.HtmxMiddleware,
+        jetzig.middleware.InertiaMiddleware,
         // jetzig.middleware.CompressionMiddleware,
         // @import("app/middleware/DemoMiddleware.zig"),
     };

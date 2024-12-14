@@ -86,6 +86,38 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
     return middleware_data;
 }
 
+pub fn afterView(middleware_data: *MiddlewareData, request: *jetzig.http.Request) !void {
+    request.state = .after_view;
+
+    inline for (middlewares, 0..) |middleware, index| {
+        if (comptime !@hasDecl(middleware, "afterView")) continue;
+        if (request.state == .after_view) {
+            if (comptime @hasDecl(middleware, "init")) {
+                const data = middleware_data.get(index).?;
+                try @call(
+                    .always_inline,
+                    middleware.afterView,
+                    .{ @as(*middleware, @ptrCast(@alignCast(data))), request },
+                );
+            } else {
+                try @call(
+                    .always_inline,
+                    middleware.afterView,
+                    .{request},
+                );
+            }
+        }
+
+        if (request.state != .after_view) {
+            request.middleware_rendered = .{
+                .name = @typeName(middleware),
+                .action = "afterView",
+            };
+            break;
+        }
+    }
+}
+
 pub fn beforeResponse(
     middleware_data: *MiddlewareData,
     request: *jetzig.http.Request,
