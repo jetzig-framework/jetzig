@@ -49,27 +49,16 @@ pub fn build(b: *std.Build) !void {
     const zmpl_module = zmpl_dep.module("zmpl");
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
-    const jetquery_dep = b.dependency("jetquery", .{
-        .target = target,
-        .optimize = optimize,
-        .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
-        .jetquery_config_path = @as([]const u8, "config/database.zig"),
-    });
     const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
-    const pg_dep = b.dependency("pg", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
     b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
-    b.modules.put("pg", pg_dep.module("pg")) catch @panic("Out of memory");
-    b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
     b.modules.put("jetcommon", jetcommon_dep.module("jetcommon")) catch @panic("Out of memory");
-    b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
-    jetquery_dep.module("jetquery").addImport("pg", pg_dep.module("pg"));
 
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
@@ -81,7 +70,6 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("args", zig_args_dep.module("args"));
     jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
     jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
-    jetzig_module.addImport("jetquery", jetquery_dep.module("jetquery"));
     jetzig_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
     jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
@@ -103,7 +91,6 @@ pub fn build(b: *std.Build) !void {
 
     main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
     main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
-    main_tests.root_module.addImport("jetquery", jetquery_dep.module("jetquery"));
     main_tests.root_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
     main_tests.root_module.addImport("httpz", httpz_dep.module("httpz"));
     main_tests.root_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
@@ -120,15 +107,10 @@ pub fn build(b: *std.Build) !void {
 
 /// Build-time options for Jetzig.
 pub const JetzigInitOptions = struct {
-    zmpl_version: enum { v1, v2 } = .v2,
+    jetquery_postgresql_ssl: enum { auto, manual, disabled } = .disabled,
 };
 
 pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigInitOptions) !void {
-    if (options.zmpl_version == .v1) {
-        std.debug.print("Zmpl v1 has now been removed. Please upgrade to v2.\n", .{});
-        return error.ZmplVersionNotSupported;
-    }
-
     const target = b.host;
     const optimize = exe.root_module.optimize orelse .Debug;
 
@@ -170,15 +152,16 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
+        .postgresql_ssl = options.jetquery_postgresql_ssl,
     });
 
     const jetzig_module = jetzig_dep.module("jetzig");
+    jetzig_module.addImport("jetquery", jetquery_dep.module("jetquery"));
     const zmpl_module = jetzig_dep.module("zmpl");
     const zmd_module = jetzig_dep.module("zmd");
-    const pg_module = jetzig_dep.module("pg");
-    const jetquery_module = jetzig_dep.module("jetquery");
+    const jetquery_module = jetquery_dep.module("jetquery");
     const jetcommon_module = jetzig_dep.module("jetcommon");
-    const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
+    const jetquery_migrate_module = jetquery_dep.module("jetquery_migrate");
     const jetquery_reflect_module = jetquery_dep.module("jetquery_reflect");
 
     const build_options = b.addOptions();
@@ -190,7 +173,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
     exe.root_module.addImport("zmd", zmd_module);
-    exe.root_module.addImport("pg", pg_module);
 
     if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
         if (jetzig_runner) {
