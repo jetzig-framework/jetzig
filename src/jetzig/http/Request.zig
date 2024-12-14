@@ -15,6 +15,7 @@ pub const RequestState = enum {
     initial, // No processing has taken place
     processed, // Request headers have been processed
     after_request, // Initial middleware processing
+    after_view, // View returned, response data ready for full response render
     rendered, // Rendered by middleware or view
     redirected, // Redirected by middleware or view
     failed, // Failed by middleware or view
@@ -216,6 +217,20 @@ pub fn render(self: *Request, status_code: jetzig.http.status_codes.StatusCode) 
     return self.rendered_view.?;
 }
 
+/// Render a response with pre-rendered content. This function can only be called once per
+/// request (repeat calls will trigger an error).
+pub fn renderContent(
+    self: *Request,
+    status_code: jetzig.http.status_codes.StatusCode,
+    content: []const u8,
+) jetzig.views.View {
+    if (self.isRendered()) self.rendered_multiple = true;
+
+    self.state = .rendered;
+    self.rendered_view = .{ .data = self.response_data, .status_code = status_code, .content = content };
+    return self.rendered_view.?;
+}
+
 /// Render an error. This function can only be called once per request (repeat calls will
 /// trigger an error).
 pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) jetzig.views.View {
@@ -229,7 +244,7 @@ pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) je
 pub inline fn isRendered(self: *const Request) bool {
     return switch (self.state) {
         .initial, .processed, .after_request, .before_response => false,
-        .rendered, .redirected, .failed, .finalized => true,
+        .after_view, .rendered, .redirected, .failed, .finalized => true,
     };
 }
 

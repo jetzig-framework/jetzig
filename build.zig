@@ -9,11 +9,22 @@ const Environment = enum { development, testing, production };
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    var jetzig_templates_path = std.ArrayList([]const u8).init(b.allocator);
+    try jetzig_templates_path.append("/");
+    var it = std.mem.splitSequence(
+        u8,
+        try b.path("src/jetzig/templates").getPath3(b, null).toString(b.allocator),
+        std.fs.path.sep_str,
+    );
+    while (it.next()) |segment| {
+        try jetzig_templates_path.append(segment);
+    }
     const templates_paths = try zmpl_build.templatesPaths(
         b.allocator,
         &.{
             .{ .prefix = "views", .path = &.{ "src", "app", "views" } },
             .{ .prefix = "mailers", .path = &.{ "src", "app", "mailers" } },
+            .{ .prefix = "jetzig", .path = jetzig_templates_path.items },
         },
     );
 
