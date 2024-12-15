@@ -433,7 +433,7 @@ fn renderTemplateWithLayout(
 ) ![]const u8 {
     try addTemplateConstants(view, route);
 
-    const template_context = jetzig.TemplateContext{ .request = request };
+    const template_context = jetzig.TemplateContext{ .request = request, .route = route };
 
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
@@ -626,7 +626,7 @@ fn renderErrorView(
                                 .content = try template.render(
                                     request.response_data,
                                     jetzig.TemplateContext,
-                                    .{ .request = request },
+                                    .{ .request = request, .route = route },
                                     .{},
                                 ),
                             };

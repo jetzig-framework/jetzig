@@ -3,7 +3,7 @@ const jetzig = @import("../../jetzig.zig");
 
 const InertiaMiddleware = @This();
 
-pub fn afterView(request: *jetzig.http.Request) !void {
+pub fn afterView(request: *jetzig.http.Request, route: jetzig.views.Route) !void {
     if (request.headers.get("HX-Target")) |target| {
         try request.server.logger.DEBUG(
             "[middleware-htmx] htmx request detected, disabling layout. (#{s})",
@@ -11,7 +11,7 @@ pub fn afterView(request: *jetzig.http.Request) !void {
         );
         request.setLayout(null);
     } else {
-        const template_context = jetzig.TemplateContext{ .request = request };
+        const template_context = jetzig.TemplateContext{ .request = request, .route = route };
         const template = jetzig.zmpl.findPrefixed("jetzig", "inertia").?;
         _ = request.renderContent(.ok, try template.render(
             request.response_data,
