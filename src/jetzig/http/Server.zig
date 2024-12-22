@@ -28,8 +28,8 @@ const Server = @This();
 pub fn init(
     allocator: std.mem.Allocator,
     env: jetzig.Environment,
-    routes: []*jetzig.views.Route,
-    custom_routes: []jetzig.views.Route,
+    routes: []const *const jetzig.views.Route,
+    custom_routes: []const jetzig.views.Route,
     job_definitions: []const jetzig.JobDefinition,
     mailer_definitions: []const jetzig.MailerDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
