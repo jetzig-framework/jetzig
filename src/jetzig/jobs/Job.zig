@@ -16,7 +16,7 @@ pub const JobEnv = struct {
     /// Environment configured at server launch
     vars: jetzig.Environment.Vars,
     /// All routes detected by Jetzig on startup
-    routes: []*const jetzig.Route,
+    routes: []const *const jetzig.Route,
     /// All mailers detected by Jetzig on startup
     mailers: []const jetzig.MailerDefinition,
     /// All jobs detected by Jetzig on startup
