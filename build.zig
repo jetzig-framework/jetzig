@@ -129,7 +129,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         return error.ZmplVersionNotSupported;
     }
 
-    const target = b.host;
+    const target = exe.root_module.resolved_target orelse @panic("Unable to detect compile target.");
     const optimize = exe.root_module.optimize orelse .Debug;
 
     if (optimize != .Debug) exe.linkLibC();
@@ -159,10 +159,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const jetzig_dep = b.dependency(
         "jetzig",
-        .{
-            .optimize = optimize,
-            .target = target,
-        },
+        .{ .optimize = optimize, .target = target },
     );
 
     const jetquery_dep = jetzig_dep.builder.dependency("jetquery", .{
@@ -399,7 +396,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     exe_routes.root_module.addImport("jetzig", jetzig_module);
     exe_routes.root_module.addImport("routes", routes_module);
-    exe_routes.root_module.addImport("app", &exe.root_module);
+    exe_routes.root_module.addImport("app", exe.root_module);
     const run_routes_cmd = b.addRunArtifact(exe_routes);
     routes_step.dependOn(&run_routes_cmd.step);
 }

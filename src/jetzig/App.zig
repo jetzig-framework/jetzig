@@ -203,7 +203,7 @@ inline fn viewType(path: []const u8) enum { with_id, without_id, with_args } {
 pub fn createRoutes(
     allocator: std.mem.Allocator,
     comptime_routes: []const jetzig.views.Route,
-) ![]*jetzig.views.Route {
+) ![]const *const jetzig.views.Route {
     var routes = std.ArrayList(*jetzig.views.Route).init(allocator);
 
     for (comptime_routes) |const_route| {
