@@ -248,10 +248,10 @@ fn renderResponse(
             request.setResponse(rendered_error, .{});
             return;
         };
-    }
 
-    if (request.rendered_view != null) {
-        try jetzig.http.middleware.afterView(middleware_data, request);
+        if (request.rendered_view != null) {
+            try jetzig.http.middleware.afterView(middleware_data, request, route);
+        }
     }
 
     if (request.middleware_rendered) |_| {
@@ -626,7 +626,7 @@ fn renderErrorView(
                                 .content = try template.render(
                                     request.response_data,
                                     jetzig.TemplateContext,
-                                    .{ .request = request, .route = route },
+                                    .{ .request = request, .route = route.* },
                                     .{},
                                 ),
                             };
