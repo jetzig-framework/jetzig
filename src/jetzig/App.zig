@@ -24,8 +24,7 @@ const AppOptions = struct {
 };
 
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
-/// automatically created at build time. `templates` should be
-/// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
+/// automatically created at build time.
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer self.env.deinit();
 
@@ -35,7 +34,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer mime_map.deinit();
     try mime_map.build();
 
-    const routes = try createRoutes(self.allocator, &routes_module.routes);
+    const routes = try createRoutes(self.allocator, if (@hasDecl(routes_module, "routes")) &routes_module.routes else &.{});
     defer {
         for (routes) |var_route| {
             var_route.deinitParams();
@@ -87,8 +86,8 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         self.env,
         routes,
         self.custom_routes.items,
-        &routes_module.jobs,
-        &routes_module.mailers,
+        if (@hasDecl(routes_module, "jobs")) &routes_module.jobs else &.{},
+        if (@hasDecl(routes_module, "jobs")) &routes_module.mailers else &.{},
         &mime_map,
         &store,
         &job_queue,
@@ -107,8 +106,8 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
             .vars = self.env.vars,
             .environment = self.env.environment,
             .routes = routes,
-            .jobs = &routes_module.jobs,
-            .mailers = &routes_module.mailers,
+            .jobs = if (@hasDecl(routes_module, "jobs")) &routes_module.jobs else &.{},
+            .mailers = if (@hasDecl(routes_module, "jobs")) &routes_module.mailers else &.{},
             .store = &store,
             .cache = &cache,
             .repo = &repo,
@@ -132,7 +131,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
                 return;
             },
             else => {
-                try server.logger.ERROR("Encountered error: {}\nExiting.\n", .{err});
+                try server.logger.ERROR("Encountered error at server launch: {}\nExiting.\n", .{err});
                 std.process.exit(1);
             },
         }

@@ -1,5 +1,6 @@
 .{
-    .name = "jetzig-cli",
+    .name = .jetzig_cli,
+    .fingerprint = 0x73894a3e0616c96a,
     .version = "0.0.0",
     .minimum_zig_version = "0.12.0",
 

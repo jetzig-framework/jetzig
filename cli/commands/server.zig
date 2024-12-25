@@ -78,11 +78,7 @@ pub fn run(
     });
 
     while (true) {
-        util.runCommandInDir(
-            allocator,
-            argv.items,
-            .{ .path = realpath },
-        ) catch {
+        util.runCommandInDir(allocator, argv.items, .{ .path = realpath }, .{}) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
             try awaitFileChange(allocator, cwd, &mtime);
             std.debug.print("Changes detected, restarting server...\n", .{});
