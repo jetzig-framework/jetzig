@@ -141,6 +141,7 @@ pub fn init(
         .HEAD => Method.HEAD,
         .PUT => Method.PUT,
         .OPTIONS => Method.OPTIONS,
+        .CONNECT, .OTHER => return error.JetzigUnsupportedHttpMethod,
     };
 
     const response_data = try allocator.create(jetzig.data.Data);
