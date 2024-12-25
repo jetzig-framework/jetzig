@@ -220,6 +220,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/routes_file.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     exe_routes_file.root_module.addImport("jetzig", jetzig_module);

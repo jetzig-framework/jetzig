@@ -10,6 +10,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = b.option(bool, "use_llvm", "Use LLVM to generate executable") orelse (optimize != .Debug),
     });
 
     // Example Dependency
