@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/jetzig.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = false,
     });
 
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
@@ -131,6 +132,8 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const target = exe.root_module.resolved_target orelse @panic("Unable to detect compile target.");
     const optimize = exe.root_module.optimize orelse .Debug;
+
+    exe.use_llvm = exe.use_llvm orelse (optimize != .Debug);
 
     if (optimize != .Debug) exe.linkLibC();
 
@@ -242,12 +245,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const routes_module = b.createModule(.{ .root_source_file = routes_file_path });
     routes_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("routes", routes_module);
+    exe.step.dependOn(&run_routes_file_cmd.step);
 
     const exe_static_routes = b.addExecutable(.{
         .name = "static",
         .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
@@ -356,6 +361,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     const auth_user_create_step = b.step("jetzig:auth:user:create", "List all routes in your app");
@@ -364,6 +370,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
     exe_auth.root_module.addImport("jetquery", jetquery_module);
     exe_auth.root_module.addImport("jetzig", jetzig_module);
@@ -385,6 +392,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/database.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
     exe_database.root_module.addImport("jetquery", jetquery_module);
     exe_database.root_module.addImport("jetzig", jetzig_module);

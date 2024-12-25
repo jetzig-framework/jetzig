@@ -7,7 +7,8 @@
             .hash = "1220d0e8734628fd910a73146e804d10a3269e3e7d065de6bb0e3e88d5ba234eb163",
         },
         .jetkv = .{
-            .path = "../jetkv",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/9d754e552e7569239a900ed9e0f313a0554ed2d3.tar.gz",
+            .hash = "122013f8596bc615990fd7771c833cab4d2959ecac8d05c4f6c973aa46624e43afea",
         },
         .jetquery = .{
             .url = "https://github.com/jetzig-framework/jetquery/archive/ec99c0accedbf783c9836f096e2381e4d8b396eb.tar.gz",
@@ -26,7 +27,8 @@
             .hash = "12205019ce2bc2e08c76352ea37a14600d412e5e0ecdd7ddd27b4e83a62f37d8ba94",
         },
         .httpz = .{
-            .path = "../http.zig",
+            .url = "https://github.com/karlseguin/http.zig/archive/2e837c7f119e9d858c1372c014ac7c76af3b9f3a.tar.gz",
+            .hash = "122024b75ff22193f8631a78f32ac0e9f30d37a43fc0e16313e50b92fb822a38c1e4",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/5163c66cc42cdd93176a6b1cad45f3db3a291a6a.tar.gz",

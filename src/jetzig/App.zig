@@ -24,8 +24,7 @@ const AppOptions = struct {
 };
 
 /// Starts an application. `routes` should be `@import("routes").routes`, a generated file
-/// automatically created at build time. `templates` should be
-/// `@import("src/app/views/zmpl.manifest.zig").templates`, created by Zmpl at compile time.
+/// automatically created at build time.
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer self.env.deinit();
 

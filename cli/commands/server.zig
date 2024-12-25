@@ -82,6 +82,7 @@ pub fn run(
             allocator,
             argv.items,
             .{ .path = realpath },
+            .{ .output = .stream },
         ) catch {
             std.debug.print("Build failed, waiting for file change...\n", .{});
             try awaitFileChange(allocator, cwd, &mtime);

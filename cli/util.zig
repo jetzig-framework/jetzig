@@ -153,7 +153,7 @@ pub fn runCommandStreaming(allocator: std.mem.Allocator, install_path: []const u
 pub fn runCommand(allocator: std.mem.Allocator, argv: []const []const u8) !void {
     var dir = try detectJetzigProjectDir();
     defer dir.close();
-    try runCommandInDir(allocator, argv, .{ .dir = dir });
+    try runCommandInDir(allocator, argv, .{ .dir = dir }, .{});
 }
 
 const Dir = union(enum) {
@@ -161,34 +161,50 @@ const Dir = union(enum) {
     dir: std.fs.Dir,
 };
 
+pub const RunOptions = struct {
+    output: enum { stream, capture } = .capture,
+};
+
 /// Runs a command as a child process in the given directory and verifies successful exit code.
-pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, dir: Dir) !void {
+pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, dir: Dir, options: RunOptions) !void {
     const cwd_path = switch (dir) {
         .path => |capture| capture,
         .dir => |capture| try capture.realpathAlloc(allocator, "."),
     };
     defer if (dir == .dir) allocator.free(cwd_path);
 
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = argv,
-        .cwd = cwd_path,
-    }) catch |err| {
-        switch (err) {
-            error.FileNotFound => {
-                printFailure();
-                const cmd_str = try std.mem.join(allocator, " ", argv);
-                defer allocator.free(cmd_str);
-                std.debug.print(
-                    \\Error: Could not execute command - executable '{s}' not found
-                    \\Command: {s}
-                    \\Working directory: {s}
-                    \\
-                , .{ argv[0], cmd_str, cwd_path });
-                return error.JetzigCommandError;
-            },
-            else => return err,
-        }
+    const output_behaviour: std.process.Child.StdIo = switch (options.output) {
+        .stream => .Inherit,
+        .capture => .Pipe,
+    };
+
+    var child = std.process.Child.init(argv, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = output_behaviour;
+    child.stderr_behavior = output_behaviour;
+    if (options.output == .stream) {
+        child.stdout = std.io.getStdOut();
+        child.stderr = std.io.getStdErr();
+    }
+    child.cwd = cwd_path;
+
+    var stdout = std.ArrayList(u8).init(allocator);
+    var stderr = std.ArrayList(u8).init(allocator);
+    errdefer {
+        stdout.deinit();
+        stderr.deinit();
+    }
+
+    try child.spawn();
+    switch (options.output) {
+        .capture => try child.collectOutput(&stdout, &stderr, 50 * 1024),
+        .stream => {},
+    }
+
+    const result = std.process.Child.RunResult{
+        .term = try child.wait(),
+        .stdout = try stdout.toOwnedSlice(),
+        .stderr = try stderr.toOwnedSlice(),
     };
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
