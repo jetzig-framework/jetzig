@@ -51,8 +51,6 @@ pub fn run(
     const realpath = try std.fs.realpathAlloc(allocator, ".");
     defer allocator.free(realpath);
 
-    var mtime = try totalMtime(allocator, cwd, "src");
-
     std.debug.print(
         "Launching development server. [reload:{s}]\n",
         .{
@@ -66,6 +64,10 @@ pub fn run(
     try argv.appendSlice(&.{
         "zig",
         "build",
+        "--watch",
+        "-fincremental",
+        "--debounce",
+        "500",
         util.environmentBuildOption(main_options.options.environment),
         "-Djetzig_runner=true",
     });
@@ -77,20 +79,23 @@ pub fn run(
         "on",
     });
 
-    while (true) {
-        util.runCommandInDir(
-            allocator,
-            argv.items,
-            .{ .path = realpath },
-            .{ .output = .stream },
-        ) catch {
-            std.debug.print("Build failed, waiting for file change...\n", .{});
-            try awaitFileChange(allocator, cwd, &mtime);
-            std.debug.print("Changes detected, restarting server...\n", .{});
-            continue;
-        };
+    var exe_path = try util.locateExecutable(allocator, cwd, .{});
+    const stat = try std.fs.cwd().statFile(exe_path.?);
+    var mtime = stat.mtime;
 
-        const exe_path = try util.locateExecutable(allocator, cwd, .{});
+    util.runCommandInDir(
+        allocator,
+        argv.items,
+        .{ .path = realpath },
+        .{ .output = .stream, .wait = false },
+    ) catch {
+        std.debug.print("Build failed, waiting for file change...\n", .{});
+        std.process.exit(1);
+    };
+
+    while (true) {
+        exe_path = try util.locateExecutable(allocator, cwd, .{});
+
         if (exe_path == null) {
             std.debug.print("Unable to locate compiled executable. Exiting.\n", .{});
             std.process.exit(1);
@@ -120,40 +125,41 @@ pub fn run(
         // HACK: This currenly doesn't restart the server when it exits, maybe that
         // could be implemented in the future.
 
-        try awaitFileChange(allocator, cwd, &mtime);
+        try awaitFileChange(exe_path.?, &mtime);
         std.debug.print("Changes detected, restarting server...\n", .{});
         _ = try process.kill();
     }
 }
 
-fn awaitFileChange(allocator: std.mem.Allocator, cwd: std.fs.Dir, mtime: *i128) !void {
+fn awaitFileChange(path: []const u8, mtime: *i128) !void {
     while (true) {
         std.time.sleep(watch_changes_pause_duration);
-        const new_mtime = try totalMtime(allocator, cwd, "src");
-        if (new_mtime > mtime.*) {
-            mtime.* = new_mtime;
+        const stat = try std.fs.cwd().statFile(path);
+        if (stat.mtime > mtime.*) {
+            mtime.* = stat.mtime;
             return;
         }
     }
 }
 
 fn totalMtime(allocator: std.mem.Allocator, cwd: std.fs.Dir, sub_path: []const u8) !i128 {
-    var dir = try cwd.openDir(sub_path, .{ .iterate = true });
-    defer dir.close();
+    // var dir = try cwd.openDir(sub_path, .{ .iterate = true });
+    // defer dir.close();
+    _ = sub_path;
 
-    var walker = try dir.walk(allocator);
+    var walker = try cwd.walk(allocator);
     defer walker.deinit();
 
     var sum: i128 = 0;
 
     while (try walker.next()) |entry| {
         if (entry.kind != .file) continue;
-        const extension = std.fs.path.extension(entry.path);
+        // const extension = std.fs.path.extension(entry.path);
 
-        if (std.mem.eql(u8, extension, ".zig") or std.mem.eql(u8, extension, ".zmpl")) {
-            const stat = try dir.statFile(entry.path);
-            sum += stat.mtime;
-        }
+        // if (std.mem.eql(u8, extension, ".zig") or std.mem.eql(u8, extension, ".zmpl")) {
+        const stat = try cwd.statFile(entry.path);
+        sum += stat.mtime;
+        // }
     }
 
     return sum;
