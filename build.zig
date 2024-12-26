@@ -47,6 +47,11 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
+    const zmpl_steps = zmpl_dep.builder.top_level_steps;
+    const zmpl_compile_step = zmpl_steps.get("compile").?;
+    const compile_step = b.step("compile", "Compile Zmpl templates");
+    compile_step.dependOn(&zmpl_compile_step.step);
+
     const zmpl_module = zmpl_dep.module("zmpl");
 
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
@@ -232,7 +237,10 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_routes_file.root_module.addImport("zmpl", zmpl_module);
 
     const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
+    const source_files = b.addUpdateSourceFiles();
     const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
+    source_files.addCopyFileToSource(routes_file_path, "src/routes.zig");
+
     run_routes_file_cmd.addArgs(&.{
         root_path,
         b.pathFromRoot("src"),
@@ -316,6 +324,13 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         run_routes_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
         run_tests_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
     }
+
+    const jetzig_steps = jetzig_dep.builder.top_level_steps;
+    const jetzig_compile_step = jetzig_steps.get("compile").?;
+    const compile_step = b.step("compile", "Compile Zmpl templates");
+    compile_step.dependOn(&jetzig_compile_step.step);
+    // compile_step.dependOn(&run_routes_file_cmd.step);
+    b.getInstallStep().dependOn(compile_step);
 
     const exe_unit_tests = b.addTest(.{
         .root_source_file = tests_file_path,

@@ -12,7 +12,9 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     try root.put("imported_number", importedFunction(100, 200, 300));
 
     try request.response.headers.append("x-example-header", "example header value");
-    std.debug.print("what", .{});
+    try root.put("foobar", "helloooo what");
+    try request.server.logger.INFO("hello yx", .{});
+    std.debug.print("hello\n", .{});
 
     return request.render(.ok);
 }

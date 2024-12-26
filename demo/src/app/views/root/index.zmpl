@@ -1,5 +1,6 @@
 <div class="text-center pt-10 m-auto">
 
+    {{$.foobar}}
   <div><img class="p-3 mx-auto" src="/jetzig.png" /></div>
 
   <!-- Renders `src/app/views/root/_quotes.zmpl`: -->
