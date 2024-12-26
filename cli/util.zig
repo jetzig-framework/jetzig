@@ -163,6 +163,7 @@ const Dir = union(enum) {
 
 pub const RunOptions = struct {
     output: enum { stream, capture } = .capture,
+    wait: bool = true,
 };
 
 /// Runs a command as a child process in the given directory and verifies successful exit code.
@@ -200,6 +201,8 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
         .capture => try child.collectOutput(&stdout, &stderr, 50 * 1024),
         .stream => {},
     }
+
+    if (!options.wait) return;
 
     const result = std.process.Child.RunResult{
         .term = try child.wait(),
