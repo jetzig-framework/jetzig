@@ -205,22 +205,25 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         }
     }
 
-    const root_path = b.build_root.path orelse try std.fs.cwd().realpathAlloc(b.allocator, ".");
+    const root_path = if (b.build_root.path) |build_root_path|
+        try std.fs.path.join(b.allocator, &.{ build_root_path, "src" })
+    else
+        try std.fs.cwd().realpathAlloc(b.allocator, "src");
     const templates_path: []const u8 = try std.fs.path.join(
         b.allocator,
-        &[_][]const u8{ root_path, "src", "app" },
+        &[_][]const u8{ root_path, "app" },
     );
     const views_path: []const u8 = try std.fs.path.join(
         b.allocator,
-        &[_][]const u8{ root_path, "src", "app", "views" },
+        &[_][]const u8{ root_path, "app", "views" },
     );
     const jobs_path = try std.fs.path.join(
         b.allocator,
-        &[_][]const u8{ root_path, "src", "app", "jobs" },
+        &[_][]const u8{ root_path, "app", "jobs" },
     );
     const mailers_path = try std.fs.path.join(
         b.allocator,
-        &[_][]const u8{ root_path, "src", "app", "mailers" },
+        &[_][]const u8{ root_path, "app", "mailers" },
     );
 
     const exe_routes_file = b.addExecutable(.{
@@ -237,6 +240,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_routes_file.root_module.addImport("zmpl", zmpl_module);
 
     const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
+    run_routes_file_cmd.has_side_effects = true;
     const source_files = b.addUpdateSourceFiles();
     const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
     source_files.addCopyFileToSource(routes_file_path, "src/routes.zig");
@@ -250,7 +254,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         mailers_path,
     });
 
-    const routes_module = b.createModule(.{ .root_source_file = routes_file_path });
+    const routes_module = b.createModule(.{ .root_source_file = b.path("src/routes.zig") });
     routes_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("routes", routes_module);
     exe.step.dependOn(&run_routes_file_cmd.step);
@@ -329,8 +333,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetzig_compile_step = jetzig_steps.get("compile").?;
     const compile_step = b.step("compile", "Compile Zmpl templates");
     compile_step.dependOn(&jetzig_compile_step.step);
-    // compile_step.dependOn(&run_routes_file_cmd.step);
-    b.getInstallStep().dependOn(compile_step);
+    jetzig_compile_step.step.dependOn(&source_files.step);
 
     const exe_unit_tests = b.addTest(.{
         .root_source_file = tests_file_path,

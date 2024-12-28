@@ -67,7 +67,7 @@ pub fn run(
         "--watch",
         "-fincremental",
         "--debounce",
-        "500",
+        "500", // FIXME
         util.environmentBuildOption(main_options.options.environment),
         "-Djetzig_runner=true",
     });
@@ -92,6 +92,13 @@ pub fn run(
         std.debug.print("Build failed, waiting for file change...\n", .{});
         std.process.exit(1);
     };
+
+    var zmpl_thread = try std.Thread.spawn(
+        .{ .allocator = allocator },
+        zmplThread,
+        .{ allocator, cwd },
+    );
+    defer zmpl_thread.join();
 
     while (true) {
         exe_path = try util.locateExecutable(allocator, cwd, .{});
@@ -122,9 +129,6 @@ pub fn run(
             std.process.exit(term.Exited);
         }
 
-        // HACK: This currenly doesn't restart the server when it exits, maybe that
-        // could be implemented in the future.
-
         try awaitFileChange(exe_path.?, &mtime);
         std.debug.print("Changes detected, restarting server...\n", .{});
         _ = try process.kill();
@@ -142,12 +146,29 @@ fn awaitFileChange(path: []const u8, mtime: *i128) !void {
     }
 }
 
-fn totalMtime(allocator: std.mem.Allocator, cwd: std.fs.Dir, sub_path: []const u8) !i128 {
-    // var dir = try cwd.openDir(sub_path, .{ .iterate = true });
-    // defer dir.close();
-    _ = sub_path;
+fn zmplThread(allocator: std.mem.Allocator, cwd: std.fs.Dir) void {
+    while (true) {
+        awaitDirChange(allocator, cwd, "src/app/views") catch break;
+        util.runCommand(allocator, &.{ "zig", "build", "compile" }) catch break;
+    }
+}
 
-    var walker = try cwd.walk(allocator);
+fn awaitDirChange(allocator: std.mem.Allocator, dir: std.fs.Dir, sub_path: []const u8) !void {
+    const mtime = try totalMtime(allocator, dir, sub_path);
+    while (true) {
+        std.time.sleep(watch_changes_pause_duration);
+        const new_mtime = try totalMtime(allocator, dir, sub_path);
+        if (new_mtime > mtime) {
+            return;
+        }
+    }
+}
+
+fn totalMtime(allocator: std.mem.Allocator, cwd: std.fs.Dir, sub_path: []const u8) !i128 {
+    var dir = try cwd.openDir(sub_path, .{ .iterate = true });
+    defer dir.close();
+
+    var walker = try dir.walk(allocator);
     defer walker.deinit();
 
     var sum: i128 = 0;
@@ -157,7 +178,7 @@ fn totalMtime(allocator: std.mem.Allocator, cwd: std.fs.Dir, sub_path: []const u
         // const extension = std.fs.path.extension(entry.path);
 
         // if (std.mem.eql(u8, extension, ".zig") or std.mem.eql(u8, extension, ".zmpl")) {
-        const stat = try cwd.statFile(entry.path);
+        const stat = try dir.statFile(entry.path);
         sum += stat.mtime;
         // }
     }
