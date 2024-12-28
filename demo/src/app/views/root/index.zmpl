@@ -6,17 +6,6 @@
   <!-- Renders `src/app/views/root/_quotes.zmpl`: -->
   <div>
     @partial root/quotes(message: .message)
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
-    <h1>a thing</h1>
   </div>
 
   <div>

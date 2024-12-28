@@ -12,9 +12,8 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     try root.put("imported_number", importedFunction(100, 200, 300));
 
     try request.response.headers.append("x-example-header", "example header value");
-    try root.put("foobar", "helloooo what");
-    try request.server.logger.INFO("hello yx", .{});
-    std.debug.print("hello\n", .{});
+    try root.put("foobar", "bloop");
+    try request.server.logger.INFO("onnnnnnnnnne time", .{});
 
     return request.render(.ok);
 }
