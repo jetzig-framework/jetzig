@@ -520,6 +520,7 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
                 try params_array.append(try parseNumber(number_value, self.data));
             },
             inline else => {
+                @setEvalBranchQuota(10_000);
                 const tag = self.ast.nodes.items(.tag)[element];
                 std.debug.print("Unexpected token: {}\n", .{tag});
                 return error.JetzigStaticParamsParseError;
