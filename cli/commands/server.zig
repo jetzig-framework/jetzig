@@ -4,7 +4,7 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 
-pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
+pub const watch_changes_pause_duration = 100 * std.time.ns_per_ms;
 
 /// Command line options for the `server` command.
 pub const Options = struct {
@@ -66,8 +66,6 @@ pub fn run(
         "build",
         "--watch",
         "-fincremental",
-        "--debounce",
-        "500", // FIXME
         util.environmentBuildOption(main_options.options.environment),
         "-Djetzig_runner=true",
     });
@@ -92,6 +90,13 @@ pub fn run(
         std.debug.print("Build failed, waiting for file change...\n", .{});
         std.process.exit(1);
     };
+
+    util.runCommandInDir(
+        allocator,
+        &.{ "zig", "build", "websockets" },
+        .{ .path = realpath },
+        .{ .output = .stream, .wait = false },
+    );
 
     var zmpl_thread = try std.Thread.spawn(
         .{ .allocator = allocator },

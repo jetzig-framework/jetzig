@@ -131,7 +131,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
                 return;
             },
             else => {
-                try server.logger.ERROR("Encountered error: {}\nExiting.\n", .{err});
+                try server.logger.ERROR("Encountered error at server launch: {}\nExiting.\n", .{err});
                 std.process.exit(1);
             },
         }
