@@ -5,6 +5,7 @@ pub const HtmxMiddleware = @import("middleware/HtmxMiddleware.zig");
 pub const CompressionMiddleware = @import("middleware/CompressionMiddleware.zig");
 pub const AuthMiddleware = @import("middleware/AuthMiddleware.zig");
 pub const AntiCsrfMiddleware = @import("middleware/AntiCsrfMiddleware.zig");
+pub const HotReloadMiddleware = @import("middleware/HotReloadMiddleware.zig");
 
 const RouteOptions = struct {
     content: ?[]const u8 = null,
