@@ -92,6 +92,18 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
+    const websockets_exe = b.addExecutable(.{
+        .name = "websockets",
+        .root_source_file = b.path("websockets/main.zig"),
+        .optimize = optimize,
+        .target = target,
+        .use_llvm = false,
+    });
+    websockets_exe.root_module.addImport("httpz", httpz_dep.module("httpz"));
+    const run_websockets_exe = b.addRunArtifact(websockets_exe);
+    const websockets_step = b.step("websockets", "Launch development websockets server");
+    websockets_step.dependOn(&run_websockets_exe.step);
+
     const main_tests = b.addTest(.{
         .root_source_file = b.path("src/tests.zig"),
         .target = target,
