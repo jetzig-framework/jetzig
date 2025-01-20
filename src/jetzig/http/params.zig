@@ -42,8 +42,8 @@ pub fn expectParams(request: *jetzig.http.Request, T: type) !?T {
         } else if (@typeInfo(field.type) == .optional) {
             // if no matching param found and params struct provides a default value, use it,
             // otherwise set value to null
-            @field(t, field.name) = if (field.default_value) |default_value|
-                @as(*field.type, @ptrCast(@alignCast(@constCast(default_value)))).*
+            @field(t, field.name) = if (field.default_value_ptr) |default_value_ptr|
+                @as(*field.type, @ptrCast(@alignCast(@constCast(default_value_ptr)))).*
             else
                 null;
             statuses[index] = .blank;

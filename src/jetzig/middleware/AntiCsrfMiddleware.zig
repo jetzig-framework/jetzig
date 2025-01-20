@@ -12,7 +12,7 @@ const TokenParams = @Type(.{
             .name = jetzig.authenticity_token_name ++ "",
             .type = []const u8,
             .is_comptime = false,
-            .default_value = null,
+            .default_value_ptr = null,
             .alignment = @alignOf([]const u8),
         }},
     },
