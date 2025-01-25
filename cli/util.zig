@@ -169,34 +169,38 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
     };
     defer if (dir == .dir) allocator.free(cwd_path);
 
-    const result = try std.process.Child.run(.{
+    const result = std.process.Child.run(.{
         .allocator = allocator,
         .argv = argv,
         .cwd = cwd_path,
-    });
+    }) catch |err| {
+        switch (err) {
+            error.FileNotFound => {
+                printFailure();
+                const cmd_str = try std.mem.join(allocator, " ", argv);
+                defer allocator.free(cmd_str);
+                std.debug.print(
+                    \\Error: Could not execute command - executable '{s}' not found
+                    \\Command: {s}
+                    \\Working directory: {s}
+                    \\
+                , .{ argv[0], cmd_str, cwd_path });
+                return error.JetzigCommandError;
+            },
+            else => return err,
+        }
+    };
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
-    const command = try std.mem.join(allocator, " ", argv);
-    defer allocator.free(command);
-
-    std.debug.print("[exec] {s}", .{command});
-
     if (result.term.Exited != 0) {
         printFailure();
-        std.debug.print(
-            \\
-            \\Error running command: {s}
-            \\
-            \\[stdout]:
-            \\
-            \\{s}
-            \\
-            \\[stderr]:
-            \\
-            \\{s}
-            \\
-        , .{ command, result.stdout, result.stderr });
+        if (result.stdout.len > 0) {
+            std.debug.print("\n[stdout]:\n{s}\n", .{result.stdout});
+        }
+        if (result.stderr.len > 0) {
+            std.debug.print("\n[stderr]:\n{s}\n", .{result.stderr});
+        }
         return error.JetzigCommandError;
     } else {
         printSuccess();
@@ -290,8 +294,6 @@ pub fn environmentBuildOption(environment: cli.Environment) []const u8 {
     };
 }
 
-
-
 pub fn unicodePrint(comptime fmt: []const u8, args: anytype) !void {
     if (builtin.os.tag == .windows) {
         // Windows-specific code
@@ -320,6 +322,6 @@ const UTF8ConsoleOutput = struct {
     }
 
     fn deinit(self: UTF8ConsoleOutput) void {
-            _ = std.os.windows.kernel32.SetConsoleOutputCP(self.original);
+        _ = std.os.windows.kernel32.SetConsoleOutputCP(self.original);
     }
 };
