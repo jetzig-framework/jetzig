@@ -242,7 +242,7 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
     }
 
     const secret_len = jetzig.http.Session.Cipher.key_length;
-    const secret_value = try getSecret(allocator, launch_logger, secret_len, jetzig.environment);
+    const secret_value = try getSecret(allocator, launch_logger, jetzig.environment);
     const secret = if (secret_value.len > secret_len) secret_value[0..secret_len] else secret_value;
 
     if (secret.len != secret_len) {
@@ -326,7 +326,6 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
 fn getSecret(
     allocator: std.mem.Allocator,
     logger: LaunchLogger,
-    comptime len: u10,
     environment: EnvironmentName,
 ) ![]const u8 {
     const env_var = "JETZIG_SECRET";
@@ -348,10 +347,11 @@ fn getSecret(
                     std.process.exit(1);
                 }
 
-                const secret = try jetzig.util.generateSecret(allocator, len);
+                const secret = "jetzig-development-cookie-secret";
+
                 try logger.log(
                     .WARN,
-                    "Running in {s} mode, using auto-generated cookie encryption key: {s}",
+                    "Running in {s} mode, using default development cookie encryption key: `{s}`",
                     .{ @tagName(environment), secret },
                 );
                 try logger.log(
