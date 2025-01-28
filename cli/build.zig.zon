@@ -5,12 +5,12 @@
 
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/0abdd6947a70e6d8cc83b66228cea614aa856206.tar.gz",
-            .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
+            .url = "https://github.com/ikskuh/zig-args/archive/968258dc1b1230493d8f1677097c832a3d7e0bd8.tar.gz",
+            .hash = "1220bdedf1a993d852d8aebcd63922a8fb163fac37b9c6ff72d187b2847a4a3a4248",
         },
         .jetquery = .{
-            .url = "https://github.com/jetzig-framework/jetquery/archive/387ad885bb29a16d38dbb71f5b4b5b083fa320e3.tar.gz",
-            .hash = "12206089a3d9de179a0d40cf35c48786eb4525a203ebf8cc131e23e430625713c402",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/ec99c0accedbf783c9836f096e2381e4d8b396eb.tar.gz",
+            .hash = "1220d03534fb9e30dbe46d9450e4a8a9530cd0cc76b88ba37f3e44337c017943b859",
         },
     },
     .paths = .{
