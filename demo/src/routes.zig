@@ -2,7 +2,7 @@ const jetzig = @import("jetzig");
 
 pub const routes = [_]jetzig.Route{
         .{
-            .id = "AkI5YOzDJzuODxAPp4VDCIVTHlk9K9Et",
+            .id = "RGJmKq1nsYnrukQaUGcnAqG3LM69qElM",
             .name = "nested_route_example_get",
             .action = .get,
             .view_name = "nested/route/example",
@@ -19,7 +19,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/nested/route/example.zig"), "formats")) @import("app/views/nested/route/example.zig").formats else null,
         },
         .{
-            .id = "jyCCfxQ3gWI07OyKkz0DLuoSLZ2uWsvn",
+            .id = "RQDXM6y9q0VMbtChKtBoTdBKLPDfx33A",
             .name = "static_get",
             .action = .get,
             .view_name = "static",
@@ -36,7 +36,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/static.zig"), "formats")) @import("app/views/static.zig").formats else null,
         },
         .{
-            .id = "MlnUk52uBuoQ8I2ew86bRMYagC7VNadv",
+            .id = "cIJuzHGbXDXHd0zVrh0tqxSsmXWjfQlE",
             .name = "static_index",
             .action = .index,
             .view_name = "static",
@@ -53,7 +53,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/static.zig"), "formats")) @import("app/views/static.zig").formats else null,
         },
         .{
-            .id = "GzljS2WHIvOPF5ods7cdqJfSY9OXbTs4",
+            .id = "fuafLMIkCJWCy4NuuMM5dgNov4my1D4x",
             .name = "session_edit",
             .action = .edit,
             .view_name = "session",
@@ -69,7 +69,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/session.zig"), "formats")) @import("app/views/session.zig").formats else null,
         },
         .{
-            .id = "BSi50qh31yc8kS5YBMzyXxyWoq0BbjYj",
+            .id = "GmsGF6AS9G6s2MgpNdDHpo0nP0ea9HF2",
             .name = "root_edit",
             .action = .edit,
             .view_name = "root",
@@ -85,7 +85,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/root.zig"), "formats")) @import("app/views/root.zig").formats else null,
         },
         .{
-            .id = "Hzfw3GrABWhP1R3wA5Ix6M2QGuL733Bh",
+            .id = "tupJPgayfGiMxm01T2wbSqhV5eV1t9Cj",
             .name = "format_get",
             .action = .get,
             .view_name = "format",
@@ -101,7 +101,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/format.zig"), "formats")) @import("app/views/format.zig").formats else null,
         },
         .{
-            .id = "dbkt77CflbzPEri3c1uo5U4AGhtlC3Jn",
+            .id = "TTE41AX5C09LyTILQLIEnZx7fJzVRZbS",
             .name = "quotes_get",
             .action = .get,
             .view_name = "quotes",
@@ -117,7 +117,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/quotes.zig"), "formats")) @import("app/views/quotes.zig").formats else null,
         },
         .{
-            .id = "Qgc7WwR2psbexSNcrljPqUSw5rmY3g8x",
+            .id = "qcuSLMzQAAYMN64rNV0FVn2vJb7x3d3K",
             .name = "background_jobs_index",
             .action = .index,
             .view_name = "background_jobs",
@@ -133,7 +133,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/background_jobs.zig"), "formats")) @import("app/views/background_jobs.zig").formats else null,
         },
         .{
-            .id = "KJOP1zzGpWfvCTIcmVNw3CSNWG4g0zY0",
+            .id = "fEIpVaQxdC5780a36HbqR7Hq56phPaWl",
             .name = "session_index",
             .action = .index,
             .view_name = "session",
@@ -149,7 +149,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/session.zig"), "formats")) @import("app/views/session.zig").formats else null,
         },
         .{
-            .id = "spqGkQEUY37lw4mM50kKhibw0alHzv7g",
+            .id = "hZYjJ5xSrGCNsqU99TLFpLWjTmuVvuzU",
             .name = "root_index",
             .action = .index,
             .view_name = "root",
@@ -165,7 +165,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/root.zig"), "formats")) @import("app/views/root.zig").formats else null,
         },
         .{
-            .id = "MDW0dk8Pf9BQE3JrtBSDpzHHwH0LGJ7o",
+            .id = "hlY9sUEftxn1cFagCZ0YG2QWMzStZSHH",
             .name = "redirect_index",
             .action = .index,
             .view_name = "redirect",
@@ -181,7 +181,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/redirect.zig"), "formats")) @import("app/views/redirect.zig").formats else null,
         },
         .{
-            .id = "lqswc0Kw59ZgdA1CJACbL8WbSIr4rXRm",
+            .id = "bxMCdSzNla8dOrJIqIFnCGWvxx5J1rbt",
             .name = "format_index",
             .action = .index,
             .view_name = "format",
@@ -197,7 +197,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/format.zig"), "formats")) @import("app/views/format.zig").formats else null,
         },
         .{
-            .id = "ihQeHBf6BTYQykrGOnhjjByfs4wWdavM",
+            .id = "rIxNbXouG3ZpqHFO8RAhKuG4dfxrCmfU",
             .name = "nested_route_example_index",
             .action = .index,
             .view_name = "nested/route/example",
@@ -213,7 +213,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/nested/route/example.zig"), "formats")) @import("app/views/nested/route/example.zig").formats else null,
         },
         .{
-            .id = "AExhngOpBhhsRjyRKnOywrnJV2VfR65Z",
+            .id = "MDYdlPqfJvJHMzcioZUZdK2TOnx7i8t3",
             .name = "mail_index",
             .action = .index,
             .view_name = "mail",
@@ -229,7 +229,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/mail.zig"), "formats")) @import("app/views/mail.zig").formats else null,
         },
         .{
-            .id = "qefFQVtUvwXDp5JTXTNCc6utW4zcbosp",
+            .id = "JVZVGMPWkYQzwVvzU2GyNyliLXjmXp3c",
             .name = "anti_csrf_index",
             .action = .index,
             .view_name = "anti_csrf",
@@ -245,7 +245,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/anti_csrf.zig"), "formats")) @import("app/views/anti_csrf.zig").formats else null,
         },
         .{
-            .id = "qQtDJ8sV9vJYJmHEVPeNpzj2Qhmh2XMP",
+            .id = "WxnEz7xrSDSwdw95SwtH3p1pilaroxnr",
             .name = "markdown_index",
             .action = .index,
             .view_name = "markdown",
@@ -261,7 +261,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/markdown.zig"), "formats")) @import("app/views/markdown.zig").formats else null,
         },
         .{
-            .id = "UnNRfU7hM7J92xUMaPg20RtRJsDoXMXE",
+            .id = "LNFRaT4tqJrf1f11TJXyzmkfZtITVvqd",
             .name = "init_index",
             .action = .index,
             .view_name = "init",
@@ -277,7 +277,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/init.zig"), "formats")) @import("app/views/init.zig").formats else null,
         },
         .{
-            .id = "ZfrniROoeeuiKlk3gCgKfCr6WrDW0OY9",
+            .id = "xRO7XerJH97skZvolf7A6XoAUKW6NypE",
             .name = "kvstore_index",
             .action = .index,
             .view_name = "kvstore",
@@ -293,7 +293,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/kvstore.zig"), "formats")) @import("app/views/kvstore.zig").formats else null,
         },
         .{
-            .id = "yoonae7d0jc5bDqkypoVl3Q3EgSusMoC",
+            .id = "OZXcPZfi428ON34mmPs6rveiTyYZZk7r",
             .name = "render_template_index",
             .action = .index,
             .view_name = "render_template",
@@ -309,7 +309,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/render_template.zig"), "formats")) @import("app/views/render_template.zig").formats else null,
         },
         .{
-            .id = "yMqyoHvwyQa3l6VDK0PvzoTMsY754wk4",
+            .id = "PqEitHYDIGmhdGNJY1duijJ88GlmxC57",
             .name = "cache_index",
             .action = .index,
             .view_name = "cache",
@@ -325,7 +325,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/cache.zig"), "formats")) @import("app/views/cache.zig").formats else null,
         },
         .{
-            .id = "fnRX4YOb2aUS88rKQR40krb1xfp4JFG9",
+            .id = "PAmbq36hsUlpA9FE5wnq4KWQCFtRmXAm",
             .name = "basic_index",
             .action = .index,
             .view_name = "basic",
@@ -341,7 +341,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/basic.zig"), "formats")) @import("app/views/basic.zig").formats else null,
         },
         .{
-            .id = "PixHoG933QEkAPVs1DoxwVTovKglhUfN",
+            .id = "XvL4PkpzKXoVQEuOXvzixsov6HX6sQom",
             .name = "errors_index",
             .action = .index,
             .view_name = "errors",
@@ -357,7 +357,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/errors.zig"), "formats")) @import("app/views/errors.zig").formats else null,
         },
         .{
-            .id = "Efo0V2HYbMa5G8KQgx426eLdhdRdoBTe",
+            .id = "eUOCJMQ5ZoBwTp5pFJUFVr2laenWUlVn",
             .name = "file_upload_index",
             .action = .index,
             .view_name = "file_upload",
@@ -373,7 +373,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/file_upload.zig"), "formats")) @import("app/views/file_upload.zig").formats else null,
         },
         .{
-            .id = "UFcXVgtoOZX4i55aI7jd9LhQRuG34jPM",
+            .id = "vMS9iOity7uJCLa8HUv3WFKV2jW9RDzw",
             .name = "quotes_post",
             .action = .post,
             .view_name = "quotes",
@@ -389,7 +389,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/quotes.zig"), "formats")) @import("app/views/quotes.zig").formats else null,
         },
         .{
-            .id = "DLVKGAGIzETt2h0PFnKeFDkwpOAMLq93",
+            .id = "ZkOxo7cpVDX5J47H2e3EpDCDv41ki5In",
             .name = "anti_csrf_post",
             .action = .post,
             .view_name = "anti_csrf",
@@ -405,7 +405,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/anti_csrf.zig"), "formats")) @import("app/views/anti_csrf.zig").formats else null,
         },
         .{
-            .id = "mvyx5eMKF09eaoqExLqa0AXA8GdI1H1e",
+            .id = "ESA0VfqrKTR6AtD8x27ITjOQj16XoyJI",
             .name = "session_post",
             .action = .post,
             .view_name = "session",
@@ -421,7 +421,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/session.zig"), "formats")) @import("app/views/session.zig").formats else null,
         },
         .{
-            .id = "joZaA2JbO0heJCowS1cwcmrN91zWYgGB",
+            .id = "zmM4FLftB41eoVKtz9LGD5C4CCc0FrBS",
             .name = "cache_post",
             .action = .post,
             .view_name = "cache",
@@ -437,7 +437,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/cache.zig"), "formats")) @import("app/views/cache.zig").formats else null,
         },
         .{
-            .id = "BGRJZnQctDt9GY5dXkSDYgnveu5ePT66",
+            .id = "pXsvArTaNZrKNdoBOrl0FeL4LuwSVCCl",
             .name = "params_post",
             .action = .post,
             .view_name = "params",
@@ -453,7 +453,7 @@ pub const routes = [_]jetzig.Route{
             .formats = if (@hasDecl(@import("app/views/params.zig"), "formats")) @import("app/views/params.zig").formats else null,
         },
         .{
-            .id = "atwIYYFWAXOVXAszR1d794p3O2aUM3b4",
+            .id = "pHqpr0GKxaiBP8VIpO8TJx0DQHIkulnX",
             .name = "file_upload_post",
             .action = .post,
             .view_name = "file_upload",

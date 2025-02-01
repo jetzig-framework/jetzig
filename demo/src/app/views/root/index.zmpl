@@ -1,11 +1,11 @@
 <div class="text-center pt-10 m-auto">
 <h1>HELLO</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
+<h1>HI THERE</h1>
+<h1>BOOP</h1>
+<h1>BLAP</h1>
+<h1>BLAPPPPP</h1>
+<h1>CAHCHACA</h1>
+<h1>YAY</h1>
 <h1>SPEED</h1>
 <h1>SPEED</h1>
 <h1>SPEED</h1>

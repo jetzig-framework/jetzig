@@ -77,6 +77,7 @@ pub fn run(
         "on",
     });
 
+    _ = cwd.createFile("src/routes.zig", .{}) catch {};
     var exe_path = try util.locateExecutable(allocator, cwd, .{});
     const stat = try std.fs.cwd().statFile(exe_path.?);
     var mtime = stat.mtime;
@@ -90,13 +91,6 @@ pub fn run(
         std.debug.print("Build failed, waiting for file change...\n", .{});
         std.process.exit(1);
     };
-
-    util.runCommandInDir(
-        allocator,
-        &.{ "zig", "build", "websockets" },
-        .{ .path = realpath },
-        .{ .output = .stream, .wait = false },
-    );
 
     var zmpl_thread = try std.Thread.spawn(
         .{ .allocator = allocator },

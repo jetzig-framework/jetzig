@@ -10,7 +10,6 @@ pub const StaticRequest = if (build_options.environment == .development)
 else
     @import("http/StaticRequest.zig");
 pub const Response = @import("http/Response.zig");
-pub const WebsocketClient = @import("http/WebsocketClient.zig");
 pub const Session = @import("http/Session.zig");
 pub const Cookies = @import("http/Cookies.zig");
 pub const Headers = @import("http/Headers.zig");
