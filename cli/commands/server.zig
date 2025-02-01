@@ -10,6 +10,7 @@ pub const watch_changes_pause_duration = 100 * std.time.ns_per_ms;
 pub const Options = struct {
     reload: bool = true,
     debug: bool = true,
+    incremental: bool = false,
 
     pub const meta = .{
         .full_text =
@@ -19,10 +20,12 @@ pub const Options = struct {
         \\
         \\  jetzig server
         \\  jetzig server --reload=false --debug=false
+        \\  jetzig server --incremental=true
         ,
         .option_docs = .{
             .reload = "Enable or disable automatic reload on update (default: true)",
             .debug = "Enable or disable the development debug console (default: true)",
+            .incremental = "Enable or disable the incremental compilation (default: false) [experimental]",
         },
     };
 };
@@ -65,12 +68,17 @@ pub fn run(
         "zig",
         "build",
         "--watch",
-        "-fincremental",
+    });
+
+    if (options.incremental) try argv.append("-fincremental");
+
+    try argv.appendSlice(&.{
         util.environmentBuildOption(main_options.options.environment),
         "-Djetzig_runner=true",
     });
 
     if (options.debug) try argv.append("-Ddebug_console=true");
+
     try argv.appendSlice(&.{
         "install",
         "--color",

@@ -12,8 +12,8 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
         env,
         .{
             .subject = "Hello!!!",
-            .from = "bob@jetzig.dev",
-            .to = &.{"bob@jetzig.dev"},
+            .from = .{ .email = "bob@jetzig.dev" },
+            .to = &.{.{ .email = "bob@jetzig.dev" }},
             .html = "<div>Hello!</div>",
             .text = "Hello!",
         },

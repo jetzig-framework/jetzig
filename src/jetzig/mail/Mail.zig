@@ -30,9 +30,16 @@ pub fn deliver(self: Mail) !void {
     const data = try self.generateData();
     defer self.allocator.free(data);
 
+    const to = try self.allocator.alloc(smtp.Message.Address, self.params.to.?.len);
+    defer self.allocator.free(to);
+
+    for (self.params.to.?, 0..) |address, index| {
+        to[index] = .{ .address = address.email, .name = address.name };
+    }
+
     try smtp.send(.{
-        .from = self.params.from.?,
-        .to = self.params.to.?,
+        .from = .{ .address = self.params.from.?.email, .name = self.params.from.?.name },
+        .to = to,
         .data = data,
     }, try self.config.toSMTP(self.allocator, self.env));
 }

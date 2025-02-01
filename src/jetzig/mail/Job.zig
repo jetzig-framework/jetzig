@@ -51,9 +51,7 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
         );
     } else {
         try mail.deliver();
-        try env.logger.INFO("Delivered mail to: {s}", .{
-            try std.mem.join(allocator, ", ", mail.params.to.?),
-        });
+        try env.logger.INFO("Delivered mail to: {s}", .{mail.params.to.?});
     }
 }
 
@@ -69,19 +67,32 @@ fn resolveSubject(subject: ?*const jetzig.data.Value) ?[]const u8 {
     }
 }
 
-fn resolveFrom(from: ?*const jetzig.data.Value) ?[]const u8 {
+fn resolveFrom(from: ?*const jetzig.data.Value) ?jetzig.mail.Address {
     return if (from) |capture| switch (capture.*) {
         .null => null,
-        .string => |string| string.value,
+        .string => |string| .{ .email = string.value },
+        .object => |object| .{
+            .email = object.getT(.string, "email") orelse return null,
+            .name = object.getT(.string, "name") orelse return null,
+        },
         else => unreachable,
     } else null;
 }
 
-fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[]const []const u8 {
-    var to = std.ArrayList([]const u8).init(allocator);
+fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[]const jetzig.mail.Address {
+    var to = std.ArrayList(jetzig.mail.Address).init(allocator);
     if (params.get("to")) |capture| {
         for (capture.items(.array)) |recipient| {
-            try to.append(recipient.string.value);
+            const maybe_address: ?jetzig.mail.Address = switch (recipient.*) {
+                .null => null,
+                .string => |string| .{ .email = string.value },
+                .object => |object| .{
+                    .email = object.getT(.string, "email") orelse return null,
+                    .name = object.getT(.string, "name") orelse return null,
+                },
+                else => unreachable,
+            };
+            if (maybe_address) |address| try to.append(address);
         }
     }
     return if (to.items.len > 0) try to.toOwnedSlice() else null;
