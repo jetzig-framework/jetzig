@@ -22,8 +22,6 @@ repo: *jetzig.database.Repo,
 global: *anyopaque,
 decoded_static_route_params: []const *jetzig.data.Value = &.{},
 debug_mutex: std.Thread.Mutex = .{},
-websocket_client: jetzig.http.WebsocketClient = undefined,
-channels: jetzig.Channels,
 
 const Server = @This();
 
@@ -54,7 +52,6 @@ pub fn init(
         .job_queue = job_queue,
         .cache = cache,
         .repo = repo,
-        .channels = jetzig.Channels.init(allocator),
         .global = global,
     };
 }
@@ -110,11 +107,6 @@ pub fn listen(self: *Server) !void {
         worker_count,
         thread_count,
     });
-
-    var client = try jetzig.http.WebsocketClient.init(self.allocator, .{});
-    try client.handshake();
-    self.websocket_client = client;
-    defer client.deinit();
 
     self.initialized = true;
 
