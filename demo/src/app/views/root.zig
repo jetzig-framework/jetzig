@@ -12,7 +12,7 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     try root.put("imported_number", importedFunction(100, 200, 300));
 
     try request.response.headers.append("x-example-header", "example header value");
-    try root.put("foobar", "YIKES");
+    try root.put("foobar", "LESS");
     try request.server.logger.INFO("data", .{});
 
     return request.render(.ok);
