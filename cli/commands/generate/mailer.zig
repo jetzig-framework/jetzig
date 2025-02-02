@@ -56,21 +56,16 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         \\// * allocator: Arena allocator for use during the mail delivery process.
         \\// * mail:      Mail parameters (from, to, subject, etc.). Inspect or override any values
         \\//              assigned when the mail was created.
-        \\// * data:      Provides `data.string()` etc. for generating Jetzig Values.
         \\// * params:    Template data for `text.zmpl` and `html.zmpl`. Inherits all response data
         \\//              assigned in a view function and can be modified for email-specific content.
-        \\// * env:       Provides the following fields:
-        \\//              - logger:      Logger attached to the same stream as the Jetzig server.
-        \\//              - environment: Enum of `{ production, development }`.
+        \\// * env:       Provides various information about the environment. See `jetzig.jobs.JobEnv`.
         \\pub fn deliver(
         \\    allocator: std.mem.Allocator,
         \\    mail: *jetzig.mail.MailParams,
-        \\    data: *jetzig.data.Data,
         \\    params: *jetzig.data.Value,
         \\    env: jetzig.jobs.JobEnv,
         \\) !void {
         \\    _ = allocator;
-        \\    _ = data;
         \\    _ = params;
         \\    try env.logger.INFO("Delivering email with subject: '{?s}'", .{mail.get(.subject)});
         \\}

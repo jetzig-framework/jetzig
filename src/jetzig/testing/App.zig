@@ -349,6 +349,9 @@ fn stubbedRequest(
         .method = std.enums.nameCast(httpz.Method, @tagName(method)),
         .protocol = .HTTP11,
         .params = undefined,
+        .conn = undefined,
+        .method_string = undefined,
+        .unread_body = undefined,
         .headers = request_headers,
         .body_buffer = if (options.getBody()) |capture|
             .{ .data = @constCast(capture), .type = .static }

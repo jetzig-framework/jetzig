@@ -30,9 +30,16 @@ pub fn deliver(self: Mail) !void {
     const data = try self.generateData();
     defer self.allocator.free(data);
 
+    const to = try self.allocator.alloc(smtp.Message.Address, self.params.to.?.len);
+    defer self.allocator.free(to);
+
+    for (self.params.to.?, 0..) |address, index| {
+        to[index] = .{ .address = address.email, .name = address.name };
+    }
+
     try smtp.send(.{
-        .from = self.params.from.?,
-        .to = self.params.to.?,
+        .from = .{ .address = self.params.from.?.email, .name = self.params.from.?.name },
+        .to = to,
         .data = data,
     }, try self.config.toSMTP(self.allocator, self.env));
 }
@@ -147,8 +154,8 @@ test "HTML part only" {
         .config = .{},
         .boundary = 123456789,
         .params = .{
-            .from = "user@example.com",
-            .to = &.{"user@example.com"},
+            .from = .{ .name = "Bob", .email = "user@example.com" },
+            .to = &.{.{ .name = "Alice", .email = "user@example.com" }},
             .subject = "Test subject",
             .html = "<div>Hello</div>",
         },
@@ -158,7 +165,7 @@ test "HTML part only" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: user@example.com
+        \\From: <Bob> user@example.com
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -183,8 +190,8 @@ test "text part only" {
         .config = .{},
         .boundary = 123456789,
         .params = .{
-            .from = "user@example.com",
-            .to = &.{"user@example.com"},
+            .from = .{ .name = "Bob", .email = "user@example.com" },
+            .to = &.{.{ .name = "Alice", .email = "user@example.com" }},
             .subject = "Test subject",
             .text = "Hello",
         },
@@ -194,7 +201,7 @@ test "text part only" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: user@example.com
+        \\From: <Bob> user@example.com
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -219,8 +226,8 @@ test "HTML and text parts" {
         .config = .{},
         .boundary = 123456789,
         .params = .{
-            .from = "user@example.com",
-            .to = &.{"user@example.com"},
+            .from = .{ .name = "Bob", .email = "user@example.com" },
+            .to = &.{.{ .name = "Alice", .email = "user@example.com" }},
             .subject = "Test subject",
             .html = "<div>Hello</div>",
             .text = "Hello",
@@ -231,7 +238,7 @@ test "HTML and text parts" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: user@example.com
+        \\From: <Bob> user@example.com
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -262,8 +269,8 @@ test "long content encoding" {
         .config = .{},
         .boundary = 123456789,
         .params = .{
-            .from = "user@example.com",
-            .to = &.{"user@example.com"},
+            .from = .{ .name = "Bob", .email = "user@example.com" },
+            .to = &.{.{ .name = "Alice", .email = "user@example.com" }},
             .subject = "Test subject",
             .html = "<html><body><div style=\"background-color: black; color: #ff00ff;\">Hellooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo!!!</div></body></html>",
             .text = "Hello",
@@ -274,7 +281,7 @@ test "long content encoding" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: user@example.com
+        \\From: <Bob> user@example.com
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -312,8 +319,8 @@ test "non-latin alphabet encoding" {
         .config = .{},
         .boundary = 123456789,
         .params = .{
-            .from = "user@example.com",
-            .to = &.{"user@example.com"},
+            .from = .{ .name = "Bob", .email = "user@example.com" },
+            .to = &.{.{ .name = "Alice", .email = "user@example.com" }},
             .subject = "Test subject",
             .html = "<html><body><div>你爱学习 Zig 吗？</div></body></html>",
 
@@ -325,7 +332,7 @@ test "non-latin alphabet encoding" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: user@example.com
+        \\From: <Bob> user@example.com
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
