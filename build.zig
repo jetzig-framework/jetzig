@@ -315,7 +315,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = tests_file_path,
         .target = target,
         .optimize = optimize,
-        .test_runner = jetzig_dep.path("src/test_runner.zig"),
+        .test_runner = .{ .mode = .simple, .path = jetzig_dep.path("src/test_runner.zig") },
     });
     exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
     exe_unit_tests.root_module.addImport("static", static_module);

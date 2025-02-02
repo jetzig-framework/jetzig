@@ -141,6 +141,7 @@ pub fn init(
         .HEAD => Method.HEAD,
         .PUT => Method.PUT,
         .OPTIONS => Method.OPTIONS,
+        .CONNECT, .OTHER => return error.JetzigUnsupportedHttpMethod,
     };
 
     const response_data = try allocator.create(jetzig.data.Data);
@@ -580,25 +581,18 @@ const RequestMail = struct {
         _ = options;
         var mail_job = try self.request.job("__jetzig_mail");
 
-        try mail_job.params.put("mailer_name", mail_job.data.string(self.name));
-
-        const from = if (self.mail_params.from) |from| mail_job.data.string(from) else null;
-        try mail_job.params.put("from", from);
+        try mail_job.params.put("mailer_name", self.name);
+        try mail_job.params.put("from", self.mail_params.from);
 
         var to_array = try mail_job.data.array();
-        if (self.mail_params.to) |capture| {
-            for (capture) |to| try to_array.append(mail_job.data.string(to));
+        if (self.mail_params.to) |to| {
+            for (to) |each| try to_array.append(each);
         }
         try mail_job.params.put("to", to_array);
 
-        const subject = if (self.mail_params.subject) |subject| mail_job.data.string(subject) else null;
-        try mail_job.params.put("subject", subject);
-
-        const html = if (self.mail_params.html) |html| mail_job.data.string(html) else null;
-        try mail_job.params.put("html", html);
-
-        const text = if (self.mail_params.text) |text| mail_job.data.string(text) else null;
-        try mail_job.params.put("text", text);
+        try mail_job.params.put("subject", self.mail_params.subject);
+        try mail_job.params.put("html", self.mail_params.html);
+        try mail_job.params.put("text", self.mail_params.text);
 
         if (self.request.response_data.value) |value| try mail_job.params.put(
             "params",

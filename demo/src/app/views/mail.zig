@@ -10,7 +10,7 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
     // * `src/app/mailers/welcome/html.zmpl`
     // * `src/app/mailers/welcome/text.zmpl`
     // All mailer templates have access to the same template data as a view template.
-    const mail = request.mail("welcome", .{ .to = &.{"hello@jetzig.dev"} });
+    const mail = request.mail("welcome", .{ .to = &.{.{ .email = "hello@jetzig.dev" }} });
 
     // Deliver the email asynchronously via a built-in mail Job. Use `.now` to send the email
     // synchronously (i.e. before the request has returned).
