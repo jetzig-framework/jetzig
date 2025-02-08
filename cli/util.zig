@@ -189,16 +189,16 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
     }
     child.cwd = cwd_path;
 
-    var stdout = std.ArrayList(u8).init(allocator);
-    var stderr = std.ArrayList(u8).init(allocator);
+    var stdout = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
+    var stderr = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
     errdefer {
-        stdout.deinit();
-        stderr.deinit();
+        stdout.deinit(allocator);
+        stderr.deinit(allocator);
     }
 
     try child.spawn();
     switch (options.output) {
-        .capture => try child.collectOutput(&stdout, &stderr, 50 * 1024),
+        .capture => try child.collectOutput(allocator, &stdout, &stderr, 50 * 1024),
         .stream => {},
     }
 
@@ -206,8 +206,8 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
 
     const result = std.process.Child.RunResult{
         .term = try child.wait(),
-        .stdout = try stdout.toOwnedSlice(),
-        .stderr = try stderr.toOwnedSlice(),
+        .stdout = try stdout.toOwnedSlice(allocator),
+        .stderr = try stderr.toOwnedSlice(allocator),
     };
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);

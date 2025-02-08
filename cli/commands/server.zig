@@ -87,8 +87,10 @@ pub fn run(
 
     _ = cwd.createFile("src/routes.zig", .{}) catch {};
     var exe_path = try util.locateExecutable(allocator, cwd, .{});
-    const stat = try std.fs.cwd().statFile(exe_path.?);
-    var mtime = stat.mtime;
+    var mtime = if (exe_path) |path| blk: {
+        const stat = try std.fs.cwd().statFile(path);
+        break :blk stat.mtime;
+    } else 0;
 
     util.runCommandInDir(
         allocator,

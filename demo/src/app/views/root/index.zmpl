@@ -1,29 +1,9 @@
 <div class="text-center pt-10 m-auto">
-<h1>HELLO</h1>
-<h1>HI THERE</h1>
-<h1>BOOP</h1>
-<h1>BLAP</h1>
-<h1>BLAPPPPP</h1>
-<h1>CAHCHACA</h1>
-<h1>YAY</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>SPEED</h1>
-<h1>NO</h1>
-
-    {{$.foobar}}
   <div><img class="p-3 mx-auto" src="/jetzig.png" /></div>
 
   <!-- Renders `src/app/views/root/_quotes.zmpl`: -->
   <div>
-    @partial root/quotes(message: .message)
+    @partial root/quotes(message: $.message)
   </div>
 
   <div>
