@@ -98,7 +98,7 @@ const SourceLine = struct { content: []const u8, line: usize };
 
 pub fn readLineFromFile(allocator: std.mem.Allocator, path: []const u8, line: usize) !SourceLine {
     const file = try std.fs.openFileAbsolute(path, .{});
-    var buf: [std.mem.page_size]u8 = undefined;
+    var buf: [std.heap.pageSize()]u8 = undefined;
 
     var count: usize = 1;
     var cursor: usize = 0;
