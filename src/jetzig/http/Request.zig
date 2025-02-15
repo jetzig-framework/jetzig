@@ -582,17 +582,17 @@ const RequestMail = struct {
         var mail_job = try self.request.job("__jetzig_mail");
 
         try mail_job.params.put("mailer_name", self.name);
-        try mail_job.params.put("from", self.mail_params.from);
+        try mail_job.params.put("from", self.mail_params.get(.from));
 
         var to_array = try mail_job.data.array();
-        if (self.mail_params.to) |to| {
-            for (to) |each| try to_array.append(each);
+        if (self.mail_params.get(.to)) |to| {
+            for (to) |each| try to_array.append(.{ .email = each.email, .name = each.name });
         }
         try mail_job.params.put("to", to_array);
 
-        try mail_job.params.put("subject", self.mail_params.subject);
-        try mail_job.params.put("html", self.mail_params.html);
-        try mail_job.params.put("text", self.mail_params.text);
+        try mail_job.params.put("subject", self.mail_params.get(.subject));
+        try mail_job.params.put("html", self.mail_params.get(.html));
+        try mail_job.params.put("text", self.mail_params.get(.text));
 
         if (self.request.response_data.value) |value| try mail_job.params.put(
             "params",
