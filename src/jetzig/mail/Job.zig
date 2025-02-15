@@ -46,8 +46,11 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
 
     if (env.environment == .development and !jetzig.config.get(bool, "force_development_email_delivery")) {
         try env.logger.INFO(
-            "Skipping mail delivery in development environment:\n{s}",
-            .{try mail.generateData()},
+            \\Skipping mail delivery in development environment:
+            \\To: {?s}
+            \\{s}
+        ,
+            .{ mail.params.get(.to), try mail.generateData() },
         );
     } else {
         try mail.deliver();
@@ -87,8 +90,8 @@ fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[
                 .null => null,
                 .string => |string| .{ .email = string.value },
                 .object => |object| .{
-                    .email = object.getT(.string, "email") orelse return null,
-                    .name = object.getT(.string, "name") orelse return null,
+                    .email = object.getT(.string, "email") orelse return error.JetzigMissingEmailField,
+                    .name = object.getT(.string, "name"),
                 },
                 else => unreachable,
             };
