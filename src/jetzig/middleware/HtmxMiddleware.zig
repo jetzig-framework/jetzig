@@ -8,10 +8,10 @@ const HtmxMiddleware = @This();
 /// request doesn't come via htmx and, when the request does come from htmx, only return the
 /// content rendered directly by the view function.
 pub fn afterRequest(request: *jetzig.http.Request) !void {
-    if (request.headers.get("HX-Target")) |target| {
+    if (request.headers.get("HX-Request")) |_| {
         try request.server.logger.DEBUG(
-            "[middleware-htmx] htmx request detected, disabling layout. (#{s})",
-            .{target},
+            "[middleware-htmx] HX-Request header, disabling layout.",
+            .{},
         );
         request.setLayout(null);
     }
