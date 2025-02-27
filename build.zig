@@ -394,6 +394,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     registerDatabaseSteps(b, exe_database);
 
+    const option_db_exe = b.option(bool, "database_exe", "option to install 'database' executable default is false") orelse false;
+    if(option_db_exe) b.installArtifact(exe_database);
+
     exe_routes.root_module.addImport("jetzig", jetzig_module);
     exe_routes.root_module.addImport("routes", routes_module);
     exe_routes.root_module.addImport("app", exe.root_module);
