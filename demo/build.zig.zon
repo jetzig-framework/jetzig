@@ -1,7 +1,8 @@
 .{
-    .name = "jetzig-demo",
+    .name = .jetzig_demo,
     .version = "0.0.0",
     .minimum_zig_version = "0.12.0",
+    .fingerprint = 0x3877c19710a92a5c,
     .dependencies = .{
         .jetzig = .{
             .path = "../",
