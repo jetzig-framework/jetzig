@@ -23,8 +23,8 @@ const icons = .{
 };
 
 /// Print a success confirmation.
-pub fn printSuccess() void {
-    std.debug.print(" " ++ icons.check ++ "\n", .{});
+pub fn printSuccess(message: ?[]const u8) void {
+    std.debug.print(" " ++ icons.check ++ " {s}\n", .{message orelse ""});
 }
 
 /// Print a failure confirmation.
@@ -153,7 +153,7 @@ pub fn runCommandStreaming(allocator: std.mem.Allocator, install_path: []const u
 pub fn runCommand(allocator: std.mem.Allocator, argv: []const []const u8) !void {
     var dir = try detectJetzigProjectDir();
     defer dir.close();
-    try runCommandInDir(allocator, argv, .{ .dir = dir });
+    try runCommandInDir(allocator, argv, .{ .dir = dir }, .{});
 }
 
 const Dir = union(enum) {
@@ -161,34 +161,53 @@ const Dir = union(enum) {
     dir: std.fs.Dir,
 };
 
+pub const RunOptions = struct {
+    output: enum { stream, capture } = .capture,
+    wait: bool = true,
+};
+
 /// Runs a command as a child process in the given directory and verifies successful exit code.
-pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, dir: Dir) !void {
+pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, dir: Dir, options: RunOptions) !void {
     const cwd_path = switch (dir) {
         .path => |capture| capture,
         .dir => |capture| try capture.realpathAlloc(allocator, "."),
     };
     defer if (dir == .dir) allocator.free(cwd_path);
 
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = argv,
-        .cwd = cwd_path,
-    }) catch |err| {
-        switch (err) {
-            error.FileNotFound => {
-                printFailure();
-                const cmd_str = try std.mem.join(allocator, " ", argv);
-                defer allocator.free(cmd_str);
-                std.debug.print(
-                    \\Error: Could not execute command - executable '{s}' not found
-                    \\Command: {s}
-                    \\Working directory: {s}
-                    \\
-                , .{ argv[0], cmd_str, cwd_path });
-                return error.JetzigCommandError;
-            },
-            else => return err,
-        }
+    const output_behaviour: std.process.Child.StdIo = switch (options.output) {
+        .stream => .Inherit,
+        .capture => .Pipe,
+    };
+
+    var child = std.process.Child.init(argv, allocator);
+    child.stdin_behavior = .Ignore;
+    child.stdout_behavior = output_behaviour;
+    child.stderr_behavior = output_behaviour;
+    if (options.output == .stream) {
+        child.stdout = std.io.getStdOut();
+        child.stderr = std.io.getStdErr();
+    }
+    child.cwd = cwd_path;
+
+    var stdout = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
+    var stderr = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
+    errdefer {
+        stdout.deinit(allocator);
+        stderr.deinit(allocator);
+    }
+
+    try child.spawn();
+    switch (options.output) {
+        .capture => try collectOutput(child, allocator, &stdout, &stderr),
+        .stream => {},
+    }
+
+    if (!options.wait) return;
+
+    const result = std.process.Child.RunResult{
+        .term = try child.wait(),
+        .stdout = try stdout.toOwnedSlice(allocator),
+        .stderr = try stderr.toOwnedSlice(allocator),
     };
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
@@ -203,10 +222,55 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
         }
         return error.JetzigCommandError;
     } else {
-        printSuccess();
+        printSuccess(try std.mem.join(allocator, " ", argv));
     }
 }
 
+fn collectOutput(
+    child: std.process.Child,
+    allocator: std.mem.Allocator,
+    stdout: *std.ArrayListUnmanaged(u8),
+    stderr: *std.ArrayListUnmanaged(u8),
+) !void {
+    const max_output_bytes = 50 * 1024;
+    std.debug.assert(child.stdout_behavior == .Pipe);
+    std.debug.assert(child.stderr_behavior == .Pipe);
+    var poller = std.io.poll(allocator, enum { stdout, stderr }, .{
+        .stdout = child.stdout.?,
+        .stderr = child.stderr.?,
+    });
+    defer poller.deinit();
+
+    std.debug.print("(working) .", .{});
+
+    while (try poller.poll()) {
+        if (poller.fifo(.stdout).count > max_output_bytes)
+            return error.StdoutStreamTooLong;
+        if (poller.fifo(.stderr).count > max_output_bytes)
+            return error.StderrStreamTooLong;
+        std.debug.print(".", .{});
+    }
+
+    std.debug.print(" (done)\n", .{});
+
+    try writeFifoDataToArrayList(allocator, stdout, poller.fifo(.stdout));
+    try writeFifoDataToArrayList(allocator, stderr, poller.fifo(.stderr));
+}
+
+// Borrowed from `std.process.Child.writeFifoDataToArrayList` - non-public but needed in our
+// modified `collectOutput`
+fn writeFifoDataToArrayList(allocator: std.mem.Allocator, list: *std.ArrayListUnmanaged(u8), fifo: *std.io.PollFifo) !void {
+    if (fifo.head != 0) fifo.realign();
+    if (list.capacity == 0) {
+        list.* = .{
+            .items = fifo.buf[0..fifo.count],
+            .capacity = fifo.buf.len,
+        };
+        fifo.* = std.io.PollFifo.init(fifo.allocator);
+    } else {
+        try list.appendSlice(allocator, fifo.buf[0..fifo.count]);
+    }
+}
 /// Generate a full GitHub URL for passing to `zig fetch`.
 pub fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };

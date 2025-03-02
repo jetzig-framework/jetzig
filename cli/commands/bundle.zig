@@ -149,13 +149,13 @@ pub fn run(
     const tmpdir_real_path = try tmpdir.realpathAlloc(allocator, ".");
     defer allocator.free(tmpdir_real_path);
 
-    try util.runCommandInDir(allocator, tar_argv.items, .{ .path = tmpdir_real_path });
+    try util.runCommandInDir(allocator, tar_argv.items, .{ .path = tmpdir_real_path }, .{});
 
     switch (builtin.os.tag) {
         .windows => {},
         else => std.debug.print("Bundle `bundle.tar.gz` generated successfully.", .{}),
     }
-    util.printSuccess();
+    util.printSuccess(null);
 }
 
 fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.ArrayList([]const u8)) !void {
@@ -215,7 +215,7 @@ fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Op
     defer project_dir.close();
     project_dir.makePath(".bundle") catch {};
 
-    try util.runCommandInDir(allocator, install_argv.items, .{ .path = path });
+    try util.runCommandInDir(allocator, install_argv.items, .{ .path = path }, .{});
 
     const install_bin_path = try std.fs.path.join(allocator, &[_][]const u8{ ".bundle", "bin" });
     defer allocator.free(install_bin_path);

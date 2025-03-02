@@ -4,7 +4,7 @@
 
   <!-- Renders `src/app/views/root/_quotes.zmpl`: -->
   <div>
-    @partial root/quotes(message: .message)
+    @partial root/quotes(message: $.message)
   </div>
 
   <div>

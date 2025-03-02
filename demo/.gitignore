@@ -4,3 +4,4 @@ static/
 src/app/views/**/.*.zig
 .DS_Store
 log/
+src/routes.zig
