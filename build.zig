@@ -7,7 +7,7 @@ const zmpl_build = @import("zmpl");
 const Environment = enum { development, testing, production };
 const builtin = @import("builtin");
 
-const use_llvm_default = builtin.os.tag == .macos;
+const use_llvm_default = builtin.os.tag != .linux;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -238,7 +238,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_routes_file.root_module.addImport("zmpl", zmpl_module);
 
     const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
-    run_routes_file_cmd.has_side_effects = true;
     const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
     run_routes_file_cmd.addArgs(&.{
         root_path,
