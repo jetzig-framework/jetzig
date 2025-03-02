@@ -261,7 +261,7 @@ fn copySourceFile(
         util.printFailure();
         return err;
     };
-    util.printSuccess();
+    util.printSuccess(null);
 }
 
 // Read a file from Jetzig source code.

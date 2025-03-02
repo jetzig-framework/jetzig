@@ -23,8 +23,8 @@ const icons = .{
 };
 
 /// Print a success confirmation.
-pub fn printSuccess() void {
-    std.debug.print(" " ++ icons.check ++ "\n", .{});
+pub fn printSuccess(message: ?[]const u8) void {
+    std.debug.print(" " ++ icons.check ++ " {s}\n", .{message orelse ""});
 }
 
 /// Print a failure confirmation.
@@ -198,7 +198,7 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
 
     try child.spawn();
     switch (options.output) {
-        .capture => try child.collectOutput(allocator, &stdout, &stderr, 50 * 1024),
+        .capture => try collectOutput(child, allocator, &stdout, &stderr),
         .stream => {},
     }
 
@@ -222,10 +222,55 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
         }
         return error.JetzigCommandError;
     } else {
-        printSuccess();
+        printSuccess(try std.mem.join(allocator, " ", argv));
     }
 }
 
+fn collectOutput(
+    child: std.process.Child,
+    allocator: std.mem.Allocator,
+    stdout: *std.ArrayListUnmanaged(u8),
+    stderr: *std.ArrayListUnmanaged(u8),
+) !void {
+    const max_output_bytes = 50 * 1024;
+    std.debug.assert(child.stdout_behavior == .Pipe);
+    std.debug.assert(child.stderr_behavior == .Pipe);
+    var poller = std.io.poll(allocator, enum { stdout, stderr }, .{
+        .stdout = child.stdout.?,
+        .stderr = child.stderr.?,
+    });
+    defer poller.deinit();
+
+    std.debug.print("(working) .", .{});
+
+    while (try poller.poll()) {
+        if (poller.fifo(.stdout).count > max_output_bytes)
+            return error.StdoutStreamTooLong;
+        if (poller.fifo(.stderr).count > max_output_bytes)
+            return error.StderrStreamTooLong;
+        std.debug.print(".", .{});
+    }
+
+    std.debug.print(" (done)\n", .{});
+
+    try writeFifoDataToArrayList(allocator, stdout, poller.fifo(.stdout));
+    try writeFifoDataToArrayList(allocator, stderr, poller.fifo(.stderr));
+}
+
+// Borrowed from `std.process.Child.writeFifoDataToArrayList` - non-public but needed in our
+// modified `collectOutput`
+fn writeFifoDataToArrayList(allocator: std.mem.Allocator, list: *std.ArrayListUnmanaged(u8), fifo: *std.io.PollFifo) !void {
+    if (fifo.head != 0) fifo.realign();
+    if (list.capacity == 0) {
+        list.* = .{
+            .items = fifo.buf[0..fifo.count],
+            .capacity = fifo.buf.len,
+        };
+        fifo.* = std.io.PollFifo.init(fifo.allocator);
+    } else {
+        try list.appendSlice(allocator, fifo.buf[0..fifo.count]);
+    }
+}
 /// Generate a full GitHub URL for passing to `zig fetch`.
 pub fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };

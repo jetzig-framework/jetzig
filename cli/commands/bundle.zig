@@ -155,7 +155,7 @@ pub fn run(
         .windows => {},
         else => std.debug.print("Bundle `bundle.tar.gz` generated successfully.", .{}),
     }
-    util.printSuccess();
+    util.printSuccess(null);
 }
 
 fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.ArrayList([]const u8)) !void {
