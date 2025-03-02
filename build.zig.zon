@@ -32,8 +32,8 @@
             .hash = "smtp_client-0.0.1-AAAAAIJkAQCngHtRYVUMsMuncmicSHK_7ugwWibDzQ4S",
         },
         .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/968258dc1b1230493d8f1677097c832a3d7e0bd8.tar.gz",
-            .hash = "1220bdedf1a993d852d8aebcd63922a8fb163fac37b9c6ff72d187b2847a4a3a4248",
+            .url = "https://github.com/bobf/zig-args/archive/88cbade9a517a4014824f8f53f3c48c8a0b2ffe1.tar.gz",
+            .hash = "zig_args-0.0.0-jqtN6P_NAAC97fGpk9hS2K681jkiqPsWP6w3ucb_ctGH",
         },
     },
 

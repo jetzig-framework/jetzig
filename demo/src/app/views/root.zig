@@ -5,14 +5,13 @@ const importedFunction = @import("../lib/example.zig").exampleFunction;
 
 pub const layout = "application";
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+pub fn index(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
     try root.put("message", "Welcome to Jetzig!");
     try root.put("custom_number", customFunction(100, 200, 300));
     try root.put("imported_number", importedFunction(100, 200, 300));
 
     try request.response.headers.append("x-example-header", "example header value");
-    try request.server.logger.INFO("data", .{});
 
     return request.render(.ok);
 }
