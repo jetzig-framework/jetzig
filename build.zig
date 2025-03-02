@@ -5,6 +5,9 @@ pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 
 const zmpl_build = @import("zmpl");
 const Environment = enum { development, testing, production };
+const builtin = @import("builtin");
+
+const use_llvm_default = builtin.os.tag == .macos;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -36,7 +39,7 @@ pub fn build(b: *std.Build) !void {
         .{
             .target = target,
             .optimize = optimize,
-            .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse false,
+            .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
             .zmpl_templates_paths = templates_paths,
             .zmpl_auto_build = false,
             .zmpl_markdown_fragments = try generateMarkdownFragments(b),
@@ -135,7 +138,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const target = exe.root_module.resolved_target orelse @panic("Unable to detect compile target.");
     const optimize = exe.root_module.optimize orelse .Debug;
 
-    exe.use_llvm = exe.use_llvm orelse (optimize != .Debug);
+    exe.use_llvm = exe.use_llvm orelse use_llvm_default;
 
     if (optimize != .Debug) exe.linkLibC();
 
