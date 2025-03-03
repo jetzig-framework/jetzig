@@ -5,6 +5,9 @@ pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 
 const zmpl_build = @import("zmpl");
 const Environment = enum { development, testing, production };
+const builtin = @import("builtin");
+
+const use_llvm_default = builtin.os.tag != .linux;
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -36,6 +39,7 @@ pub fn build(b: *std.Build) !void {
         .{
             .target = target,
             .optimize = optimize,
+            .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
             .zmpl_templates_paths = templates_paths,
             .zmpl_auto_build = false,
             .zmpl_markdown_fragments = try generateMarkdownFragments(b),
@@ -45,6 +49,11 @@ pub fn build(b: *std.Build) !void {
             }),
         },
     );
+
+    const zmpl_steps = zmpl_dep.builder.top_level_steps;
+    const zmpl_compile_step = zmpl_steps.get("compile").?;
+    const compile_step = b.step("compile", "Compile Zmpl templates");
+    compile_step.dependOn(&zmpl_compile_step.step);
 
     const zmpl_module = zmpl_dep.module("zmpl");
 
@@ -58,18 +67,15 @@ pub fn build(b: *std.Build) !void {
     const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
-    const pg_dep = b.dependency("pg", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
     b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
     b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
-    b.modules.put("pg", pg_dep.module("pg")) catch @panic("Out of memory");
     b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
     b.modules.put("jetcommon", jetcommon_dep.module("jetcommon")) catch @panic("Out of memory");
     b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
-    jetquery_dep.module("jetquery").addImport("pg", pg_dep.module("pg"));
 
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
@@ -132,6 +138,8 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const target = exe.root_module.resolved_target orelse @panic("Unable to detect compile target.");
     const optimize = exe.root_module.optimize orelse .Debug;
 
+    exe.use_llvm = exe.use_llvm orelse use_llvm_default;
+
     if (optimize != .Debug) exe.linkLibC();
 
     const environment = b.option(
@@ -172,7 +180,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetzig_module = jetzig_dep.module("jetzig");
     const zmpl_module = jetzig_dep.module("zmpl");
     const zmd_module = jetzig_dep.module("zmd");
-    const pg_module = jetzig_dep.module("pg");
     const jetquery_module = jetzig_dep.module("jetquery");
     const jetcommon_module = jetzig_dep.module("jetcommon");
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
@@ -187,7 +194,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe.root_module.addImport("jetzig", jetzig_module);
     exe.root_module.addImport("zmpl", zmpl_module);
     exe.root_module.addImport("zmd", zmd_module);
-    exe.root_module.addImport("pg", pg_module);
 
     if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
         if (jetzig_runner) {
@@ -197,7 +203,10 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         }
     }
 
-    const root_path = b.build_root.path orelse try std.fs.cwd().realpathAlloc(b.allocator, ".");
+    const root_path = if (b.build_root.path) |build_root_path|
+        try std.fs.path.join(b.allocator, &.{ build_root_path, "." })
+    else
+        try std.fs.cwd().realpathAlloc(b.allocator, ".");
     const templates_path: []const u8 = try std.fs.path.join(
         b.allocator,
         &[_][]const u8{ root_path, "src", "app" },
@@ -220,6 +229,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/routes_file.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     exe_routes_file.root_module.addImport("jetzig", jetzig_module);
@@ -247,6 +257,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
@@ -355,6 +366,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
 
     const auth_user_create_step = b.step("jetzig:auth:user:create", "List all routes in your app");
@@ -363,6 +375,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
     exe_auth.root_module.addImport("jetquery", jetquery_module);
     exe_auth.root_module.addImport("jetzig", jetzig_module);
@@ -384,6 +397,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .root_source_file = jetzig_dep.path("src/commands/database.zig"),
         .target = target,
         .optimize = optimize,
+        .use_llvm = exe.use_llvm,
     });
     exe_database.root_module.addImport("jetquery", jetquery_module);
     exe_database.root_module.addImport("jetzig", jetzig_module);
@@ -393,6 +407,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_database.root_module.addImport("Schema", schema_module);
 
     registerDatabaseSteps(b, exe_database);
+
+    const option_db_exe = b.option(bool, "database_exe", "option to install 'database' executable default is false") orelse false;
+    if (option_db_exe) b.installArtifact(exe_database);
 
     exe_routes.root_module.addImport("jetzig", jetzig_module);
     exe_routes.root_module.addImport("routes", routes_module);

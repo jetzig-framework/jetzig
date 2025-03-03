@@ -110,6 +110,8 @@ pub fn listen(self: *Server) !void {
 
     self.initialized = true;
 
+    try jetzig.http.middleware.afterLaunch(self);
+
     return try httpz_server.listen();
 }
 
@@ -151,7 +153,23 @@ pub fn processNextRequest(
     try request.process();
 
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
+    if (try maybeMiddlewareRender(&request, &response)) {
+        try self.logger.logRequest(&request);
+        return;
+    }
 
+    try self.renderResponse(&request);
+    try request.response.headers.append("Content-Type", response.content_type);
+
+    try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+    try request.respond();
+    try jetzig.http.middleware.afterResponse(&middleware_data, &request);
+    jetzig.http.middleware.deinit(&middleware_data, &request);
+
+    try self.logger.logRequest(&request);
+}
+
+fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.http.Response) !bool {
     if (request.middleware_rendered) |_| {
         // Request processing ends when a middleware renders or redirects.
         if (request.redirect_state) |state| {
@@ -162,17 +180,8 @@ pub fn processNextRequest(
         }
         try request.response.headers.append("Content-Type", response.content_type);
         try request.respond();
-    } else {
-        try self.renderResponse(&request);
-        try request.response.headers.append("Content-Type", response.content_type);
-
-        try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
-        try request.respond();
-        try jetzig.http.middleware.afterResponse(&middleware_data, &request);
-        jetzig.http.middleware.deinit(&middleware_data, &request);
-    }
-
-    try self.logger.logRequest(&request);
+        return true;
+    } else return false;
 }
 
 fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {

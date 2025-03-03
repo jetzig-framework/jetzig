@@ -202,6 +202,7 @@ pub fn run(
             github_url,
         },
         .{ .dir = install_dir },
+        .{},
     );
 
     // TODO: Use arg or interactive prompt to do Git setup in net project, default to no.
@@ -260,7 +261,7 @@ fn copySourceFile(
         util.printFailure();
         return err;
     };
-    util.printSuccess();
+    util.printSuccess(null);
 }
 
 // Read a file from Jetzig source code.
@@ -333,6 +334,7 @@ fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
             ".",
         },
         .{ .path = install_dir },
+        .{},
     );
 
     try util.runCommandInDir(
@@ -343,6 +345,7 @@ fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
             ".",
         },
         .{ .path = install_dir },
+        .{},
     );
 
     try util.runCommandInDir(
@@ -354,5 +357,6 @@ fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
             "Initialize Jetzig project",
         },
         .{ .path = install_dir },
+        .{},
     );
 }
