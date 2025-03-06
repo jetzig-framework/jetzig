@@ -222,7 +222,9 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
         }
         return error.JetzigCommandError;
     } else {
-        printSuccess(try std.mem.join(allocator, " ", argv));
+        const message = try std.mem.join(allocator, " ", argv);
+        defer allocator.free(message);
+        printSuccess(message);
     }
 }
 
