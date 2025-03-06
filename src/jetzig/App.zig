@@ -62,7 +62,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     var log_thread = try std.Thread.spawn(
         .{ .allocator = self.allocator },
         jetzig.loggers.LogQueue.Reader.publish,
-        .{ &self.env.log_queue.reader, .{} },
+        .{ &self.env.log_queue.reader, jetzig.loggers.LogQueue.Reader.PublishOptions{} },
     );
     defer log_thread.join();
 
