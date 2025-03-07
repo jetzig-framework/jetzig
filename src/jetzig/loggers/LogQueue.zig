@@ -147,9 +147,13 @@ pub const Reader = struct {
     stderr_file: std.fs.File,
     queue: *LogQueue,
 
+    pub const PublishOptions = struct {
+        oneshot: bool = false,
+    };
+
     /// Publish log events from the queue. Invoke from a dedicated thread. Sleeps when log queue
     /// is empty, wakes up when a new event is published.
-    pub fn publish(self: *Reader, options: struct { oneshot: bool = false }) !void {
+    pub fn publish(self: *Reader, options: PublishOptions) !void {
         std.debug.assert(self.queue.state == .ready);
 
         const stdout_writer = self.stdout_file.writer();
