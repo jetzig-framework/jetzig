@@ -18,6 +18,12 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      # Create postgres server
+      # https://github.com/marketplace/actions/setup-postgresql-for-linux-macos-windows
+      - uses: ikalnytskyi/action-setup-postgres@v7
+        with:
+          database: test
+
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
         with:
@@ -43,7 +49,13 @@ jobs:
       - name: Run App Tests
         run: |
           cd demo
+          zig build -Denvironment=testing jetzig:database:create
           zig build -Denvironment=testing jetzig:test
+        env:
+          JETQUERY_HOSTNAME='localhost'
+          JETQUERY_USERNAME='postgres'
+          JETQUERY_PASSWORD='postgres'
+          JETQUERY_DATABASE='test'
 
       - name: Build artifacts
         if: ${{ matrix.os == 'ubuntu-latest' }}
