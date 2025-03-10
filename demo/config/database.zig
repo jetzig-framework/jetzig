@@ -4,7 +4,7 @@ pub const database = .{
         .adapter = .null,
     },
     .testing = .{
-        .adapter = .null,
+        .adapter = .postgresql,
     },
     .production = .{
         .adapter = .null,
