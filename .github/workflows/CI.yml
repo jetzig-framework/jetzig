@@ -21,8 +21,6 @@ jobs:
       # Create postgres server
       # https://github.com/marketplace/actions/setup-postgresql-for-linux-macos-windows
       - uses: ikalnytskyi/action-setup-postgres@v7
-        with:
-          database: test
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v3
