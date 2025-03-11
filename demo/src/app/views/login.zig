@@ -36,3 +36,35 @@ pub fn post(request: *jetzig.Request) !jetzig.View {
     }
     return request.fail(.forbidden);
 }
+
+test "setup" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+    const hashed_pass = try auth.hashPassword(app.allocator, "test");
+    try app.repo.insert(.User, .{
+        .id = 1,
+        .email = "test@test.com",
+        .password_hash = hashed_pass,
+    });
+    app.allocator.free(hashed_pass);
+}
+
+test "post" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+    const response = try app.request(.POST, "/login", .{
+        .params = .{
+            .email = "test@test.com",
+            .password = "test",
+        },
+    });
+    try response.expectStatus(.found);
+}
+
+test "teardown" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+    const q = jetzig.database.Query(.User).find(1);
+    const user = try app.repo.execute(q) orelse @panic("not found");
+    try app.repo.delete(user);
+}
