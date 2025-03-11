@@ -48,6 +48,7 @@ jobs:
         run: |
           cd demo
           zig build -Denvironment=testing jetzig:database:create
+          zig build -Denvironment=testing jetzig:database:migrate
           zig build -Denvironment=testing jetzig:test
         env:
           JETQUERY_HOSTNAME: 'localhost'
