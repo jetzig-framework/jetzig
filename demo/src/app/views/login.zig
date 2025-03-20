@@ -41,12 +41,12 @@ test "setup" {
     var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
     defer app.deinit();
     const hashed_pass = try auth.hashPassword(app.allocator, "test");
+    defer app.allocator.free(hashed_pass);
     try app.repo.insert(.User, .{
         .id = 1,
         .email = "test@test.com",
         .password_hash = hashed_pass,
     });
-    app.allocator.free(hashed_pass);
 }
 
 test "post" {
