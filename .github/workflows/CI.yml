@@ -24,12 +24,9 @@ jobs:
           submodules: true
 
       - name: Setup Zig
-      # You may pin to the exact commit or the version.
-      # uses: goto-bus-stop/setup-zig@41ae19e72e21b9a1380e86ff9f058db709fc8fc6
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: master
-          cache: true # Let's see how this behaves
+          version: latest
 
       - run: zig version
       - run: zig env
