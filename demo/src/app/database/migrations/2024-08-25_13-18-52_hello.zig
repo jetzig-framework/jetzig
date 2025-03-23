@@ -1,9 +1,9 @@
 const jetquery = @import("jetquery");
 
-pub fn up(repo: *jetquery.Repo) !void {
+pub fn up(repo: anytype) !void {
     _ = repo;
 }
 
-pub fn down(repo: *jetquery.Repo) !void {
+pub fn down(repo: anytype) !void {
     _ = repo;
 }
