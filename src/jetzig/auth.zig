@@ -42,13 +42,16 @@ pub fn verifyPassword(
 }
 
 pub fn hashPassword(allocator: std.mem.Allocator, password: []const u8) ![]const u8 {
-    const buf = try allocator.alloc(u8, 128);
-    return try std.crypto.pwhash.argon2.strHash(
+    var buf: [128]u8 = undefined;
+    const hash = try std.crypto.pwhash.argon2.strHash(
         password,
         .{
             .allocator = allocator,
             .params = .{ .t = 3, .m = 32, .p = 4 },
         },
-        buf,
+        &buf,
     );
+    const result = try allocator.alloc(u8, hash.len);
+    @memcpy(result, hash);
+    return result;
 }

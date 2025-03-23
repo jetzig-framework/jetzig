@@ -78,6 +78,7 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
 
 /// Free allocated resources for test app.
 pub fn deinit(self: *App) void {
+    self.repo.deinit();
     self.arena.deinit();
     self.allocator.destroy(self.arena);
     if (self.logger.test_logger.file) |file| file.close();

@@ -57,7 +57,7 @@ jobs:
           JETQUERY_DATABASE: 'test'
           # Assume a small amount of connections are allowed
           # into postgres
-          JETQUERY_POOL_SIZE: 1
+          JETQUERY_POOL_SIZE: 2
 
       - name: Build artifacts
         if: ${{ matrix.os == 'ubuntu-latest' }}
