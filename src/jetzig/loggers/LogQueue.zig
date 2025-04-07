@@ -6,11 +6,15 @@ const jetzig = @import("../../jetzig.zig");
 const buffer_size = jetzig.config.get(usize, "log_message_buffer_len");
 const max_pool_len = jetzig.config.get(usize, "max_log_pool_len");
 
-const List = std.DoublyLinkedList(Event);
+const List = std.DoublyLinkedList;
+const ListNode = struct {
+    event: Event,
+    node: std.DoublyLinkedList.Node = .{},
+};
 const Buffer = [buffer_size]u8;
 
 allocator: std.mem.Allocator,
-node_allocator: std.heap.MemoryPool(List.Node),
+node_allocator: std.heap.MemoryPool(ListNode),
 buffer_allocator: std.heap.MemoryPool(Buffer),
 list: List,
 read_write_mutex: std.Thread.Mutex,
@@ -18,7 +22,7 @@ condition: std.Thread.Condition,
 condition_mutex: std.Thread.Mutex,
 writer: Writer = undefined,
 reader: Reader = undefined,
-node_pool: std.ArrayList(*List.Node),
+node_pool: std.ArrayList(*ListNode),
 buffer_pool: std.ArrayList(*Buffer),
 position: usize,
 stdout_is_tty: bool = undefined,
@@ -42,13 +46,13 @@ const Event = struct {
 pub fn init(allocator: std.mem.Allocator) LogQueue {
     return .{
         .allocator = allocator,
-        .node_allocator = initPool(allocator, List.Node),
+        .node_allocator = initPool(allocator, ListNode),
         .buffer_allocator = initPool(allocator, Buffer),
         .list = List{},
         .condition = std.Thread.Condition{},
         .condition_mutex = std.Thread.Mutex{},
         .read_write_mutex = std.Thread.Mutex{},
-        .node_pool = std.ArrayList(*List.Node).init(allocator),
+        .node_pool = std.ArrayList(*ListNode).init(allocator),
         .buffer_pool = std.ArrayList(*Buffer).init(allocator),
         .position = 0,
     };
@@ -237,8 +241,8 @@ fn append(self: *LogQueue, event: Event) !void {
 
     self.position += 1;
 
-    node.* = .{ .data = event };
-    self.list.append(node);
+    node.* = .{ .event = event };
+    self.list.append(&node.node);
 
     self.condition.signal();
 }
@@ -249,16 +253,17 @@ fn popFirst(self: *LogQueue) !?Event {
     defer self.read_write_mutex.unlock();
 
     if (self.list.popFirst()) |node| {
-        const value = node.data;
+        const list_node: *ListNode = @fieldParentPtr("node", node);
+        const value = list_node.event;
         self.position -= 1;
         if (self.position < self.node_pool.items.len) {
-            self.node_pool.items[self.position] = node;
+            self.node_pool.items[self.position] = list_node;
         } else {
             if (self.node_pool.items.len >= max_pool_len) {
-                self.node_allocator.destroy(node);
+                self.node_allocator.destroy(list_node);
                 self.position += 1;
             } else {
-                try self.node_pool.append(node);
+                try self.node_pool.append(list_node);
             }
         }
         return value;

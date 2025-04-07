@@ -30,7 +30,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
         with:
-          version: latest
+          version: master
 
       - run: zig version
       - run: zig env
@@ -51,7 +51,7 @@ jobs:
           JETQUERY_HOSTNAME: 'localhost'
           JETQUERY_USERNAME: 'postgres'
           JETQUERY_PASSWORD: 'postgres'
-          JETQUERY_DATABASE: 'test'
+          JETQUERY_DATABASE: 'jetzig_demo_test'
           # Assume a small amount of connections are allowed
           # into postgres
           JETQUERY_POOL_SIZE: 2
