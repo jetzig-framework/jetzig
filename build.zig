@@ -425,6 +425,8 @@ fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) v
         .{ "create", "Create a database for your Jetzig app." },
         .{ "drop", "Drop your Jetzig app's database." },
         .{ "reflect", "Read your app's database and generate a JetQuery schema." },
+        .{ "setup", "Create the database, run migrations, and generate schema." },
+        .{ "update", "Run migrations and generate schema." },
     };
 
     inline for (commands) |command| {
@@ -466,10 +468,10 @@ fn getMarkdownFragmentsSource(allocator: std.mem.Allocator, source: [:0]const u8
     for (ast.nodes.items(.tag), 0..) |tag, index| {
         switch (tag) {
             .simple_var_decl => {
-                const decl = ast.simpleVarDecl(@intCast(index));
+                const decl = ast.simpleVarDecl(@enumFromInt(index));
                 const identifier = ast.tokenSlice(decl.ast.mut_token + 1);
                 if (std.mem.eql(u8, identifier, "markdown_fragments")) {
-                    return ast.getNodeSource(@intCast(index));
+                    return ast.getNodeSource(@enumFromInt(index));
                 }
             },
             else => continue,

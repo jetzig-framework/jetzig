@@ -390,7 +390,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
     for (self.ast.nodes.items(.tag), 0..) |tag, index| {
         switch (tag) {
             .fn_proto_multi, .fn_proto_one, .fn_proto_simple => |function_tag| {
-                var function = try self.parseFunction(function_tag, index, path, source);
+                var function = try self.parseFunction(function_tag, @enumFromInt(index), path, source);
                 if (function) |*capture| {
                     if (capture.args.len == 0) {
                         std.debug.print(
@@ -414,7 +414,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
                 }
             },
             .simple_var_decl => {
-                const decl = self.ast.simpleVarDecl(asNodeIndex(index));
+                const decl = self.ast.simpleVarDecl(@enumFromInt(index));
                 if (self.isStaticParamsDecl(decl)) {
                     self.data.reset();
                     const params = try self.data.root(.object);
@@ -452,10 +452,11 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
 // Parse the `pub const static_params` definition and into a `jetzig.data.Value`.
 fn parseStaticParamsDecl(self: *Routes, decl: std.zig.Ast.full.VarDecl, params: *jetzig.data.Value) !void {
-    const init_node = self.ast.nodes.items(.tag)[decl.ast.init_node];
-    switch (init_node) {
+    const init_node = decl.ast.init_node.unwrap() orelse return;
+
+    switch (self.ast.nodeTag(init_node)) {
         .struct_init_dot_two, .struct_init_dot_two_comma => {
-            try self.parseStruct(decl.ast.init_node, params);
+            try self.parseStruct(init_node, params);
         },
         else => return,
     }
@@ -488,14 +489,14 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
 
     const array = maybe_array.?;
 
-    const main_token = self.ast.nodes.items(.main_token)[node];
+    const main_token = self.ast.nodeMainToken(node);
     const field_name = self.ast.tokenSlice(main_token - 3);
 
     const params_array = try self.data.array();
     try params.put(field_name, params_array);
 
     for (array.ast.elements) |element| {
-        const elem = self.ast.nodes.items(.tag)[element];
+        const elem = self.ast.nodeTag(element);
         switch (elem) {
             .struct_init_dot, .struct_init_dot_two, .struct_init_dot_two_comma => {
                 const route_params = try self.data.object();
@@ -508,20 +509,20 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
                 try self.parseField(element, route_params);
             },
             .string_literal => {
-                const string_token = self.ast.nodes.items(.main_token)[element];
+                const string_token = self.ast.nodeMainToken(element);
                 const string_value = self.ast.tokenSlice(string_token);
 
                 // Strip quotes: `"foo"` -> `foo`
                 try params_array.append(string_value[1 .. string_value.len - 1]);
             },
             .number_literal => {
-                const number_token = self.ast.nodes.items(.main_token)[element];
+                const number_token = self.ast.nodeMainToken(element);
                 const number_value = self.ast.tokenSlice(number_token);
                 try params_array.append(try parseNumber(number_value, self.data));
             },
             inline else => {
                 @setEvalBranchQuota(10_000);
-                const tag = self.ast.nodes.items(.tag)[element];
+                const tag = self.ast.nodeTag(element);
                 std.debug.print("Unexpected token: {}\n", .{tag});
                 return error.JetzigStaticParamsParseError;
             },
@@ -531,22 +532,21 @@ fn parseArray(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
 
 // Parse the value of a param field (recursively when field is a struct/array)
 fn parseField(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.Value) anyerror!void {
-    const tag = self.ast.nodes.items(.tag)[node];
-    switch (tag) {
+    switch (self.ast.nodeTag(node)) {
         // Route params, e.g. `.index = .{ ... }`
         .array_init_dot, .array_init_dot_two, .array_init_dot_comma, .array_init_dot_two_comma => {
             try self.parseArray(node, params);
         },
         .struct_init_dot, .struct_init_dot_two, .struct_init_dot_two_comma => {
             const nested_params = try self.data.object();
-            const main_token = self.ast.nodes.items(.main_token)[node];
+            const main_token = self.ast.nodeMainToken(node);
             const field_name = self.ast.tokenSlice(main_token - 3);
             try params.put(field_name, nested_params);
             try self.parseStruct(node, nested_params);
         },
         // Individual param in a params struct, e.g. `.foo = "bar"`
         .string_literal => {
-            const main_token = self.ast.nodes.items(.main_token)[node];
+            const main_token = self.ast.nodeMainToken(node);
             const field_name = self.ast.tokenSlice(main_token - 2);
             const field_value = self.ast.tokenSlice(main_token);
 
@@ -557,13 +557,13 @@ fn parseField(self: *Routes, node: std.zig.Ast.Node.Index, params: *jetzig.data.
             );
         },
         .number_literal => {
-            const main_token = self.ast.nodes.items(.main_token)[node];
+            const main_token = self.ast.nodeMainToken(node);
             const field_name = self.ast.tokenSlice(main_token - 2);
             const field_value = self.ast.tokenSlice(main_token);
 
             try params.put(field_name, try parseNumber(field_value, self.data));
         },
-        else => {
+        else => |tag| {
             std.debug.print("Unexpected token: {}\n", .{tag});
             return error.JetzigStaticParamsParseError;
         },
@@ -594,16 +594,16 @@ fn isStaticParamsDecl(self: *Routes, decl: std.zig.Ast.full.VarDecl) bool {
 fn parseFunction(
     self: *Routes,
     function_type: std.zig.Ast.Node.Tag,
-    index: usize,
+    index: std.zig.Ast.Node.Index,
     path: []const u8,
     source: []const u8,
 ) !?Function {
     var buf: [1]std.zig.Ast.Node.Index = undefined;
 
     const fn_proto = switch (function_type) {
-        .fn_proto_multi => self.ast.fnProtoMulti(@as(u32, @intCast(index))),
-        .fn_proto_one => self.ast.fnProtoOne(&buf, @as(u32, @intCast(index))),
-        .fn_proto_simple => self.ast.fnProtoSimple(&buf, @as(u32, @intCast(index))),
+        .fn_proto_multi => self.ast.fnProtoMulti(index),
+        .fn_proto_one => self.ast.fnProtoOne(&buf, index),
+        .fn_proto_simple => self.ast.fnProtoSimple(&buf, index),
         else => unreachable,
     };
     if (fn_proto.name_token) |token| {
@@ -620,7 +620,7 @@ fn parseFunction(
         while (it.next()) |arg| {
             if (arg.name_token) |arg_token| {
                 const arg_name = self.ast.tokenSlice(arg_token);
-                const node = self.ast.nodes.get(arg.type_expr);
+                const node = self.ast.nodes.get(@intFromEnum(arg.type_expr.?));
                 const type_name = try self.parseTypeExpr(node);
                 try args.append(.{ .name = arg_name, .type_name = type_name });
             }
@@ -664,10 +664,6 @@ fn parseTypeExpr(self: *Routes, node: std.zig.Ast.Node) ![]const u8 {
     }
 
     return error.JetzigAstParserError;
-}
-
-fn asNodeIndex(index: usize) std.zig.Ast.Node.Index {
-    return @as(std.zig.Ast.Node.Index, @intCast(index));
 }
 
 fn isActionFunctionName(name: []const u8) bool {

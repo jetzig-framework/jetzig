@@ -15,7 +15,7 @@ const production_drop_failure_message = "To drop a production database, " ++
 
 const environment = jetzig.build_options.environment;
 const config = @field(jetquery.config.database, @tagName(environment));
-const Action = enum { migrate, rollback, create, drop, reflect };
+const Action = enum { migrate, rollback, create, drop, reflect, setup, update };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -46,6 +46,8 @@ pub fn main() !void {
         .{ "create", .create },
         .{ "drop", .drop },
         .{ "reflect", .reflect },
+        .{ "setup", .setup },
+        .{ "update", .update },
     });
     const action = map.get(args[1]) orelse return error.JetzigUnrecognizedArgument;
 
@@ -77,6 +79,25 @@ pub fn main() !void {
             defer repo.deinit();
             try repo.createDatabase(database, .{});
         },
+        .setup => {
+            {
+                var repo = try migrationsRepo(.create, allocator, repo_env);
+                defer repo.deinit();
+                try repo.createDatabase(database, .{});
+            }
+            {
+                var repo = try migrationsRepo(.update, allocator, repo_env);
+                defer repo.deinit();
+                try Migrate(config.adapter).init(&repo).migrate();
+                try reflectSchema(allocator, repo_env);
+            }
+        },
+        .update => {
+            var repo = try migrationsRepo(action, allocator, repo_env);
+            defer repo.deinit();
+            try Migrate(config.adapter).init(&repo).migrate();
+            try reflectSchema(allocator, repo_env);
+        },
         .drop => {
             if (environment == .production) {
                 const confirm = std.process.getEnvVarOwned(allocator, confirm_drop_env) catch |err| {
@@ -103,33 +124,7 @@ pub fn main() !void {
             }
         },
         .reflect => {
-            var cwd = try jetzig.util.detectJetzigProjectDir();
-            defer cwd.close();
-
-            const Repo = jetquery.Repo(config.adapter, Schema);
-            var repo = try Repo.loadConfig(
-                allocator,
-                std.enums.nameCast(jetquery.Environment, environment),
-                .{ .context = .migration, .env = repo_env },
-            );
-            const reflect = @import("jetquery_reflect").Reflect(config.adapter, Schema).init(
-                allocator,
-                &repo,
-                .{
-                    .import_jetquery =
-                    \\@import("jetzig").jetquery
-                    ,
-                },
-            );
-            const schema = try reflect.generateSchema();
-            const project_dir = try jetzig.util.detectJetzigProjectDir();
-            const project_dir_realpath = try project_dir.realpathAlloc(allocator, ".");
-            const path = try std.fs.path.join(
-                allocator,
-                &.{ project_dir_realpath, "src", "app", "database", "Schema.zig" },
-            );
-            try jetzig.util.createFile(path, schema);
-            std.log.info("Database schema written to `{s}`.", .{path});
+            try reflectSchema(allocator, repo_env);
         },
     }
 }
@@ -141,12 +136,43 @@ fn migrationsRepo(action: Action, allocator: std.mem.Allocator, repo_env: anytyp
         std.enums.nameCast(jetquery.Environment, environment),
         .{
             .admin = switch (action) {
-                .migrate, .rollback => false,
+                .migrate, .rollback, .update => false,
                 .create, .drop => true,
                 .reflect => unreachable, // We use a separate repo for schema reflection.
+                .setup => unreachable, // Setup uses `create` and then `update`
             },
             .context = .migration,
             .env = repo_env,
         },
     );
+}
+
+fn reflectSchema(allocator: std.mem.Allocator, repo_env: anytype) !void {
+    var cwd = try jetzig.util.detectJetzigProjectDir();
+    defer cwd.close();
+
+    const Repo = jetquery.Repo(config.adapter, Schema);
+    var repo = try Repo.loadConfig(
+        allocator,
+        std.enums.nameCast(jetquery.Environment, environment),
+        .{ .context = .migration, .env = repo_env },
+    );
+    const reflect = @import("jetquery_reflect").Reflect(config.adapter, Schema).init(
+        allocator,
+        &repo,
+        .{
+            .import_jetquery =
+            \\@import("jetzig").jetquery
+            ,
+        },
+    );
+    const schema = try reflect.generateSchema();
+    const project_dir = try jetzig.util.detectJetzigProjectDir();
+    const project_dir_realpath = try project_dir.realpathAlloc(allocator, ".");
+    const path = try std.fs.path.join(
+        allocator,
+        &.{ project_dir_realpath, "src", "app", "database", "Schema.zig" },
+    );
+    try jetzig.util.createFile(path, schema);
+    std.log.info("Database schema written to `{s}`.", .{path});
 }
