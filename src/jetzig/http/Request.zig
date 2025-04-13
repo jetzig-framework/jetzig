@@ -26,6 +26,7 @@ allocator: std.mem.Allocator,
 path: jetzig.http.Path,
 method: Method,
 headers: jetzig.http.Headers,
+host: []const u8,
 server: *jetzig.http.Server,
 httpz_request: *httpz.Request,
 httpz_response: *httpz.Response,
@@ -146,12 +147,15 @@ pub fn init(
 
     const response_data = try allocator.create(jetzig.data.Data);
     response_data.* = jetzig.data.Data.init(allocator);
+    const headers = jetzig.http.Headers.init(allocator, httpz_request.headers);
+    const host = headers.getLower("host") orelse "";
 
     return .{
         .allocator = allocator,
         .path = path,
         .method = method,
-        .headers = jetzig.http.Headers.init(allocator, httpz_request.headers),
+        .headers = headers,
+        .host = host,
         .server = server,
         .response = response,
         .response_data = response_data,

@@ -41,6 +41,12 @@ pub fn get(self: Headers, name: []const u8) ?[]const u8 {
     return self.httpz_headers.get(lower);
 }
 
+/// Get the first value for a given header identified by `name`, which is assumed to be lower case.
+pub fn getLower(self: Headers, name: []const u8) ?[]const u8 {
+    std.debug.assert(name.len <= max_bytes_header_name);
+    return self.httpz_headers.get(name);
+}
+
 /// Get all values for a given header identified by `name`. Names are case insensitive.
 pub fn getAll(self: Headers, name: []const u8) []const []const u8 {
     var headers = std.ArrayList([]const u8).init(self.allocator);
