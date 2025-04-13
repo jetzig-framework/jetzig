@@ -61,10 +61,12 @@ pub fn deinit(self: *Server) void {
     self.allocator.free(self.env.bind);
 }
 
-const Dispatcher = struct {
+const HttpzHandler = struct {
     server: *Server,
 
-    pub fn handle(self: Dispatcher, request: *httpz.Request, response: *httpz.Response) void {
+    pub const WebsocketHandler = jetzig.http.Websocket;
+
+    pub fn handle(self: HttpzHandler, request: *httpz.Request, response: *httpz.Response) void {
         self.server.processNextRequest(request, response) catch |err| {
             self.server.errorHandlerFn(request, response, err) catch {};
         };
@@ -77,7 +79,7 @@ pub fn listen(self: *Server) !void {
     const worker_count = jetzig.config.get(u16, "worker_count");
     const thread_count: u16 = jetzig.config.get(?u16, "thread_count") orelse @intCast(try std.Thread.getCpuCount());
 
-    var httpz_server = try httpz.Server(Dispatcher).init(
+    var httpz_server = try httpz.Server(HttpzHandler).init(
         self.allocator,
         .{
             .port = self.env.port,
@@ -96,7 +98,7 @@ pub fn listen(self: *Server) !void {
                 .max_body_size = jetzig.config.get(usize, "max_bytes_request_body"),
             },
         },
-        Dispatcher{ .server = self },
+        HttpzHandler{ .server = self },
     );
     defer httpz_server.deinit();
 
@@ -139,6 +141,11 @@ pub fn processNextRequest(
     var repo = try self.repo.bindConnect(.{ .allocator = httpz_response.arena });
     defer repo.release();
 
+    if (try self.upgradeWebsocket(httpz_request, httpz_response)) {
+        try self.logger.DEBUG("Websocket upgrade request successful.", .{});
+        return;
+    }
+
     var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
     var request = try jetzig.http.Request.init(
         httpz_response.arena,
@@ -169,6 +176,14 @@ pub fn processNextRequest(
     try self.logger.logRequest(&request);
 }
 
+fn upgradeWebsocket(self: *const Server, httpz_request: *httpz.Request, httpz_response: *httpz.Response) !bool {
+    return try httpz.upgradeWebsocket(
+        jetzig.http.Websocket,
+        httpz_request,
+        httpz_response,
+        jetzig.http.Websocket.Context{ .allocator = self.allocator },
+    );
+}
 fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.http.Response) !bool {
     if (request.middleware_rendered) |_| {
         // Request processing ends when a middleware renders or redirects.
