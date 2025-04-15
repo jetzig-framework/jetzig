@@ -29,8 +29,6 @@ jobs:
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
-        with:
-          version: master
 
       - run: zig version
       - run: zig env
