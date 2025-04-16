@@ -2,12 +2,12 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 
-pub const cookie_name = "_jetzig-session";
 pub const Cipher = std.crypto.aead.chacha_poly.XChaCha20Poly1305;
 
 allocator: std.mem.Allocator,
 encryption_key: []const u8,
 cookies: *jetzig.http.Cookies,
+cookie_name: []const u8,
 
 initialized: bool = false,
 data: jetzig.data.Data,
@@ -20,17 +20,21 @@ pub fn init(
     cookies: *jetzig.http.Cookies,
     encryption_key: []const u8,
 ) Self {
+    const env_cookie_name = std.process.getEnvVarOwned(allocator, "JETZIG_SESSION_COOKIE") catch null;
+    const cookie_name = env_cookie_name orelse "_jetzig-session";
+
     return .{
         .allocator = allocator,
         .data = jetzig.data.Data.init(allocator),
         .cookies = cookies,
+        .cookie_name = cookie_name,
         .encryption_key = encryption_key,
     };
 }
 
 /// Parse session cookie.
 pub fn parse(self: *Self) !void {
-    if (self.cookies.get(cookie_name)) |cookie| {
+    if (self.cookies.get(self.cookie_name)) |cookie| {
         try self.parseSessionCookie(cookie.value);
     } else {
         try self.reset();
@@ -111,7 +115,7 @@ fn save(self: *Self) !void {
     defer self.allocator.free(encrypted);
     const encoded = try jetzig.util.base64Encode(self.allocator, encrypted);
     defer self.allocator.free(encoded);
-    try self.cookies.put(.{ .name = cookie_name, .value = encoded });
+    try self.cookies.put(.{ .name = self.cookie_name, .value = encoded });
 }
 
 fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
