@@ -497,12 +497,14 @@ pub fn cookies(self: *Request) !*jetzig.http.Cookies {
 /// `jetzig.http.Session`.
 pub fn session(self: *Request) !*jetzig.http.Session {
     if (self._session) |capture| return capture;
-
+    const cookie_name = self.server.env.vars.get("JETZIG_SESSION_COOKIE") orelse
+        jetzig.http.Session.default_cookie_name;
     const local_session = try self.allocator.create(jetzig.http.Session);
     local_session.* = jetzig.http.Session.init(
         self.allocator,
         try self.cookies(),
         self.server.env.secret,
+        .{ .cookie_name = cookie_name },
     );
     local_session.parse() catch |err| {
         switch (err) {
