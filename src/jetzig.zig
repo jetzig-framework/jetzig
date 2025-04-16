@@ -33,7 +33,10 @@ pub const Date = jetcommon.types.Date;
 pub const authenticity_token_name = config.get([]const u8, "authenticity_token_name");
 
 pub const build_options = @import("build_options");
-pub const environment = std.enums.nameCast(Environment.EnvironmentName, build_options.environment);
+pub const environment = @field(
+    Environment.EnvironmentName,
+    @tagName(build_options.environment),
+);
 
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.

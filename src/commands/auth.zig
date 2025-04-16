@@ -33,7 +33,7 @@ pub fn main() !void {
             const Repo = jetzig.jetquery.Repo(jetzig.database.adapter, Schema);
             var repo = try Repo.loadConfig(
                 allocator,
-                std.enums.nameCast(jetzig.jetquery.Environment, jetzig.environment),
+                @field(jetzig.jetquery.Environment, @tagName(jetzig.environment)),
                 .{ .env = try jetzig.database.repoEnv(env), .context = .cli },
             );
             defer repo.deinit();
@@ -60,7 +60,7 @@ pub fn main() !void {
 
             const email = args[2];
 
-            try repo.insert(std.enums.nameCast(std.meta.DeclEnum(Schema), model), .{
+            try repo.insert(@field(std.meta.DeclEnum(Schema), model), .{
                 .email = email,
                 .password_hash = try hashPassword(allocator, password),
             });

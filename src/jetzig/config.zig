@@ -18,7 +18,10 @@ pub const mail = @import("mail.zig");
 pub const kv = @import("kv.zig");
 pub const db = @import("database.zig");
 pub const Environment = @import("Environment.zig");
-pub const environment = std.enums.nameCast(Environment.EnvironmentName, build_options.environment);
+pub const environment = @field(
+    Environment.EnvironmentName,
+    @tagName(build_options.environment),
+);
 pub const build_options = @import("build_options");
 
 const root = @import("root");

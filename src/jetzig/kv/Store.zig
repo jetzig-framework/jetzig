@@ -41,9 +41,9 @@ fn jetKVOptions(options: KVOptions) jetzig.jetkv.Options {
                 .port = options.valkey_options.port,
                 .connect_timeout = options.valkey_options.connect_timeout * std.time.ms_per_s,
                 .read_timeout = options.valkey_options.read_timeout * std.time.ms_per_s,
-                .connect = std.enums.nameCast(
+                .connect = @field(
                     jetzig.jetkv.ValkeyBackendOptions.ConnectMode,
-                    options.valkey_options.connect,
+                    @tagName(options.valkey_options.connect),
                 ),
                 .buffer_size = options.valkey_options.buffer_size,
                 .pool_size = options.valkey_options.pool_size,
