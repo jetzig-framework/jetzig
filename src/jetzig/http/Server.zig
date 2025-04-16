@@ -10,6 +10,7 @@ allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
 env: jetzig.Environment,
 routes: []const *const jetzig.views.Route,
+channel_routes: std.StaticStringMap(jetzig.channels.Route),
 custom_routes: []const jetzig.views.Route,
 job_definitions: []const jetzig.JobDefinition,
 mailer_definitions: []const jetzig.MailerDefinition,
@@ -29,6 +30,7 @@ pub fn init(
     allocator: std.mem.Allocator,
     env: jetzig.Environment,
     routes: []const *const jetzig.views.Route,
+    channel_routes: std.StaticStringMap(jetzig.channels.Route),
     custom_routes: []const jetzig.views.Route,
     job_definitions: []const jetzig.JobDefinition,
     mailer_definitions: []const jetzig.MailerDefinition,
@@ -44,6 +46,7 @@ pub fn init(
         .logger = env.logger,
         .env = env,
         .routes = routes,
+        .channel_routes = channel_routes,
         .custom_routes = custom_routes,
         .job_definitions = job_definitions,
         .mailer_definitions = mailer_definitions,
@@ -176,14 +179,20 @@ pub fn processNextRequest(
     try self.logger.logRequest(&request);
 }
 
+/// Attempt to match a channel name to a view with a Channel implementation.
+pub fn matchChannelRoute(self: *const Server, channel_name: []const u8) ?jetzig.channels.Route {
+    return self.channel_routes.get(channel_name);
+}
+
 fn upgradeWebsocket(self: *const Server, httpz_request: *httpz.Request, httpz_response: *httpz.Response) !bool {
     return try httpz.upgradeWebsocket(
         jetzig.http.Websocket,
         httpz_request,
         httpz_response,
-        jetzig.http.Websocket.Context{ .allocator = self.allocator },
+        jetzig.http.Websocket.Context{ .allocator = self.allocator, .server = self },
     );
 }
+
 fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.http.Response) !bool {
     if (request.middleware_rendered) |_| {
         // Request processing ends when a middleware renders or redirects.

@@ -34,7 +34,11 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer mime_map.deinit();
     try mime_map.build();
 
-    const routes = try createRoutes(self.allocator, if (@hasDecl(routes_module, "routes")) &routes_module.routes else &.{});
+    const routes = try createRoutes(self.allocator, if (@hasDecl(routes_module, "routes"))
+        &routes_module.routes
+    else
+        &.{});
+
     defer {
         for (routes) |var_route| {
             var_route.deinitParams();
@@ -46,6 +50,11 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer for (self.custom_routes.items) |custom_route| {
         self.allocator.free(custom_route.template);
     };
+
+    const channel_routes = if (@hasDecl(routes_module, "channel_routes"))
+        routes_module.channel_routes
+    else
+        std.StaticStringMap(jetzig.channels.Route).initComptime(.{});
 
     var store = try jetzig.kv.Store.GeneralStore.init(self.allocator, self.env.logger, .general);
     defer store.deinit();
@@ -85,6 +94,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         self.allocator,
         self.env,
         routes,
+        channel_routes,
         self.custom_routes.items,
         if (@hasDecl(routes_module, "jobs")) &routes_module.jobs else &.{},
         if (@hasDecl(routes_module, "jobs")) &routes_module.mailers else &.{},

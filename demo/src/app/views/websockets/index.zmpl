@@ -10,7 +10,7 @@
             });
 
             websocket.addEventListener("open", (event) => {
-                websocket.send("hello jetzig websocket");
+                websocket.send("websockets:hello jetzig websocket");
             });
         </script>
     @end

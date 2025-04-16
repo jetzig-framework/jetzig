@@ -11,8 +11,11 @@ mailers_path: []const u8,
 buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
+channel_routes: std.ArrayList(Function),
 module_paths: std.ArrayList([]const u8),
 data: *jetzig.data.Data,
+
+const receive_message = "receiveMessage";
 
 const Routes = @This();
 
@@ -120,6 +123,7 @@ pub fn init(
         .buffer = std.ArrayList(u8).init(allocator),
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
+        .channel_routes = std.ArrayList(Function).init(allocator),
         .module_paths = std.ArrayList([]const u8).init(allocator),
         .data = data,
     };
@@ -130,6 +134,7 @@ pub fn deinit(self: *Routes) void {
     self.buffer.deinit();
     self.static_routes.deinit();
     self.dynamic_routes.deinit();
+    self.channel_routes.deinit();
 }
 
 /// Generates the complete route set for the application
@@ -137,6 +142,7 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
     const writer = self.buffer.writer();
 
     try writer.writeAll(
+        \\const std = @import("std");
         \\const jetzig = @import("jetzig");
         \\
         \\pub const routes = [_]jetzig.Route{
@@ -148,6 +154,15 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
         \\
     );
 
+    try writer.writeAll(
+        \\pub const channel_routes = std.StaticStringMap(jetzig.channels.Route).initComptime(.{
+        \\
+    );
+    try self.writeChannelRoutes(writer);
+    try writer.writeAll(
+        \\});
+        \\
+    );
     try writer.writeAll(
         \\
         \\pub const mailers = [_]jetzig.MailerDefinition{
@@ -253,6 +268,10 @@ fn writeRoutes(self: *Routes, writer: anytype) !void {
 
         for (view_routes.dynamic) |view_route| {
             try self.dynamic_routes.append(view_route);
+        }
+
+        for (view_routes.channel) |view_route| {
+            try self.channel_routes.append(view_route);
         }
     }
 
@@ -367,7 +386,23 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
 const RouteSet = struct {
     dynamic: []Function,
     static: []Function,
+    channel: []Function,
 };
+
+fn writeChannelRoutes(self: *Routes, writer: anytype) !void {
+    for (self.channel_routes.items) |route| {
+        const module_path = try self.relativePathFrom(.root, route.path, .posix);
+        defer self.allocator.free(module_path);
+        const view_name = try route.viewName();
+        defer self.allocator.free(view_name);
+
+        std.debug.print("{s}: {s}\n", .{ route.name, route.view_name });
+        try writer.print(
+            \\.{{ "{s}", jetzig.channels.Route{{ .receiveMessageFn = @import("{s}").receiveMessage }} }},
+            \\
+        , .{ view_name, module_path });
+    }
+}
 
 fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !RouteSet {
     const stat = try dir.statFile(path);
@@ -385,30 +420,41 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
     var static_routes = std.ArrayList(Function).init(self.allocator);
     var dynamic_routes = std.ArrayList(Function).init(self.allocator);
+    var channel_routes = std.ArrayList(Function).init(self.allocator);
+
     var static_params: ?*jetzig.data.Value = null;
 
     for (self.ast.nodes.items(.tag), 0..) |tag, index| {
         switch (tag) {
             .fn_proto_multi, .fn_proto_one, .fn_proto_simple => |function_tag| {
-                var function = try self.parseFunction(function_tag, @enumFromInt(index), path, source);
-                if (function) |*capture| {
-                    if (capture.args.len == 0) {
+                var maybe_function = try self.parseFunction(
+                    function_tag,
+                    @enumFromInt(index),
+                    path,
+                    source,
+                );
+                if (maybe_function) |*function| {
+                    if (std.mem.eql(u8, function.name, receive_message)) {
+                        try channel_routes.append(function.*);
+                    }
+
+                    if (!std.mem.eql(u8, function.name, receive_message) and function.args.len == 0) {
                         std.debug.print(
                             "Expected at least 1 argument for view function `{s}` in `{s}`",
-                            .{ capture.name, path },
+                            .{ function.name, path },
                         );
                         return error.JetzigMissingViewArgument;
                     }
 
-                    for (capture.args, 0..) |arg, arg_index| {
+                    for (function.args, 0..) |arg, arg_index| {
                         if (std.mem.eql(u8, try arg.typeBasename(), "StaticRequest")) {
-                            capture.static = jetzig.build_options.build_static;
-                            capture.legacy = arg_index + 1 < capture.args.len;
-                            try static_routes.append(capture.*);
+                            function.static = jetzig.build_options.build_static;
+                            function.legacy = arg_index + 1 < function.args.len;
+                            try static_routes.append(function.*);
                         } else if (std.mem.eql(u8, try arg.typeBasename(), "Request")) {
-                            capture.static = false;
-                            capture.legacy = arg_index + 1 < capture.args.len;
-                            try dynamic_routes.append(capture.*);
+                            function.static = false;
+                            function.legacy = arg_index + 1 < function.args.len;
+                            try dynamic_routes.append(function.*);
                         }
                     }
                 }
@@ -447,6 +493,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
     return .{
         .dynamic = dynamic_routes.items,
         .static = static_routes.items,
+        .channel = channel_routes.items,
     };
 }
 
@@ -618,6 +665,10 @@ fn parseFunction(
 
         var it = fn_proto.iterate(&self.ast);
         while (it.next()) |arg| {
+            // We don't need to resolve args for `receiveMessage` as it only has one form (it was
+            // added after the removal of the `data` arg from view functions).
+            if (std.mem.eql(u8, receive_message, function_name)) continue;
+
             if (arg.name_token) |arg_token| {
                 const arg_name = self.ast.tokenSlice(arg_token);
                 const node = self.ast.nodes.get(@intFromEnum(arg.type_expr.?));
@@ -645,7 +696,7 @@ fn parseFunction(
 fn parseTypeExpr(self: *Routes, node: std.zig.Ast.Node) ![]const u8 {
     switch (node.tag) {
         // Currently all expected params are pointers, keeping this here in case that changes in future:
-        .identifier => {},
+        .identifier => return self.ast.tokenSlice(@as(u32, @intCast(node.main_token))),
         .ptr_type_aligned => {
             var buf = std.ArrayList([]const u8).init(self.allocator);
             defer buf.deinit();
@@ -663,6 +714,14 @@ fn parseTypeExpr(self: *Routes, node: std.zig.Ast.Node) ![]const u8 {
         else => {},
     }
 
+    // TODO: Output source line
+    std.log.err(
+        "Unexpected token type `{s}` in `{s}`",
+        .{
+            @tagName(node.tag),
+            self.ast.tokenSlice(@as(u32, @intCast(node.main_token))),
+        },
+    );
     return error.JetzigAstParserError;
 }
 
@@ -671,7 +730,7 @@ fn isActionFunctionName(name: []const u8) bool {
         if (std.mem.eql(u8, field.name, name)) return true;
     }
 
-    return false;
+    return std.mem.eql(u8, receive_message, name);
 }
 
 inline fn chompExtension(path: []const u8) []const u8 {
