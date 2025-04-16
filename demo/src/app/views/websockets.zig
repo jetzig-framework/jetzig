@@ -35,6 +35,10 @@ pub fn delete(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jet
     return request.render(.ok);
 }
 
+pub fn receiveMessage(message: jetzig.channels.Message) !void {
+    std.debug.print("payload: {s}\n", .{message.payload});
+    try message.channel.publish("hello");
+}
 
 test "index" {
     var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
