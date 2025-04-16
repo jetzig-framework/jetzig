@@ -133,7 +133,7 @@ const MigrationsRepo = jetquery.Repo(config.adapter, MigrateSchema);
 fn migrationsRepo(action: Action, allocator: std.mem.Allocator, repo_env: anytype) !MigrationsRepo {
     return try MigrationsRepo.loadConfig(
         allocator,
-        std.enums.nameCast(jetquery.Environment, environment),
+        @field(jetquery.Environment, @tagName(environment)),
         .{
             .admin = switch (action) {
                 .migrate, .rollback, .update => false,
@@ -154,7 +154,7 @@ fn reflectSchema(allocator: std.mem.Allocator, repo_env: anytype) !void {
     const Repo = jetquery.Repo(config.adapter, Schema);
     var repo = try Repo.loadConfig(
         allocator,
-        std.enums.nameCast(jetquery.Environment, environment),
+        @field(jetquery.Environment, @tagName(environment)),
         .{ .context = .migration, .env = repo_env },
     );
     const reflect = @import("jetquery_reflect").Reflect(config.adapter, Schema).init(

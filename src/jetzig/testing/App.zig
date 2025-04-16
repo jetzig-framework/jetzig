@@ -347,7 +347,7 @@ fn stubbedRequest(
         .route_data = null,
         .middlewares = undefined,
         .address = undefined,
-        .method = std.enums.nameCast(httpz.Method, @tagName(method)),
+        .method = @field(httpz.Method, @tagName(method)),
         .protocol = .HTTP11,
         .params = undefined,
         .conn = undefined,
