@@ -376,7 +376,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
         path,
         @intCast(stat.size),
         null,
-        @alignOf(u8),
+        .of(u8),
         0,
     );
     defer self.allocator.free(source);
