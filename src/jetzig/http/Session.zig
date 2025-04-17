@@ -2,12 +2,12 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 
-pub const cookie_name = "_jetzig-session";
 pub const Cipher = std.crypto.aead.chacha_poly.XChaCha20Poly1305;
 
 allocator: std.mem.Allocator,
 encryption_key: []const u8,
 cookies: *jetzig.http.Cookies,
+cookie_name: []const u8,
 
 initialized: bool = false,
 data: jetzig.data.Data,
@@ -15,22 +15,30 @@ state: enum { parsed, pending } = .pending,
 
 const Self = @This();
 
+pub const default_cookie_name = "_jetzig-session";
+
+pub const Options = struct {
+    cookie_name: []const u8 = default_cookie_name,
+};
+
 pub fn init(
     allocator: std.mem.Allocator,
     cookies: *jetzig.http.Cookies,
     encryption_key: []const u8,
+    options: Options,
 ) Self {
     return .{
         .allocator = allocator,
         .data = jetzig.data.Data.init(allocator),
         .cookies = cookies,
+        .cookie_name = options.cookie_name,
         .encryption_key = encryption_key,
     };
 }
 
 /// Parse session cookie.
 pub fn parse(self: *Self) !void {
-    if (self.cookies.get(cookie_name)) |cookie| {
+    if (self.cookies.get(self.cookie_name)) |cookie| {
         try self.parseSessionCookie(cookie.value);
     } else {
         try self.reset();
@@ -111,7 +119,7 @@ fn save(self: *Self) !void {
     defer self.allocator.free(encrypted);
     const encoded = try jetzig.util.base64Encode(self.allocator, encrypted);
     defer self.allocator.free(encoded);
-    try self.cookies.put(.{ .name = cookie_name, .value = encoded });
+    try self.cookies.put(.{ .name = self.cookie_name, .value = encoded });
 }
 
 fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
@@ -180,7 +188,7 @@ test "put and get session key/value" {
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret);
+    var session = Self.init(allocator, &cookies, &secret, .{});
     defer session.deinit();
 
     var data = jetzig.data.Data.init(allocator);
@@ -199,7 +207,7 @@ test "remove session key/value" {
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret);
+    var session = Self.init(allocator, &cookies, &secret, .{});
     defer session.deinit();
 
     var data = jetzig.data.Data.init(allocator);
@@ -224,7 +232,7 @@ test "get value from parsed/decrypted cookie" {
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret);
+    var session = Self.init(allocator, &cookies, &secret, .{});
     defer session.deinit();
 
     try session.parse();
@@ -234,16 +242,31 @@ test "get value from parsed/decrypted cookie" {
 
 test "invalid cookie value - too short" {
     const allocator = std.testing.allocator;
+    var cookies = jetzig.http.Cookies.init(allocator, "_jetzig-session=abc");
+    defer cookies.deinit();
+    try cookies.parse();
+
+    const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
+    var session = Self.init(allocator, &cookies, &secret, .{});
+    defer session.deinit();
+
+    try std.testing.expectError(error.JetzigInvalidSessionCookie, session.parse());
+}
+
+test "custom session cookie name" {
+    const allocator = std.testing.allocator;
     var cookies = jetzig.http.Cookies.init(
         allocator,
-        "_jetzig-session=abc",
+        "custom-cookie-name=fPCFwZHvPDT-XCVcsQUSspDLchS3tRuJDqPpB2v3127VXpRP_bPcPLgpHK6RiVkfcP1bMtU",
     );
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret);
+    var session = Self.init(allocator, &cookies, &secret, .{ .cookie_name = "custom-cookie-name" });
     defer session.deinit();
 
-    try std.testing.expectError(error.JetzigInvalidSessionCookie, session.parse());
+    try session.parse();
+    var value = (session.get("foo")).?;
+    try std.testing.expectEqualStrings("bar", try value.toString());
 }

@@ -55,7 +55,7 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
     try cookies.parse();
 
     const session = try alloc.create(jetzig.http.Session);
-    session.* = jetzig.http.Session.init(alloc, cookies, jetzig.testing.secret);
+    session.* = jetzig.http.Session.init(alloc, cookies, jetzig.testing.secret, .{});
 
     app.* = App{
         .arena = arena,
@@ -237,7 +237,7 @@ pub fn initSession(self: *App) !void {
     const allocator = self.arena.allocator();
 
     var local_session = try allocator.create(jetzig.http.Session);
-    local_session.* = jetzig.http.Session.init(allocator, self.cookies, jetzig.testing.secret);
+    local_session.* = jetzig.http.Session.init(allocator, self.cookies, jetzig.testing.secret, .{});
     try local_session.parse();
 
     self.session = local_session;
