@@ -447,7 +447,7 @@ fn generateMarkdownFragments(b: *std.Build) ![]const u8 {
         }
     };
     const stat = try file.stat();
-    const source = try file.readToEndAllocOptions(b.allocator, @intCast(stat.size), null, @alignOf(u8), 0);
+    const source = try file.readToEndAllocOptions(b.allocator, @intCast(stat.size), null, .of(u8), 0);
     if (try getMarkdownFragmentsSource(b.allocator, source)) |markdown_fragments_source| {
         return try std.fmt.allocPrint(b.allocator,
             \\const std = @import("std");
