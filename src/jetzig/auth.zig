@@ -14,7 +14,7 @@ pub fn getUserId(comptime id_type: IdType, request: *jetzig.Request) !?switch (i
 } {
     const session = try request.session();
 
-    return session.getT(@field(jetzig.data.ValueType, id_type), "_jetzig_user_id");
+    return session.getT(@field(jetzig.data.ValueType, @tagName(id_type)), "_jetzig_user_id");
 }
 
 pub fn signIn(request: *jetzig.Request, user_id: anytype) !void {
