@@ -50,7 +50,7 @@ fn detectEncoding(request: *const jetzig.http.Request) ?Encoding {
         while (it.next()) |param| {
             inline for (@typeInfo(Encoding).@"enum".fields) |field| {
                 if (std.mem.eql(u8, field.name, jetzig.util.strip(param))) {
-                    return std.enums.nameCast(Encoding, field.name);
+                    return @field(Encoding, field.name);
                 }
             }
         }

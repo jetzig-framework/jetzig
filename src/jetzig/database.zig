@@ -2,9 +2,9 @@ const std = @import("std");
 
 const jetzig = @import("../jetzig.zig");
 
-pub const adapter = std.enums.nameCast(
+pub const adapter = @field(
     jetzig.jetquery.adapters.Name,
-    @field(jetzig.jetquery.config.database, @tagName(jetzig.environment)).adapter,
+    @tagName(@field(jetzig.jetquery.config.database, @tagName(jetzig.environment)).adapter),
 );
 
 pub const Schema = jetzig.config.get(type, "Schema");
@@ -25,7 +25,7 @@ pub fn repo(allocator: std.mem.Allocator, app: anytype) !Repo {
 
     return try Repo.loadConfig(
         allocator,
-        std.enums.nameCast(jetzig.jetquery.Environment, jetzig.environment),
+        @field(jetzig.jetquery.Environment, @tagName(jetzig.environment)),
         .{
             .eventCallback = Callback.callbackFn,
             .lazy_connect = switch (jetzig.environment) {

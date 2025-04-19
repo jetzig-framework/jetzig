@@ -2,7 +2,7 @@
     .name = .jetzig,
     .version = "0.0.0",
     .fingerprint = 0x93ad8bfa2d209022,
-    .minimum_zig_version = "0.15.0-dev.345+ec2888858",
+    .minimum_zig_version = "0.15.0-dev.355+206bd1ced",
     .dependencies = .{
         .jetcommon = .{
             .url = "https://github.com/jetzig-framework/jetcommon/archive/fb4edc13759d87bfcd9b1f5fcefdf93f8c9c62dd.tar.gz",
