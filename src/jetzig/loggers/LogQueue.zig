@@ -70,7 +70,11 @@ pub fn deinit(self: *LogQueue) void {
 }
 
 /// Set the stdout and stderr outputs. Must be called before `print`.
-pub fn setFiles(self: *LogQueue, stdout_file: std.fs.File, stderr_file: std.fs.File) !void {
+pub fn setFiles(
+    self: *LogQueue,
+    stdout_file: jetzig.loggers.LogFile,
+    stderr_file: jetzig.loggers.LogFile,
+) !void {
     self.writer = Writer{
         .queue = self,
         .mutex = std.Thread.Mutex{},
@@ -80,11 +84,11 @@ pub fn setFiles(self: *LogQueue, stdout_file: std.fs.File, stderr_file: std.fs.F
         .stderr_file = stderr_file,
         .queue = self,
     };
-    self.stdout_is_tty = stdout_file.isTty();
-    self.stderr_is_tty = stderr_file.isTty();
+    self.stdout_is_tty = stdout_file.file.isTty();
+    self.stderr_is_tty = stderr_file.file.isTty();
 
-    self.stdout_colorize = std.io.tty.detectConfig(stdout_file) != .no_color;
-    self.stderr_colorize = std.io.tty.detectConfig(stderr_file) != .no_color;
+    self.stdout_colorize = std.io.tty.detectConfig(stdout_file.file) != .no_color;
+    self.stderr_colorize = std.io.tty.detectConfig(stderr_file.file) != .no_color;
 
     self.state = .ready;
 }
@@ -147,8 +151,8 @@ pub const Writer = struct {
 /// Reader for `LogQueue`. Reads log events from the queue and writes them to the designated
 /// target (stdout or stderr).
 pub const Reader = struct {
-    stdout_file: std.fs.File,
-    stderr_file: std.fs.File,
+    stdout_file: jetzig.loggers.LogFile,
+    stderr_file: jetzig.loggers.LogFile,
     queue: *LogQueue,
 
     pub const PublishOptions = struct {
@@ -160,8 +164,8 @@ pub const Reader = struct {
     pub fn publish(self: *Reader, options: PublishOptions) !void {
         std.debug.assert(self.queue.state == .ready);
 
-        const stdout_writer = self.stdout_file.writer();
-        const stderr_writer = self.stderr_file.writer();
+        const stdout_writer = self.stdout_file.file.writer();
+        const stderr_writer = self.stderr_file.file.writer();
 
         while (true) {
             self.queue.condition_mutex.lock();
@@ -181,13 +185,13 @@ pub const Reader = struct {
                     .stdout => {
                         stdout_written = true;
                         if (builtin.os.tag == .windows) {
-                            file = self.stdout_file;
+                            file = self.stdout_file.file;
                         }
                     },
                     .stderr => {
                         stderr_written = true;
                         if (builtin.os.tag == .windows) {
-                            file = self.stderr_file;
+                            file = self.stderr_file.file;
                         }
                     },
                 }
@@ -220,8 +224,8 @@ pub const Reader = struct {
                 }
             }
 
-            if (stdout_written and !self.queue.stdout_is_tty) try self.stdout_file.sync();
-            if (stderr_written and !self.queue.stderr_is_tty) try self.stderr_file.sync();
+            if (stdout_written and self.stdout_file.sync) try self.stdout_file.file.sync();
+            if (stderr_written and self.stderr_file.sync) try self.stderr_file.file.sync();
 
             if (options.oneshot) break;
         }
@@ -289,7 +293,7 @@ test "print to stdout and stderr" {
     const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true });
     defer stderr.close();
 
-    try log_queue.setFiles(stdout, stderr);
+    try log_queue.setFiles(.{ .file = stdout }, .{ .file = stderr });
     try log_queue.print("foo {s}\n", .{"bar"}, .stdout);
     try log_queue.print("baz {s}\n", .{"qux"}, .stderr);
     try log_queue.print("quux {s}\n", .{"corge"}, .stdout);
@@ -333,7 +337,7 @@ test "long messages" {
     const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true });
     defer stderr.close();
 
-    try log_queue.setFiles(stdout, stderr);
+    try log_queue.setFiles(.{ .file = stdout }, .{ .file = stderr });
     try log_queue.print("foo" ** buffer_size, .{}, .stdout);
 
     try log_queue.reader.publish(.{ .oneshot = true });

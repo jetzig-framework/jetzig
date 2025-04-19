@@ -12,6 +12,11 @@ pub const NullLogger = @import("loggers/NullLogger.zig");
 
 pub const LogQueue = @import("loggers/LogQueue.zig");
 
+pub const LogFile = struct {
+    file: std.fs.File,
+    sync: bool = false,
+};
+
 pub const LogLevel = enum(u4) { TRACE, DEBUG, INFO, WARN, ERROR, FATAL };
 pub const LogFormat = enum { development, production, json, null };
 

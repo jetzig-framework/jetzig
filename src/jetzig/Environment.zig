@@ -196,15 +196,15 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
 
     const env_file = std.fs.cwd().openFile(options.options.@"env-file", .{}) catch |err|
         switch (err) {
-        error.FileNotFound => null,
-        else => return err,
-    };
+            error.FileNotFound => null,
+            else => return err,
+        };
 
     const vars = try Vars.init(allocator, env_file);
 
     var launch_logger = LaunchLogger{
-        .stdout = stdout,
-        .stderr = stderr,
+        .stdout = stdout.file,
+        .stderr = stderr.file,
         .silent = env_options.silent,
     };
 
@@ -213,8 +213,8 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
             .development_logger = jetzig.loggers.DevelopmentLogger.init(
                 allocator,
                 resolveLogLevel(options.options.@"log-level", jetzig.environment),
-                stdout,
-                stderr,
+                stdout.file,
+                stderr.file,
             ),
         },
         .production => jetzig.loggers.Logger{
@@ -304,23 +304,26 @@ pub fn deinit(self: Environment) void {
     self.parent_allocator.destroy(self.arena);
 }
 
-fn getLogFile(stream: enum { stdout, stderr }, options: Options) !std.fs.File {
+fn getLogFile(stream: enum { stdout, stderr }, options: Options) !jetzig.loggers.LogFile {
     const path = switch (stream) {
         .stdout => options.log,
         .stderr => options.@"log-error",
     };
 
     if (std.mem.eql(u8, path, "-")) return switch (stream) {
-        .stdout => std.io.getStdOut(),
+        .stdout => .{ .file = std.io.getStdOut(), .sync = false },
         .stderr => if (std.mem.eql(u8, options.log, "-"))
-            std.io.getStdErr()
+            .{ .file = std.io.getStdErr(), .sync = false }
         else
-            try std.fs.createFileAbsolute(options.log, .{ .truncate = false }),
+            .{
+                .file = try std.fs.createFileAbsolute(options.log, .{ .truncate = false }),
+                .sync = true,
+            },
     };
 
     const file = try std.fs.createFileAbsolute(path, .{ .truncate = false });
     try file.seekFromEnd(0);
-    return file;
+    return .{ .file = file, .sync = true };
 }
 
 fn getSecret(
