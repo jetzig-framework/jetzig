@@ -19,17 +19,21 @@ pub fn afterRequest(request: *jetzig.http.Request) !void {
 
 /// If a redirect was issued during request processing, reset any response data, set response
 /// status to `200 OK` and replace the `Location` header with a `HX-Redirect` header.
+/// Add Vary response header to prevent caching the page without layout for requests not coming
+/// from htmx.
 pub fn beforeResponse(request: *jetzig.http.Request, response: *jetzig.http.Response) !void {
-    switch (response.status_code) {
-        .moved_permanently, .found => {},
-        else => return,
-    }
-
     if (request.headers.get("HX-Request") == null) return;
 
-    if (response.headers.get("Location")) |location| {
-        response.status_code = .ok;
-        request.response_data.reset();
-        try response.headers.append("HX-Redirect", location);
+    switch (response.status_code) {
+        .moved_permanently, .found => {
+            if (response.headers.get("Location")) |location| {
+                response.status_code = .ok;
+                request.response_data.reset();
+                try response.headers.append("HX-Redirect", location);
+            }
+        },
+        else => {
+            try response.headers.append("Vary", "HX-Request");
+        },
     }
 }
