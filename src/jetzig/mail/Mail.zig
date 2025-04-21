@@ -165,7 +165,7 @@ test "HTML part only" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: <Bob> user@example.com
+        \\From: Bob <user@example.com>
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -201,7 +201,7 @@ test "text part only" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: <Bob> user@example.com
+        \\From: Bob <user@example.com>
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -238,7 +238,7 @@ test "HTML and text parts" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: <Bob> user@example.com
+        \\From: Bob <user@example.com>
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -262,6 +262,41 @@ test "HTML and text parts" {
     try std.testing.expectEqualStrings(expected, actual);
 }
 
+test "default email address name" {
+    const mail = Mail{
+        .allocator = std.testing.allocator,
+        .env = undefined,
+        .config = .{},
+        .boundary = 123456789,
+        .params = .{
+            .from = .{ .email = "user@example.com" },
+            .to = &.{.{ .email = "user@example.com" }},
+            .subject = "Test subject",
+            .text = "Hello",
+        },
+    };
+
+    const actual = try generateData(mail);
+    defer std.testing.allocator.free(actual);
+
+    const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
+        \\From: user@example.com <user@example.com>
+        \\Subject: Test subject
+        \\MIME-Version: 1.0
+        \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
+        \\--=_alternative_123456789
+        \\Content-Type: text/plain; charset="UTF-8"
+        \\Content-Transfer-Encoding: quoted-printable
+        \\
+        \\Hello
+        \\
+        \\.
+        \\
+    , "\n", "\r\n");
+    defer std.testing.allocator.free(expected);
+
+    try std.testing.expectEqualStrings(expected, actual);
+}
 test "long content encoding" {
     const mail = Mail{
         .allocator = std.testing.allocator,
@@ -281,7 +316,7 @@ test "long content encoding" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: <Bob> user@example.com
+        \\From: Bob <user@example.com>
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"
@@ -332,7 +367,7 @@ test "non-latin alphabet encoding" {
     defer std.testing.allocator.free(actual);
 
     const expected = try std.mem.replaceOwned(u8, std.testing.allocator,
-        \\From: <Bob> user@example.com
+        \\From: Bob <user@example.com>
         \\Subject: Test subject
         \\MIME-Version: 1.0
         \\Content-Type: multipart/alternative; boundary="=_alternative_123456789"

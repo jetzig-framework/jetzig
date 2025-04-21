@@ -22,7 +22,7 @@ pub const Address = struct {
     email: []const u8,
 
     pub fn format(address: Address, _: anytype, _: anytype, writer: anytype) !void {
-        try writer.print("<{?s}> {s}", .{ address.name, address.email });
+        try writer.print("{s} <{s}>", .{ address.name orelse address.email, address.email });
     }
 };
 
