@@ -22,6 +22,9 @@ pub const Store = struct {
     /// Store ephemeral data.
     pub const CacheStore = @import("kv/Store.zig").Store(config.get(Store.Options, "cache"));
 
+    /// Store channel data.
+    pub const ChannelStore = @import("kv/Store.zig").Store(config.get(Store.Options, "channels"));
+
     /// Background job storage.
     pub const JobQueueStore = @import("kv/Store.zig").Store(config.get(Store.Options, "job_queue"));
 

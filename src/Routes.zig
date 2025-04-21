@@ -396,7 +396,6 @@ fn writeChannelRoutes(self: *Routes, writer: anytype) !void {
         const view_name = try route.viewName();
         defer self.allocator.free(view_name);
 
-        std.debug.print("{s}: {s}\n", .{ route.name, route.view_name });
         try writer.print(
             \\.{{ "{s}", jetzig.channels.Route{{ .receiveMessageFn = @import("{s}").receiveMessage }} }},
             \\

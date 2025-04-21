@@ -19,6 +19,7 @@ initialized: bool = false,
 store: *jetzig.kv.Store.GeneralStore,
 job_queue: *jetzig.kv.Store.JobQueueStore,
 cache: *jetzig.kv.Store.CacheStore,
+channels: *jetzig.kv.Store.ChannelStore,
 repo: *jetzig.database.Repo,
 global: *anyopaque,
 decoded_static_route_params: []const *jetzig.data.Value = &.{},
@@ -38,6 +39,7 @@ pub fn init(
     store: *jetzig.kv.Store.GeneralStore,
     job_queue: *jetzig.kv.Store.JobQueueStore,
     cache: *jetzig.kv.Store.CacheStore,
+    channels: *jetzig.kv.Store.ChannelStore,
     repo: *jetzig.database.Repo,
     global: *anyopaque,
 ) Server {
@@ -54,6 +56,7 @@ pub fn init(
         .store = store,
         .job_queue = job_queue,
         .cache = cache,
+        .channels = channels,
         .repo = repo,
         .global = global,
     };

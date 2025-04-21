@@ -145,6 +145,19 @@ pub const cache: kv.Store.Options = .{
     // },
 };
 
+/// Channels. Identical to `store` options, but allows using different
+/// backends (e.g. `.memory` for key-value store, `.file` for cache.
+/// Channel state data is stored here.
+pub const channels: kv.Store.Options = .{
+    .backend = .memory,
+    // .backend = .file,
+    // .file_options = .{
+    //     .path = "/path/to/jetkv-channels.db",
+    //     .truncate = false, // Set to `true` to clear the store on each server launch.
+    //     .address_space_size = jetzig.jetkv.JetKV.addressSpace(4096),
+    // },
+};
+
 /// SMTP configuration for Jetzig Mail.
 pub const smtp: mail.SMTPConfig = .{
     .port = 25,

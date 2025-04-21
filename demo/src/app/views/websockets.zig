@@ -36,8 +36,32 @@ pub fn delete(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jet
 }
 
 pub fn receiveMessage(message: jetzig.channels.Message) !void {
-    std.debug.print("payload: {s}\n", .{message.payload});
-    try message.channel.publish("hello");
+    const data = try message.data();
+    if (data.getT(.string, "toggle")) |toggle| {
+        if (message.channel.get("cells")) |cells| {
+            const is_taken = cells.getT(.boolean, toggle);
+            if (is_taken == null or is_taken.? == false) {
+                try cells.put(toggle, true);
+            }
+        } else {
+            var cells = try message.channel.put("cells", .object);
+            for (1..10) |cell| {
+                var buf: [1]u8 = undefined;
+                const key = try std.fmt.bufPrint(&buf, "{d}", .{cell});
+                try cells.put(key, std.mem.eql(u8, key, toggle));
+            }
+        }
+        try message.channel.sync();
+    } else {
+        var cells = try message.channel.put("cells", .object);
+        for (1..10) |cell| {
+            var buf: [1]u8 = undefined;
+            const key = try std.fmt.bufPrint(&buf, "{d}", .{cell});
+            try cells.put(key, false);
+        }
+        try message.channel.sync();
+    }
+    // try message.channel.publish("hello");
 }
 
 test "index" {

@@ -65,6 +65,9 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     var cache = try jetzig.kv.Store.CacheStore.init(self.allocator, self.env.logger, .cache);
     defer cache.deinit();
 
+    var channels = try jetzig.kv.Store.CacheStore.init(self.allocator, self.env.logger, .channels);
+    defer channels.deinit();
+
     var repo = try jetzig.database.repo(self.allocator, self);
     defer repo.deinit();
 
@@ -102,6 +105,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         &store,
         &job_queue,
         &cache,
+        &channels,
         &repo,
         options.global,
     );

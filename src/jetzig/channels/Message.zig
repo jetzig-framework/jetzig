@@ -1,32 +1,48 @@
 const std = @import("std");
 
+const jetzig = @import("../../jetzig.zig");
+
 const Channel = @import("Channel.zig");
 
 const Message = @This();
 
-data: []const u8,
+allocator: std.mem.Allocator,
+raw_data: []const u8,
 channel_name: ?[]const u8,
 payload: []const u8,
 channel: Channel,
 
-pub fn init(channel: Channel, data: []const u8) Message {
-    const channel_name = parseChannelName(data);
-    const payload = parsePayload(data, channel_name);
-    return .{ .data = data, .channel = channel, .channel_name = channel_name, .payload = payload };
+pub fn init(allocator: std.mem.Allocator, channel: Channel, raw_data: []const u8) Message {
+    const channel_name = parseChannelName(raw_data);
+    const payload = parsePayload(raw_data, channel_name);
+    return .{
+        .allocator = allocator,
+        .raw_data = raw_data,
+        .channel = channel,
+        .channel_name = channel_name,
+        .payload = payload,
+    };
 }
 
-fn parseChannelName(data: []const u8) ?[]const u8 {
-    return if (std.mem.indexOfScalar(u8, data, ':')) |index|
-        if (index > 1) data[0..index] else null
+pub fn data(message: Message) !*jetzig.data.Value {
+    var d = try message.allocator.create(jetzig.data.Data);
+    d.* = jetzig.data.Data.init(message.allocator);
+    try d.fromJson(message.payload);
+    return d.value.?;
+}
+
+fn parseChannelName(raw_data: []const u8) ?[]const u8 {
+    return if (std.mem.indexOfScalar(u8, raw_data, ':')) |index|
+        if (index > 1) raw_data[0..index] else null
     else
         null;
 }
 
-fn parsePayload(data: []const u8, maybe_channel_name: ?[]const u8) []const u8 {
+fn parsePayload(raw_data: []const u8, maybe_channel_name: ?[]const u8) []const u8 {
     return if (maybe_channel_name) |channel_name|
-        data[channel_name.len + 1 ..]
+        raw_data[channel_name.len + 1 ..]
     else
-        data;
+        raw_data;
 }
 
 test "message with channel and payload" {

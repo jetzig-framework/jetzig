@@ -53,7 +53,7 @@ fn jetKVOptions(options: KVOptions) jetzig.jetkv.Options {
 }
 
 /// Role a given store fills. Used in log outputs.
-pub const Role = enum { jobs, cache, general, custom };
+pub const Role = enum { jobs, cache, general, channels, custom };
 
 pub fn Store(comptime options: KVOptions) type {
     return struct {
