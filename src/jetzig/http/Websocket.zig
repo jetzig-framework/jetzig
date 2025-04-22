@@ -6,6 +6,8 @@ const httpz = @import("httpz");
 
 pub const Context = struct {
     allocator: std.mem.Allocator,
+    route: jetzig.channels.Route,
+    session_id: []const u8,
     server: *const jetzig.http.Server,
 };
 
@@ -14,46 +16,69 @@ const Websocket = @This();
 allocator: std.mem.Allocator,
 connection: *httpz.websocket.Conn,
 server: *const jetzig.http.Server,
+route: jetzig.channels.Route,
 data: *jetzig.Data,
-id: [32]u8 = undefined,
+session_id: []const u8,
 
 pub fn init(connection: *httpz.websocket.Conn, context: Context) !Websocket {
-    var websocket = Websocket{
+    const data = try context.allocator.create(jetzig.Data);
+    data.* = jetzig.Data.init(context.allocator);
+
+    return Websocket{
         .allocator = context.allocator,
         .connection = connection,
+        .route = context.route,
+        .session_id = context.session_id,
         .server = context.server,
-        .data = try context.allocator.create(jetzig.Data),
+        .data = data,
     };
-    websocket.data.* = jetzig.Data.init(context.allocator);
-    _ = jetzig.util.generateRandomString(&websocket.id);
-
-    return websocket;
 }
 
-pub fn clientMessage(self: *Websocket, data: []const u8) !void {
+pub fn afterInit(websocket: *Websocket, context: Context) !void {
+    _ = context;
+
+    const func = websocket.route.openConnectionFn orelse return;
+
     const channel = jetzig.channels.Channel{
-        .websocket = self,
-        .state = try self.getState(),
+        .allocator = websocket.allocator,
+        .websocket = websocket,
+        .state = try websocket.getState(),
+        .data = websocket.data,
     };
-    const message = jetzig.channels.Message.init(self.allocator, channel, data);
-
-    if (message.channel_name) |target_channel_name| {
-        if (self.server.matchChannelRoute(target_channel_name)) |route| {
-            try route.receiveMessage(message);
-        } else try self.server.logger.WARN("Unrecognized channel: {s}", .{target_channel_name});
-    } else try self.server.logger.WARN("Invalid channel message format.", .{});
+    try func(channel);
 }
 
-pub fn syncState(self: *Websocket, channel: jetzig.channels.Channel) !void {
+pub fn clientMessage(websocket: *Websocket, allocator: std.mem.Allocator, data: []const u8) !void {
+    const channel = jetzig.channels.Channel{
+        .allocator = allocator,
+        .websocket = websocket,
+        .state = try websocket.getState(),
+        .data = websocket.data,
+    };
+    const message = jetzig.channels.Message.init(allocator, channel, data);
+
+    try websocket.route.receiveMessage(message);
+}
+
+pub fn syncState(websocket: *Websocket, channel: jetzig.channels.Channel) !void {
+    var stack_fallback = std.heap.stackFallback(4096, channel.allocator);
+    const allocator = stack_fallback.get();
+
+    var write_buffer = channel.websocket.connection.writeBuffer(allocator, .text);
+    defer write_buffer.deinit();
+
+    const writer = write_buffer.writer();
+
     // TODO: Make this really fast.
-    try self.server.channels.put(&self.id, channel.state);
-    try self.connection.write(try self.data.toJson());
+    try websocket.server.channels.put(websocket.session_id, channel.state);
+    try writer.print("__jetzig_channel_state__:{s}", .{try websocket.data.toJson()});
+    try write_buffer.flush();
 }
 
-fn getState(self: *Websocket) !*jetzig.data.Value {
-    return try self.server.channels.get(self.data, &self.id) orelse blk: {
-        const root = try self.data.root(.object);
-        try self.server.channels.put(&self.id, root);
-        break :blk try self.server.channels.get(self.data, &self.id) orelse error.JetzigInvalidChannel;
+pub fn getState(websocket: *Websocket) !*jetzig.data.Value {
+    return try websocket.server.channels.get(websocket.data, websocket.session_id) orelse blk: {
+        const root = try websocket.data.root(.object);
+        try websocket.server.channels.put(websocket.session_id, root);
+        break :blk try websocket.server.channels.get(websocket.data, websocket.session_id) orelse error.JetzigInvalidChannel;
     };
 }

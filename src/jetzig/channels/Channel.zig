@@ -6,29 +6,43 @@ const jetzig = @import("../../jetzig.zig");
 
 const Channel = @This();
 
+allocator: std.mem.Allocator,
 websocket: *jetzig.http.Websocket,
 state: *jetzig.data.Value,
+data: *jetzig.data.Data,
 
-pub fn publish(self: Channel, data: []const u8) !void {
-    try self.connection.write(data);
+pub fn publish(channel: Channel, data: anytype) !void {
+    var stack_fallback = std.heap.stackFallback(4096, channel.allocator);
+    const allocator = stack_fallback.get();
+
+    var write_buffer = channel.websocket.connection.writeBuffer(allocator, .text);
+    defer write_buffer.deinit();
+
+    const writer = write_buffer.writer();
+    try std.json.stringify(data, .{}, writer);
+    try write_buffer.flush();
 }
 
 pub fn getT(
-    self: Channel,
+    channel: Channel,
     comptime T: jetzig.data.Data.ValueType,
     key: []const u8,
-) @TypeOf(self.state.getT(T, key)) {
-    return self.state.getT(T, key);
+) @TypeOf(channel.state.getT(T, key)) {
+    return channel.state.getT(T, key);
 }
 
-pub fn get(self: Channel, key: []const u8) ?*jetzig.data.Value {
-    return self.state.get(key);
+pub fn get(channel: Channel, key: []const u8) ?*jetzig.data.Value {
+    return channel.state.get(key);
 }
 
-pub fn put(self: Channel, key: []const u8, value: anytype) @TypeOf(self.state.put(key, value)) {
-    return try self.state.put(key, value);
+pub fn put(
+    channel: Channel,
+    key: []const u8,
+    value: anytype,
+) @TypeOf(channel.state.put(key, value)) {
+    return try channel.state.put(key, value);
 }
 
-pub fn sync(self: Channel) !void {
-    try self.websocket.syncState(self);
+pub fn sync(channel: Channel) !void {
+    try channel.websocket.syncState(channel);
 }

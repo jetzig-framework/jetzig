@@ -1,0 +1,116 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+    overflow-x: hidden;
+    position: relative;
+    padding-top: 5rem;
+}
+#board {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    grid-gap: 5px;
+    margin: 20px;
+}
+.cell {
+    width: 100px;
+    height: 100px;
+    background: white;
+    border: 2px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    cursor: pointer;
+}
+.cell:hover {
+    background: #e0e0e0;
+}
+#status {
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+#reset-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+#reset-button:hover {
+    background-color: #45a049;
+}
+#party-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+.animal {
+    position: absolute;
+    font-size: 50px;
+    opacity: 0;
+}
+.run-dog {
+    animation: runAcross 2s linear forwards;
+}
+.run-cat {
+    animation: runAcross 2s linear forwards;
+}
+.run-lizard {
+    animation: runAcross 2s linear forwards;
+}
+.run-jet {
+    animation: runAcross 2s linear forwards;
+}
+@keyframes runAcross {
+    0% {
+        left: -100px;
+        opacity: 1;
+    }
+    100% {
+        left: 100%;
+        opacity: 1;
+    }
+}
+.confetti {
+    position: absolute;
+    font-size: 30px;
+    opacity: 0.8;
+}
+.fall {
+    animation: fall 3s linear forwards;
+}
+@keyframes fall {
+    0% {
+        top: -50px;
+        opacity: 1;
+        transform: rotate(0deg);
+    }
+    100% {
+        top: 100%;
+        opacity: 0.5;
+        transform: rotate(360deg);
+    }
+}
+#results {
+  display: grid;
+  grid-template-columns: repeat(2, 5rem);
+  text-align: center;
+  font-weight: bold;
+  font-family: monospace;
+}
+#results-wrapper {
+  display: flex;
+  justify-content: space-between;
+}
+.trophy {
+  font-size: 5rem;
+}

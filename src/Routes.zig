@@ -11,7 +11,7 @@ mailers_path: []const u8,
 buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
-channel_routes: std.ArrayList(Function),
+channel_routes: std.ArrayList([]const u8),
 module_paths: std.ArrayList([]const u8),
 data: *jetzig.data.Data,
 
@@ -123,7 +123,7 @@ pub fn init(
         .buffer = std.ArrayList(u8).init(allocator),
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
-        .channel_routes = std.ArrayList(Function).init(allocator),
+        .channel_routes = std.ArrayList([]const u8).init(allocator),
         .module_paths = std.ArrayList([]const u8).init(allocator),
         .data = data,
     };
@@ -386,18 +386,19 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
 const RouteSet = struct {
     dynamic: []Function,
     static: []Function,
-    channel: []Function,
+    channel: [][]const u8,
 };
 
 fn writeChannelRoutes(self: *Routes, writer: anytype) !void {
-    for (self.channel_routes.items) |route| {
-        const module_path = try self.relativePathFrom(.root, route.path, .posix);
+    for (self.channel_routes.items) |path| {
+        const module_path = try self.relativePathFrom(.root, path, .posix);
         defer self.allocator.free(module_path);
-        const view_name = try route.viewName();
-        defer self.allocator.free(view_name);
+        const relative_path = try self.relativePathFrom(.views, path, .posix);
+        defer self.allocator.free(relative_path);
+        const view_name = chompExtension(relative_path);
 
         try writer.print(
-            \\.{{ "{s}", jetzig.channels.Route{{ .receiveMessageFn = @import("{s}").receiveMessage }} }},
+            \\.{{ "{s}", jetzig.channels.Route.initComptime(@import("{s}")) }}
             \\
         , .{ view_name, module_path });
     }
@@ -419,7 +420,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
     var static_routes = std.ArrayList(Function).init(self.allocator);
     var dynamic_routes = std.ArrayList(Function).init(self.allocator);
-    var channel_routes = std.ArrayList(Function).init(self.allocator);
+    var channel_routes = std.ArrayList([]const u8).init(self.allocator);
 
     var static_params: ?*jetzig.data.Value = null;
 
@@ -433,10 +434,6 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
                     source,
                 );
                 if (maybe_function) |*function| {
-                    if (std.mem.eql(u8, function.name, receive_message)) {
-                        try channel_routes.append(function.*);
-                    }
-
                     if (!std.mem.eql(u8, function.name, receive_message) and function.args.len == 0) {
                         std.debug.print(
                             "Expected at least 1 argument for view function `{s}` in `{s}`",
@@ -465,6 +462,27 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
                     const params = try self.data.root(.object);
                     try self.parseStaticParamsDecl(decl, params);
                     static_params = self.data.value;
+                }
+            },
+            .container_decl_two,
+            .container_decl_two_trailing,
+            .container_decl,
+            .container_decl_trailing,
+            => |container_tag| {
+                var buf: [2]std.zig.Ast.Node.Index = undefined;
+                const container = switch (container_tag) {
+                    .container_decl_two,
+                    .container_decl_two_trailing,
+                    => self.ast.containerDeclTwo(&buf, @enumFromInt(index)),
+                    .container_decl,
+                    .container_decl_trailing,
+                    => self.ast.containerDecl(@enumFromInt(index)),
+                    else => unreachable,
+                };
+                const container_token = container.ast.main_token;
+                const decl_name = self.ast.tokenSlice(container_token - 2);
+                if (std.mem.eql(u8, decl_name, "Channel")) {
+                    try channel_routes.append(path);
                 }
             },
             else => {},

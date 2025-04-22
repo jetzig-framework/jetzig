@@ -13,6 +13,7 @@ path: []const u8,
 base_path: []const u8,
 directory: []const u8,
 file_path: []const u8,
+view_name: []const u8,
 resource_id: []const u8,
 extension: ?[]const u8,
 query: ?[]const u8,
@@ -29,6 +30,7 @@ pub fn init(path: []const u8) Path {
         .base_path = base_path,
         .directory = getDirectory(base_path),
         .file_path = getFilePath(path),
+        .view_name = std.mem.trimLeft(u8, base_path, "/"),
         .resource_id = getResourceId(base_path),
         .extension = getExtension(path),
         .query = getQuery(path),
@@ -413,4 +415,9 @@ test ".base_path (/foo/bar/1/_PATCH" {
 test ".method (/foo/bar/1/_PATCH" {
     const path = Path.init("/foo/bar/1/_PATCH");
     try std.testing.expect(path.method.? == .PATCH);
+}
+
+test ".view_name" {
+    const path = Path.init("/foo/bar");
+    try std.testing.expectEqualStrings("foo/bar", path.view_name);
 }

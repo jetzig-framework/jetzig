@@ -147,11 +147,6 @@ pub fn processNextRequest(
     var repo = try self.repo.bindConnect(.{ .allocator = httpz_response.arena });
     defer repo.release();
 
-    if (try self.upgradeWebsocket(httpz_request, httpz_response)) {
-        try self.logger.DEBUG("Websocket upgrade request successful.", .{});
-        return;
-    }
-
     var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
     var request = try jetzig.http.Request.init(
         httpz_response.arena,
@@ -162,6 +157,11 @@ pub fn processNextRequest(
         &response,
         &repo,
     );
+
+    if (try self.upgradeWebsocket(httpz_request, httpz_response, &request)) {
+        try self.logger.DEBUG("Websocket upgrade request successful.", .{});
+        return;
+    }
 
     try request.process();
 
@@ -187,12 +187,29 @@ pub fn matchChannelRoute(self: *const Server, channel_name: []const u8) ?jetzig.
     return self.channel_routes.get(channel_name);
 }
 
-fn upgradeWebsocket(self: *const Server, httpz_request: *httpz.Request, httpz_response: *httpz.Response) !bool {
+fn upgradeWebsocket(
+    self: *const Server,
+    httpz_request: *httpz.Request,
+    httpz_response: *httpz.Response,
+    request: *jetzig.http.Request,
+) !bool {
+    const route = self.matchChannelRoute(request.path.view_name) orelse return false;
+    const session = try request.session();
+    const session_id = session.getT(.string, "_id") orelse {
+        try self.logger.ERROR("Error fetching session ID for websocket, aborting.", .{});
+        return false;
+    };
+
     return try httpz.upgradeWebsocket(
         jetzig.http.Websocket,
         httpz_request,
         httpz_response,
-        jetzig.http.Websocket.Context{ .allocator = self.allocator, .server = self },
+        jetzig.http.Websocket.Context{
+            .allocator = self.allocator,
+            .route = route,
+            .session_id = session_id,
+            .server = self,
+        },
     );
 }
 

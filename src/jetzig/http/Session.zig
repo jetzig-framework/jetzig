@@ -12,6 +12,7 @@ cookie_name: []const u8,
 initialized: bool = false,
 data: jetzig.data.Data,
 state: enum { parsed, pending } = .pending,
+id: [32]u8 = undefined,
 
 const Self = @This();
 
@@ -48,7 +49,11 @@ pub fn parse(self: *Self) !void {
 /// Reset session to an empty state.
 pub fn reset(self: *Self) !void {
     self.data.reset();
-    _ = try self.data.object();
+    var object = try self.data.object();
+
+    _ = jetzig.util.generateRandomString(&self.id);
+    try object.put("_id", &self.id);
+
     self.state = .parsed;
     try self.save();
 }
@@ -70,7 +75,7 @@ pub fn get(self: *Self, key: []const u8) ?*jetzig.data.Value {
 
 /// Get a typed value from the session.
 pub fn getT(
-    self: *Self,
+    self: Self,
     comptime T: jetzig.data.ValueType,
     key: []const u8,
 ) @TypeOf(self.data.value.?.object.getT(T, key)) {

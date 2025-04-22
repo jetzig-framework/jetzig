@@ -39,6 +39,20 @@ pub const environment = @field(
     @tagName(build_options.environment),
 );
 
+pub fn logFn(
+    comptime level: std.log.Level,
+    comptime scope: @Type(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    if (scope == .websocket) return; // We handle our own websocket event logging.
+    std.log.defaultLog(level, scope, format, args);
+}
+
+pub const std_options: std.Options = .{
+    .logFn = logFn,
+};
+
 /// The primary interface for a Jetzig application. Create an `App` in your application's
 /// `src/main.zig` and call `start` to launch the application.
 pub const App = @import("jetzig/App.zig");
