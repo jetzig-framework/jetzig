@@ -11,7 +11,7 @@ env: jetzig.Environment,
 allocator: std.mem.Allocator,
 custom_routes: std.ArrayList(jetzig.views.Route),
 initHook: ?*const fn (*App) anyerror!void,
-server: *jetzig.http.Server = undefined,
+server: *anyopaque = undefined,
 
 pub fn deinit(self: *const App) void {
     @constCast(self).custom_routes.deinit();
@@ -27,6 +27,10 @@ const AppOptions = struct {
 /// automatically created at build time.
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer self.env.deinit();
+
+    const action_router = comptime jetzig.channels.ActionRouter.initComptime(routes_module);
+    _ = action_router;
+    // inline for (action_router.actions) |action| std.debug.print("{s}\n", .{@typeName(action.params[0].type.?)});
 
     if (self.initHook) |hook| try hook(@constCast(self));
 
@@ -93,7 +97,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
         std.process.exit(0);
     }
 
-    var server = jetzig.http.Server.init(
+    var server = jetzig.http.Server.RoutedServer(routes_module).init(
         self.allocator,
         self.env,
         routes,

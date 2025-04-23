@@ -48,7 +48,7 @@ pub fn Type(comptime name: MiddlewareEnum()) type {
     }
 }
 
-pub fn afterLaunch(server: *jetzig.http.Server) !void {
+pub fn afterLaunch(server: *jetzig.http.Server.RoutedServer(@import("root").routes)) !void {
     inline for (middlewares) |middleware| {
         if (comptime @hasDecl(middleware, "afterLaunch")) {
             try middleware.afterLaunch(server);

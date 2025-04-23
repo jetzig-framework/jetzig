@@ -8,14 +8,14 @@ pub const Context = struct {
     allocator: std.mem.Allocator,
     route: jetzig.channels.Route,
     session_id: []const u8,
-    server: *const jetzig.http.Server,
+    channels: *jetzig.kv.Store.ChannelStore,
 };
 
 const Websocket = @This();
 
 allocator: std.mem.Allocator,
 connection: *httpz.websocket.Conn,
-server: *const jetzig.http.Server,
+channels: *jetzig.kv.Store.ChannelStore,
 route: jetzig.channels.Route,
 data: *jetzig.Data,
 session_id: []const u8,
@@ -29,7 +29,7 @@ pub fn init(connection: *httpz.websocket.Conn, context: Context) !Websocket {
         .connection = connection,
         .route = context.route,
         .session_id = context.session_id,
-        .server = context.server,
+        .channels = context.channels,
         .data = data,
     };
 }
@@ -70,15 +70,15 @@ pub fn syncState(websocket: *Websocket, channel: jetzig.channels.Channel) !void 
     const writer = write_buffer.writer();
 
     // TODO: Make this really fast.
-    try websocket.server.channels.put(websocket.session_id, channel.state);
+    try websocket.channels.put(websocket.session_id, channel.state);
     try writer.print("__jetzig_channel_state__:{s}", .{try websocket.data.toJson()});
     try write_buffer.flush();
 }
 
 pub fn getState(websocket: *Websocket) !*jetzig.data.Value {
-    return try websocket.server.channels.get(websocket.data, websocket.session_id) orelse blk: {
+    return try websocket.channels.get(websocket.data, websocket.session_id) orelse blk: {
         const root = try websocket.data.root(.object);
-        try websocket.server.channels.put(websocket.session_id, root);
-        break :blk try websocket.server.channels.get(websocket.data, websocket.session_id) orelse error.JetzigInvalidChannel;
+        try websocket.channels.put(websocket.session_id, root);
+        break :blk try websocket.channels.get(websocket.data, websocket.session_id) orelse error.JetzigInvalidChannel;
     };
 }

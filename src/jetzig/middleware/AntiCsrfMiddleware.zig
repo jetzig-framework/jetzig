@@ -29,7 +29,7 @@ pub fn beforeRender(request: *jetzig.http.Request, route: jetzig.views.Route) !v
 
 fn logFailure(request: *jetzig.http.Request) !void {
     _ = request.fail(.forbidden);
-    try request.server.logger.DEBUG("Anti-CSRF token validation failed. Request aborted.", .{});
+    try request.logger.DEBUG("Anti-CSRF token validation failed. Request aborted.", .{});
 }
 
 fn verifyCsrfToken(request: *jetzig.http.Request) !void {

@@ -27,7 +27,6 @@ path: jetzig.http.Path,
 method: Method,
 headers: jetzig.http.Headers,
 host: []const u8,
-server: *jetzig.http.Server,
 httpz_request: *httpz.Request,
 httpz_response: *httpz.Response,
 response: *jetzig.http.Response,
@@ -53,8 +52,14 @@ rendered_view: ?jetzig.views.View = null,
 start_time: i128,
 store: RequestStore(jetzig.kv.Store.GeneralStore),
 cache: RequestStore(jetzig.kv.Store.CacheStore),
+job_queue: RequestStore(jetzig.kv.Store.JobQueueStore),
+job_definitions: []const jetzig.JobDefinition,
+mailer_definitions: []const jetzig.MailerDefinition,
 repo: *jetzig.database.Repo,
 global: *jetzig.Global,
+env: jetzig.Environment,
+routes: []const *const jetzig.views.Route,
+logger: jetzig.loggers.Logger,
 
 /// Wrapper for KV store that uses the request's arena allocator for fetching values.
 pub fn RequestStore(T: type) type {
@@ -123,12 +128,20 @@ pub fn RequestStore(T: type) type {
 
 pub fn init(
     allocator: std.mem.Allocator,
-    server: *jetzig.http.Server,
     start_time: i128,
     httpz_request: *httpz.Request,
     httpz_response: *httpz.Response,
     response: *jetzig.http.Response,
     repo: *jetzig.database.Repo,
+    env: jetzig.Environment,
+    routes: []const *const jetzig.views.Route,
+    logger: jetzig.loggers.Logger,
+    store: *jetzig.kv.Store.GeneralStore,
+    cache: *jetzig.kv.Store.CacheStore,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
+    job_definitions: []const jetzig.JobDefinition,
+    mailer_definitions: []const jetzig.MailerDefinition,
+    global: *anyopaque,
 ) !Request {
     const path = jetzig.http.Path.init(httpz_request.url.raw);
 
@@ -156,19 +169,24 @@ pub fn init(
         .method = method,
         .headers = headers,
         .host = host,
-        .server = server,
         .response = response,
         .response_data = response_data,
         .httpz_request = httpz_request,
         .httpz_response = httpz_response,
         .start_time = start_time,
-        .store = .{ .store = server.store, .allocator = allocator },
-        .cache = .{ .store = server.cache, .allocator = allocator },
+        .store = .{ .store = store, .allocator = allocator },
+        .cache = .{ .store = cache, .allocator = allocator },
+        .job_queue = .{ .store = job_queue, .allocator = allocator },
+        .job_definitions = job_definitions,
+        .mailer_definitions = mailer_definitions,
+        .env = env,
+        .routes = routes,
+        .logger = logger,
         .repo = repo,
         .global = if (@hasField(jetzig.Global, "__jetzig_default"))
             undefined
         else
-            @ptrCast(@alignCast(server.global)),
+            @ptrCast(@alignCast(global)),
     };
 }
 
@@ -501,19 +519,19 @@ pub fn cookies(self: *Request) !*jetzig.http.Cookies {
 /// `jetzig.http.Session`.
 pub fn session(self: *Request) !*jetzig.http.Session {
     if (self._session) |capture| return capture;
-    const cookie_name = self.server.env.vars.get("JETZIG_SESSION_COOKIE") orelse
+    const cookie_name = self.env.vars.get("JETZIG_SESSION_COOKIE") orelse
         jetzig.http.Session.default_cookie_name;
     const local_session = try self.allocator.create(jetzig.http.Session);
     local_session.* = jetzig.http.Session.init(
         self.allocator,
         try self.cookies(),
-        self.server.env.secret,
+        self.env.secret,
         .{ .cookie_name = cookie_name },
     );
     local_session.parse() catch |err| {
         switch (err) {
             error.JetzigInvalidSessionCookie => {
-                try self.server.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
+                try self.logger.DEBUG("Invalid session cookie detected. Resetting session.", .{});
                 try local_session.reset();
             },
             else => return err,
@@ -565,11 +583,11 @@ pub fn job(self: *Request, job_name: []const u8) !*jetzig.Job {
     const background_job = try self.allocator.create(jetzig.Job);
     background_job.* = jetzig.Job.init(
         self.allocator,
-        self.server.store,
-        self.server.job_queue,
-        self.server.cache,
-        self.server.logger,
-        self.server.job_definitions,
+        self.store.store,
+        self.job_queue.store,
+        self.cache.store,
+        self.logger,
+        self.job_definitions,
         job_name,
     );
     return background_job;
@@ -611,14 +629,14 @@ const RequestMail = struct {
                 self.request.allocator,
                 mail_job.params,
                 jetzig.jobs.JobEnv{
-                    .vars = self.request.server.env.vars,
-                    .environment = self.request.server.env.environment,
-                    .logger = self.request.server.logger,
-                    .routes = self.request.server.routes,
-                    .mailers = self.request.server.mailer_definitions,
-                    .jobs = self.request.server.job_definitions,
-                    .store = self.request.server.store,
-                    .cache = self.request.server.cache,
+                    .vars = self.request.env.vars,
+                    .environment = self.request.env.environment,
+                    .logger = self.request.logger,
+                    .routes = self.request.routes,
+                    .mailers = self.request.mailer_definitions,
+                    .jobs = self.request.job_definitions,
+                    .store = self.request.store.store,
+                    .cache = self.request.cache.store,
                     .mutex = undefined,
                     .repo = self.request.repo,
                 },

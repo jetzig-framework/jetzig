@@ -15,7 +15,7 @@ channels: *MemoryStore,
 job_queue: *MemoryStore,
 multipart_boundary: ?[]const u8 = null,
 logger: jetzig.loggers.Logger,
-server: Server,
+server: *jetzig.http.Server.RoutedServer(@import("root").routes),
 repo: *jetzig.database.Repo,
 cookies: *jetzig.http.Cookies,
 session: *jetzig.http.Session,
@@ -58,6 +58,28 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
     const session = try alloc.create(jetzig.http.Session);
     session.* = jetzig.http.Session.init(alloc, cookies, jetzig.testing.secret, .{});
 
+    const server = try alloc.create(jetzig.http.Server.RoutedServer(@import("root").routes));
+    // This server is only used by database logging - we create a more lifelike server when we
+    // process the actual test request.
+    server.* = .{
+        .logger = logger,
+        .allocator = undefined,
+        .env = undefined,
+        .routes = undefined,
+        .channel_routes = undefined,
+        .custom_routes = undefined,
+        .job_definitions = undefined,
+        .mailer_definitions = undefined,
+        .mime_map = undefined,
+        .initialized = undefined,
+        .store = undefined,
+        .job_queue = undefined,
+        .cache = undefined,
+        .channels = undefined,
+        .repo = undefined,
+        .global = undefined,
+    };
+
     app.* = App{
         .arena = arena,
         .allocator = allocator,
@@ -67,7 +89,7 @@ pub fn init(allocator: std.mem.Allocator, routes_module: type) !App {
         .channels = try createStore(arena.allocator(), logger, .channels),
         .job_queue = try createStore(arena.allocator(), logger, .jobs),
         .logger = logger,
-        .server = .{ .logger = logger },
+        .server = server,
         .repo = repo,
         .cookies = cookies,
         .session = session,
@@ -133,7 +155,7 @@ pub fn request(
         .env_map = std.process.EnvMap.init(allocator),
         .env_file = null,
     };
-    var server = jetzig.http.Server{
+    var server = jetzig.http.Server.RoutedServer(@import("root").routes){
         .allocator = allocator,
         .logger = self.logger,
         .env = .{
@@ -150,6 +172,7 @@ pub fn request(
             .secret = jetzig.testing.secret,
         },
         .routes = routes,
+        .channel_routes = std.StaticStringMap(jetzig.channels.Route).initComptime(.{}),
         .custom_routes = &.{},
         .mailer_definitions = &.{},
         .job_definitions = &.{},

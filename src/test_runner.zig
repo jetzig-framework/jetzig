@@ -8,6 +8,7 @@ pub const std_options = std.Options{
 };
 
 pub const jetzig_options = @import("main").jetzig_options;
+pub const routes = @import("main").routes;
 
 pub fn log(
     comptime message_level: std.log.Level,

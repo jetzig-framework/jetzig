@@ -12,7 +12,7 @@ buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
 channel_routes: std.ArrayList([]const u8),
-module_paths: std.ArrayList([]const u8),
+module_paths: std.StringHashMap(void),
 data: *jetzig.data.Data,
 
 const receive_message = "receiveMessage";
@@ -124,7 +124,7 @@ pub fn init(
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
         .channel_routes = std.ArrayList([]const u8).init(allocator),
-        .module_paths = std.ArrayList([]const u8).init(allocator),
+        .module_paths = std.StringHashMap(void).init(allocator),
         .data = data,
     };
 }
@@ -187,15 +187,28 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
     );
 
     try writer.writeAll(
+        \\
+        \\pub const View = struct { name: []const u8, module: type };
+        \\pub const views = [_]View{
+        \\
+    );
+    try self.writeViewsArray(writer);
+    try writer.writeAll(
+        \\};
+        \\
+    );
+
+    try writer.writeAll(
         \\test {
         \\
     );
 
-    for (self.module_paths.items) |module_path| {
+    var it = self.module_paths.keyIterator();
+    while (it.next()) |module_path| {
         try writer.print(
             \\    _ = @import("{s}");
             \\
-        , .{module_path});
+        , .{module_path.*});
     }
 
     try writer.writeAll(
@@ -362,7 +375,7 @@ fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) 
         unreachable;
 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
-    try self.module_paths.append(try self.allocator.dupe(u8, module_path));
+    try self.module_paths.put(try self.allocator.dupe(u8, module_path), {});
 
     var buf: [32]u8 = undefined;
     const id = jetzig.util.generateVariableName(&buf);
@@ -878,4 +891,16 @@ fn writeJobs(self: Routes, writer: anytype) !void {
     }
 
     std.debug.print("[jetzig] Imported {} job(s)\n", .{count});
+}
+
+fn writeViewsArray(self: Routes, writer: anytype) !void {
+    var it = self.module_paths.keyIterator();
+    while (it.next()) |path| {
+        try writer.print(
+            \\.{{ .name = "{s}", .module = @import("{s}") }},
+            \\
+        ,
+            .{ chompExtension(try self.relativePathFrom(.views, path.*, .posix)), path.* },
+        );
+    }
 }

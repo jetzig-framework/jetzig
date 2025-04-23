@@ -30,7 +30,12 @@ pub fn value(message: Message) !*jetzig.data.Value {
 test "message with payload" {
     const message = Message.init(
         std.testing.allocator,
-        Channel{ .websocket = undefined, .state = undefined },
+        Channel{
+            .websocket = undefined,
+            .state = undefined,
+            .allocator = undefined,
+            .data = undefined,
+        },
         "foo",
     );
     try std.testing.expectEqualStrings(message.payload, "foo");

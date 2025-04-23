@@ -57,15 +57,15 @@
 <div id="party-container"></div>
 
 <div class="board" id="board">
-    <div class="cell" id="tic-tac-toe-cell-0" data-cell="0"></div>
-    <div class="cell" id="tic-tac-toe-cell-1" data-cell="1"></div>
-    <div class="cell" id="tic-tac-toe-cell-2" data-cell="2"></div>
-    <div class="cell" id="tic-tac-toe-cell-3" data-cell="3"></div>
-    <div class="cell" id="tic-tac-toe-cell-4" data-cell="4"></div>
-    <div class="cell" id="tic-tac-toe-cell-5" data-cell="5"></div>
-    <div class="cell" id="tic-tac-toe-cell-6" data-cell="6"></div>
-    <div class="cell" id="tic-tac-toe-cell-7" data-cell="7"></div>
-    <div class="cell" id="tic-tac-toe-cell-8" data-cell="8"></div>
+    <div class="cell" jetzig-connect="$.cells.0" id="tic-tac-toe-cell-0" data-cell="0"></div>
+    <div class="cell" jetzig-connect="$.cells.1" id="tic-tac-toe-cell-1" data-cell="1"></div>
+    <div class="cell" jetzig-connect="$.cells.2" id="tic-tac-toe-cell-2" data-cell="2"></div>
+    <div class="cell" jetzig-connect="$.cells.3" id="tic-tac-toe-cell-3" data-cell="3"></div>
+    <div class="cell" jetzig-connect="$.cells.4" id="tic-tac-toe-cell-4" data-cell="4"></div>
+    <div class="cell" jetzig-connect="$.cells.5" id="tic-tac-toe-cell-5" data-cell="5"></div>
+    <div class="cell" jetzig-connect="$.cells.6" id="tic-tac-toe-cell-6" data-cell="6"></div>
+    <div class="cell" jetzig-connect="$.cells.7" id="tic-tac-toe-cell-7" data-cell="7"></div>
+    <div class="cell" jetzig-connect="$.cells.8" id="tic-tac-toe-cell-8" data-cell="8"></div>
 </div>
 
 <button id="reset-button">Reset Game</button>
@@ -86,7 +86,7 @@
 
         Object.entries(state.cells).forEach(([cell, state]) => {
             const element = document.querySelector(`#tic-tac-toe-cell-${cell}`);
-            element.innerHTML = { player: "&#9992;", cpu: "&#129422;" }[state] || "";
+            element.innerHTML = { player: "&#9992;&#65039;", cpu: "&#129422;" }[state] || "";
         });
     });
 
