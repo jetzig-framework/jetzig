@@ -25,6 +25,7 @@ pub const auth = @import("jetzig/auth.zig");
 pub const callbacks = @import("jetzig/callbacks.zig");
 pub const debug = @import("jetzig/debug.zig");
 pub const TemplateContext = @import("jetzig/TemplateContext.zig");
+pub const websockets = @import("jetzig/websockets.zig");
 pub const channels = @import("jetzig/channels.zig");
 
 pub const DateTime = jetcommon.types.DateTime;

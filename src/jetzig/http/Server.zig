@@ -9,7 +9,6 @@ const httpz = @import("httpz");
 pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
 
 pub fn RoutedServer(Routes: type) type {
-    _ = Routes;
     return struct {
         allocator: std.mem.Allocator,
         logger: jetzig.loggers.Logger,
@@ -75,7 +74,7 @@ pub fn RoutedServer(Routes: type) type {
         const HttpzHandler = struct {
             server: *Server,
 
-            pub const WebsocketHandler = jetzig.http.Websocket;
+            pub const WebsocketHandler = jetzig.websockets.RoutedWebsocket(Routes);
 
             pub fn handle(self: HttpzHandler, request: *httpz.Request, response: *httpz.Response) void {
                 self.server.processNextRequest(request, response) catch |err| {
@@ -215,14 +214,15 @@ pub fn RoutedServer(Routes: type) type {
             };
 
             return try httpz.upgradeWebsocket(
-                jetzig.http.Websocket,
+                jetzig.websockets.RoutedWebsocket(Routes),
                 httpz_request,
                 httpz_response,
-                jetzig.http.Websocket.Context{
+                jetzig.websockets.Context{
                     .allocator = self.allocator,
                     .route = route,
                     .session_id = session_id,
                     .channels = self.channels,
+                    .logger = self.logger,
                 },
             );
         }

@@ -189,12 +189,12 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
     try writer.writeAll(
         \\
         \\pub const View = struct { name: []const u8, module: type };
-        \\pub const views = [_]View{
+        \\pub const views = std.StaticStringMap(View).initComptime(.{
         \\
     );
-    try self.writeViewsArray(writer);
+    try self.writeViewsMap(writer);
     try writer.writeAll(
-        \\};
+        \\});
         \\
     );
 
@@ -411,7 +411,7 @@ fn writeChannelRoutes(self: *Routes, writer: anytype) !void {
         const view_name = chompExtension(relative_path);
 
         try writer.print(
-            \\.{{ "{s}", jetzig.channels.Route.initComptime(@import("{s}")) }}
+            \\.{{ "{0s}", jetzig.channels.Route.initComptime(@import("{1s}"), "{0s}") }}
             \\
         , .{ view_name, module_path });
     }
@@ -893,14 +893,17 @@ fn writeJobs(self: Routes, writer: anytype) !void {
     std.debug.print("[jetzig] Imported {} job(s)\n", .{count});
 }
 
-fn writeViewsArray(self: Routes, writer: anytype) !void {
+fn writeViewsMap(self: Routes, writer: anytype) !void {
     var it = self.module_paths.keyIterator();
     while (it.next()) |path| {
         try writer.print(
-            \\.{{ .name = "{s}", .module = @import("{s}") }},
+            \\.{{ "{0s}", View{{ .name = "{0s}", .module = @import("{1s}") }} }},
             \\
         ,
-            .{ chompExtension(try self.relativePathFrom(.views, path.*, .posix)), path.* },
+            .{
+                chompExtension(try self.relativePathFrom(.views, path.*, .posix)),
+                path.*,
+            },
         );
     }
 }

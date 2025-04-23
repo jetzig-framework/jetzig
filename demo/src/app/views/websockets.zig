@@ -12,15 +12,15 @@ pub const Channel = struct {
     }
 
     pub fn receive(message: jetzig.channels.Message) !void {
-        const value = try message.value();
+        const params = try message.params() orelse return;
 
-        if (value.getT(.boolean, "reset") == true) {
+        if (params.remove("reset")) {
             try resetGame(message.channel);
             try message.channel.sync();
             return;
         }
 
-        const cell: usize = if (value.getT(.integer, "cell")) |integer|
+        const cell: usize = if (params.getT(.integer, "cell")) |integer|
             @intCast(integer)
         else
             return;
@@ -62,8 +62,8 @@ pub const Channel = struct {
 
     pub const Actions = struct {
         pub fn reset(channel: jetzig.channels.Channel) !void {
-            _ = channel;
-            std.debug.print("here\n", .{});
+            try resetGame(channel);
+            try channel.sync();
         }
     };
 

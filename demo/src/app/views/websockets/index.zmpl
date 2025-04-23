@@ -1,6 +1,7 @@
 <script>
     const channel = {
         websocket: null,
+        actions: {},
         stateChangedCallbacks: [],
         messageCallbacks: [],
         onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
@@ -20,10 +21,34 @@
             channel.websocket = new WebSocket('ws://{{host}}{{request.path.base_path}}');
             channel.websocket.addEventListener("message", (event) => {
                 const state_tag = "__jetzig_channel_state__:";
+                const actions_tag = "__jetzig_actions__:";
+
                 if (event.data.startsWith(state_tag)) {
                     const state = JSON.parse(event.data.slice(state_tag.length));
                     channel.stateChangedCallbacks.forEach((callback) => {
                         callback(state);
+                    });
+                } else if (event.data.startsWith(actions_tag)) {
+                    const data = JSON.parse(event.data.slice(actions_tag.length));
+                    data.actions.forEach(action => {
+                        channel.actions[action.name] = (...params) => {
+                            if (action.params.length != params.length) {
+                                throw new Error(`Invalid params for action '${action.name}'`);
+                            }
+                            [...action.params].forEach((param, index) => {
+                                const map = {
+                                    s: "string",
+                                    b: "boolean",
+                                    i: "number",
+                                    f: "number",
+                                };
+                                if (map[param] !== typeof params[index]) {
+                                    throw new Error(`Incorrect argument type for argument ${index} in '${action.name}'. Expected: ${map[param]}, found ${typeof params[index]}`);
+                                }
+                            });
+
+                            channel.websocket.send(`_invoke:${action.name}:${JSON.stringify(params)}`);
+                        };
                     });
                 } else {
                     const data = JSON.parse(event.data);
@@ -76,6 +101,7 @@
 
 <script>
     channel.onStateChanged(state => {
+        console.log(state);
         document.querySelector("#player-wins").innerText = state.results.player;
         document.querySelector("#cpu-wins").innerText = state.results.cpu;
         document.querySelector("#ties").innerText = state.results.ties;
@@ -97,7 +123,7 @@
     });
 
     document.querySelector("#reset-button").addEventListener("click", () => {
-        channel.publish({ reset: true });
+        channel.actions.reset();
     });
 
     document.querySelectorAll("#board div.cell").forEach(element => {
