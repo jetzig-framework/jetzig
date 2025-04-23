@@ -4,8 +4,16 @@
         actions: {},
         stateChangedCallbacks: [],
         messageCallbacks: [],
+        invokeCallbacks: {},
         onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
         onMessage: function(callback) { this.messageCallbacks.push(callback); },
+        receive: function(event, callback) {
+            if (Object.hasOwn(this.invokeCallbacks, event)) {
+                this.invokeCallbacks[event].push(callback);
+            } else {
+                this.invokeCallbacks[event] = [callback];
+            }
+        },
         publish: function(data) {
             if (this.websocket) {
                 const json = JSON.stringify(data);
@@ -22,12 +30,20 @@
             channel.websocket.addEventListener("message", (event) => {
                 const state_tag = "__jetzig_channel_state__:";
                 const actions_tag = "__jetzig_actions__:";
+                const event_tag = "__jetzig_event__:";
 
                 if (event.data.startsWith(state_tag)) {
                     const state = JSON.parse(event.data.slice(state_tag.length));
                     channel.stateChangedCallbacks.forEach((callback) => {
                         callback(state);
                     });
+                } else if (event.data.startsWith(event_tag)) {
+                    const data = JSON.parse(event.data.slice(event_tag.length));
+                    if (Object.hasOwn(channel.invokeCallbacks, data.method)) {
+                        channel.invokeCallbacks[data.method].forEach(callback => {
+                            callback(data);
+                        });
+                    }
                 } else if (event.data.startsWith(actions_tag)) {
                     const data = JSON.parse(event.data.slice(actions_tag.length));
                     data.actions.forEach(action => {
@@ -95,19 +111,20 @@
 
 <button id="reset-button">Reset Game</button>
 
+<div id="victor"></div>
 
 <script src="/party.js"></script>
 <link rel="stylesheet" href="/party.css" />
 
 <script>
     channel.onStateChanged(state => {
-        console.log(state);
         document.querySelector("#player-wins").innerText = state.results.player;
         document.querySelector("#cpu-wins").innerText = state.results.cpu;
-        document.querySelector("#ties").innerText = state.results.ties;
+        document.querySelector("#ties").innerText = state.results.tie;
 
-        if (state.winner) {
-            triggerPartyAnimation();
+        if (!state.victor) {
+            const elem = document.querySelector("#victor");
+            elem.style.visibility = 'hidden';
         }
 
         Object.entries(state.cells).forEach(([cell, state]) => {
@@ -122,13 +139,26 @@
         }
     });
 
+    channel.receive("victor", (data) => {
+        console.log(data);
+        const elem = document.querySelector("#victor");
+        const emoji = {
+            player: "&#9992;&#65039;",
+            cpu: "&#129422;",
+            tie: "&#129309;"
+        }[data.params.type] || "";
+        elem.innerHTML = `&#127942; ${emoji} &#127942;`;
+        elem.style.visibility = 'visible';
+        triggerPartyAnimation();
+    });
+
     document.querySelector("#reset-button").addEventListener("click", () => {
         channel.actions.reset();
     });
 
     document.querySelectorAll("#board div.cell").forEach(element => {
         element.addEventListener("click", () => {
-            channel.publish({ cell: parseInt(element.dataset.cell) });
+            channel.actions.move(parseInt(element.dataset.cell));
         });
     });
 </script>

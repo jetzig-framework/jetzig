@@ -23,6 +23,32 @@ pub fn RoutedChannel(Routes: type) type {
             const writer = write_buffer.writer();
             try std.json.stringify(data, .{}, writer);
             try write_buffer.flush();
+            channel.websocket.logger.DEBUG(
+                "Published Channel message for `{s}`",
+                .{channel.websocket.route.path},
+            ) catch {};
+        }
+
+        pub fn invoke(
+            channel: Channel,
+            comptime method: @TypeOf(.enum_literal),
+            args: anytype,
+        ) !void {
+            // TODO: DRY
+            var stack_fallback = std.heap.stackFallback(4096, channel.allocator);
+            const allocator = stack_fallback.get();
+
+            var write_buffer = channel.websocket.connection.writeBuffer(allocator, .text);
+            defer write_buffer.deinit();
+
+            const writer = write_buffer.writer();
+            try writer.writeAll("__jetzig_event__:");
+            try std.json.stringify(.{ .method = method, .params = args }, .{}, writer);
+            try write_buffer.flush();
+            channel.websocket.logger.DEBUG(
+                "Invoked Javascript function `{s}` for `{s}`",
+                .{ @tagName(method), channel.websocket.route.path },
+            ) catch {};
         }
 
         pub fn getT(
@@ -43,6 +69,10 @@ pub fn RoutedChannel(Routes: type) type {
             value: anytype,
         ) @TypeOf(channel.state.put(key, value)) {
             return try channel.state.put(key, value);
+        }
+
+        pub fn remove(channel: Channel, key: []const u8) bool {
+            return channel.state.remove(key);
         }
 
         pub fn sync(channel: Channel) !void {

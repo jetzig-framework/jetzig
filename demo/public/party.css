@@ -114,3 +114,9 @@ body {
 .trophy {
   font-size: 5rem;
 }
+#victor {
+  margin: 3rem;
+  font-size: 5rem;
+  text-align: center;
+  vertical-align: center;
+}
