@@ -120,3 +120,16 @@ body {
   text-align: center;
   vertical-align: center;
 }
+
+#grid {
+  transition: background-color 0.5s ease;
+}
+
+.flash-animation {
+  animation: flashRed 0.5s ease;
+}
+
+@keyframes flashRed {
+  0%   { background-color: #e55; }
+  100% { background-color: white; }
+  }

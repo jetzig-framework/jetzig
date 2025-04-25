@@ -21,7 +21,7 @@ pub const Channel = struct {
             game.evaluate();
 
             if (game.victor != null) {
-                try channel.publish(.{ .err = "Game is already over." });
+                try channel.invoke(.game_over, .{});
                 return;
             } else {
                 try movePlayer(channel, &game, cells, cell);
