@@ -148,7 +148,7 @@ fn defaultHtml(
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
     return if (jetzig.zmpl.findPrefixed("mailers", mailer.html_template)) |template|
-        try template.render(&data, jetzig.TemplateContext, .{}, .{})
+        try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{})
     else
         null;
 }
@@ -166,7 +166,7 @@ fn defaultText(
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
     return if (jetzig.zmpl.findPrefixed("mailers", mailer.text_template)) |template|
-        try template.render(&data, jetzig.TemplateContext, .{}, .{})
+        try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{})
     else
         null;
 }

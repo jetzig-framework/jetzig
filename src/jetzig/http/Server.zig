@@ -152,13 +152,18 @@ pub fn processNextRequest(
 
     try request.process();
 
+    // Allow middleware to render templates even though we have not mapped a view/action yet.
+    // TODO: We should probably separate the routing and map routes before we invoke middleware.
+    try request.response_data.addConst("jetzig_action", request.response_data.string(""));
+    try request.response_data.addConst("jetzig_view", request.response_data.string(""));
+
     var middleware_data = try jetzig.http.middleware.afterRequest(&request);
     if (try maybeMiddlewareRender(&request, &response)) {
         try self.logger.logRequest(&request);
         return;
     }
 
-    try self.renderResponse(&request);
+    try self.renderResponse(&request, &middleware_data);
     try request.response.headers.append("Content-Type", response.content_type);
 
     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
@@ -175,8 +180,7 @@ fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.
         if (request.redirect_state) |state| {
             try request.renderRedirect(state);
         } else if (request.rendered_view) |rendered| {
-            // TODO: Allow middleware to set content
-            request.setResponse(.{ .view = rendered, .content = "" }, .{});
+            request.setResponse(.{ .view = rendered, .content = rendered.content orelse "" }, .{});
         }
         try request.response.headers.append("Content-Type", response.content_type);
         try request.respond();
@@ -184,7 +188,11 @@ fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.
     } else return false;
 }
 
-fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
+fn renderResponse(
+    self: *Server,
+    request: *jetzig.http.Request,
+    middleware_data: *jetzig.http.middleware.MiddlewareData,
+) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
@@ -236,6 +244,34 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
                 return;
             }
         }
+
+        // View functions return a `View` to encourage users to return from a view function with
+        // `return request.render(.ok)`, but the actual rendered view is stored in
+        // `request.rendered_view`.
+        _ = route.render(route, request) catch |err| {
+            if (isUnhandledError(err)) return err;
+            const rendered_error = if (isBadRequest(err))
+                try self.renderBadRequest(request)
+            else
+                try self.renderInternalServerError(request, @errorReturnTrace(), err);
+            request.setResponse(rendered_error, .{});
+            return;
+        };
+
+        if (request.rendered_view != null) {
+            try jetzig.http.middleware.afterView(middleware_data, request, route);
+        }
+    }
+
+    if (request.middleware_rendered) |_| {
+        // Request processing ends when a middleware renders or redirects.
+        if (request.redirect_state) |state| {
+            try request.renderRedirect(state);
+        } else if (request.rendered_view) |rendered| {
+            request.setResponse(.{ .view = rendered, .content = rendered.content orelse "" }, .{});
+        }
+        try request.response.headers.append("Content-Type", request.response.content_type);
+        return try request.respond();
     }
 
     switch (request.requestFormat()) {
@@ -347,15 +383,6 @@ fn renderView(
     request: *jetzig.http.Request,
     maybe_template: ?zmpl.Template,
 ) !RenderedView {
-    // View functions return a `View` to encourage users to return from a view function with
-    // `return request.render(.ok)`, but the actual rendered view is stored in
-    // `request.rendered_view`.
-    _ = route.render(route, request) catch |err| {
-        if (isUnhandledError(err)) return err;
-        if (isBadRequest(err)) return try self.renderBadRequest(request);
-        return try self.renderInternalServerError(request, @errorReturnTrace(), err);
-    };
-
     if (request.state == .failed) {
         const view: jetzig.views.View = request.rendered_view orelse .{
             .data = request.response_data,
@@ -415,7 +442,7 @@ fn renderTemplateWithLayout(
 ) ![]const u8 {
     try addTemplateConstants(view, route);
 
-    const template_context = jetzig.TemplateContext{ .request = request };
+    const template_context = jetzig.TemplateContext{ .request = request, .route = route };
 
     if (request.getLayout(route)) |layout_name| {
         // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
@@ -431,6 +458,7 @@ fn renderTemplateWithLayout(
                 view.data,
                 jetzig.TemplateContext,
                 template_context,
+                &.{},
                 .{ .layout = layout },
             );
         } else {
@@ -439,6 +467,7 @@ fn renderTemplateWithLayout(
                 view.data,
                 jetzig.TemplateContext,
                 template_context,
+                &.{},
                 .{},
             );
         }
@@ -446,6 +475,7 @@ fn renderTemplateWithLayout(
         view.data,
         jetzig.TemplateContext,
         template_context,
+        &.{},
         .{},
     );
 }
@@ -608,7 +638,8 @@ fn renderErrorView(
                                 .content = try template.render(
                                     request.response_data,
                                     jetzig.TemplateContext,
-                                    .{ .request = request },
+                                    .{ .request = request, .route = route.* },
+                                    &.{},
                                     .{},
                                 ),
                             };
