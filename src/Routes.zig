@@ -12,6 +12,7 @@ buffer: std.ArrayList(u8),
 dynamic_routes: std.ArrayList(Function),
 static_routes: std.ArrayList(Function),
 channel_routes: std.ArrayList([]const u8),
+channel_actions: std.StringHashMap(std.StringHashMap([]const []const u8)),
 module_paths: std.StringHashMap(void),
 data: *jetzig.data.Data,
 
@@ -124,6 +125,7 @@ pub fn init(
         .static_routes = std.ArrayList(Function).init(allocator),
         .dynamic_routes = std.ArrayList(Function).init(allocator),
         .channel_routes = std.ArrayList([]const u8).init(allocator),
+        .channel_actions = std.StringHashMap(std.StringHashMap([]const []const u8)).init(allocator),
         .module_paths = std.StringHashMap(void).init(allocator),
         .data = data,
     };
@@ -163,6 +165,7 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
         \\});
         \\
     );
+
     try writer.writeAll(
         \\
         \\pub const mailers = [_]jetzig.MailerDefinition{
@@ -410,10 +413,35 @@ fn writeChannelRoutes(self: *Routes, writer: anytype) !void {
         defer self.allocator.free(relative_path);
         const view_name = chompExtension(relative_path);
 
+        var actions_buf = std.ArrayList(u8).init(self.allocator);
+        const actions_writer = actions_buf.writer();
+        if (self.channel_actions.get(path)) |actions| {
+            var it = actions.iterator();
+            while (it.next()) |entry| {
+                try actions_writer.print(
+                    \\.{{ .name = "{s}", .params = &.{{
+                , .{entry.key_ptr.*});
+                for (entry.value_ptr.*, 0..) |param, index| {
+                    if (index == 0) continue; // Skip `self` argument.
+                    try actions_writer.print(
+                        \\.{{ .name = "{s}" }},
+                    , .{param});
+                }
+                try actions_writer.writeAll("},},");
+            }
+        }
+
         try writer.print(
-            \\.{{ "{0s}", jetzig.channels.Route.initComptime(@import("{1s}"), "{0s}") }}
+            \\.{{
+            \\   "{0s}",
+            \\   jetzig.channels.Route.initComptime(
+            \\       @import("{1s}"),
+            \\       "{0s}",
+            \\       &.{{{2s}}}
+            \\    ),
+            \\}}
             \\
-        , .{ view_name, module_path });
+        , .{ view_name, module_path, actions_buf.items });
     }
 }
 
@@ -496,6 +524,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
                 const decl_name = self.ast.tokenSlice(container_token - 2);
                 if (std.mem.eql(u8, decl_name, "Channel")) {
                     try channel_routes.append(path);
+                    try self.parseChannel(container, path);
                 }
             },
             else => {},
@@ -525,6 +554,83 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
         .static = static_routes.items,
         .channel = channel_routes.items,
     };
+}
+
+// Although we mostly evaluate channel routes at comptime, we need to parse the function
+// signatures in `Actions` to get argument names (Zig only reflects the types).
+fn parseChannel(self: *Routes, channel: std.zig.Ast.full.ContainerDecl, path: []const u8) !void {
+    for (channel.ast.members) |member| {
+        const tag = self.ast.nodeTag(member);
+        switch (tag) {
+            .simple_var_decl => {
+                const var_decl = self.ast.simpleVarDecl(member);
+                const var_name = self.ast.tokenSlice(self.ast.nodeMainToken(member) + 1);
+                if (std.mem.eql(u8, var_name, "Actions")) {
+                    const init_node = var_decl.ast.init_node.unwrap() orelse continue;
+                    switch (self.ast.nodeTag(init_node)) {
+                        .container_decl_two,
+                        .container_decl_two_trailing,
+                        .container_decl,
+                        .container_decl_trailing,
+                        => |container_tag| {
+                            var buf: [2]std.zig.Ast.Node.Index = undefined;
+                            const container = switch (container_tag) {
+                                .container_decl_two,
+                                .container_decl_two_trailing,
+                                => self.ast.containerDeclTwo(&buf, init_node),
+                                .container_decl,
+                                .container_decl_trailing,
+                                => self.ast.containerDecl(init_node),
+                                else => unreachable,
+                            };
+                            const container_token = container.ast.main_token;
+                            const decl_name = self.ast.tokenSlice(container_token - 2);
+                            if (std.mem.eql(u8, decl_name, "Actions")) {
+                                try self.parseChannelActions(container, path);
+                            }
+                        },
+                        else => continue,
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+fn parseChannelActions(self: *Routes, actions: std.zig.Ast.full.ContainerDecl, path: []const u8) !void {
+    for (actions.ast.members) |member| {
+        const tag = self.ast.nodes.items(.tag)[@intFromEnum(member)];
+        switch (tag) {
+            .fn_proto,
+            .fn_proto_multi,
+            .fn_proto_one,
+            .fn_proto_simple,
+            .fn_decl,
+            => {
+                var buf: [1]std.zig.Ast.Node.Index = undefined;
+                const func = self.ast.fullFnProto(&buf, member).?;
+                const visib_token = func.visib_token orelse continue;
+                if (!std.mem.eql(u8, self.ast.tokenSlice(visib_token), "pub")) continue;
+                const func_name_token = func.name_token orelse continue;
+                const func_name = self.ast.tokenSlice(func_name_token);
+
+                var params_buf = std.ArrayList([]const u8).init(self.allocator);
+                var params_it = func.iterate(&self.ast);
+                while (params_it.next()) |param| {
+                    try params_buf.append(
+                        try self.allocator.dupe(u8, self.ast.tokenSlice(param.name_token.?)),
+                    );
+                }
+                const result = try self.channel_actions.getOrPut(path);
+                if (!result.found_existing) {
+                    result.value_ptr.* = std.StringHashMap([]const []const u8).init(self.allocator);
+                }
+                try result.value_ptr.put(try self.allocator.dupe(u8, func_name), try params_buf.toOwnedSlice());
+            },
+            else => {},
+        }
+    }
 }
 
 // Parse the `pub const static_params` definition and into a `jetzig.data.Value`.

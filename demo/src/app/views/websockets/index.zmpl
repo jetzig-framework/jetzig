@@ -27,7 +27,7 @@
     }
 </div>
 
-<button id="reset-button">Reset Game</button>
+<button jetzig-click="reset" id="reset-button">Reset Game</button>
 
 <div id="victor"></div>
 
@@ -70,14 +70,4 @@
     jetzig.channel.transform("cell", (value) => (
         { player: "&#9992;&#65039;", cpu: "&#129422;" }[value] || ""
     ));
-    document.querySelectorAll("#board div.cell").forEach(element => {
-        element.addEventListener("click", () => {
-            jetzig.channel.actions.move(parseInt(element.dataset.cell));
-        });
-    });
-
-    document.querySelector("#reset-button").addEventListener("click", () => {
-        jetzig.channel.actions.reset();
-    });
-
 </script>

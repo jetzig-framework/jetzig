@@ -16,6 +16,7 @@ jetzig = window.jetzig;
   jetzig.channel = {
       websocket: null,
       actions: {},
+      action_specs: {},
       stateChangedCallbacks: [],
       messageCallbacks: [],
       invokeCallbacks: {},
@@ -25,7 +26,6 @@ jetzig = window.jetzig;
       onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
       onMessage: function(callback) { this.messageCallbacks.push(callback); },
       init: function(host, path) {
-          console.log("here");
           this.websocket = new WebSocket(`ws://${host}${path}`);
           this.websocket.addEventListener("message", (event) => {
               const state_tag = "__jetzig_channel_state__:";
@@ -51,20 +51,33 @@ jetzig = window.jetzig;
               } else if (event.data.startsWith(actions_tag)) {
                   const data = JSON.parse(event.data.slice(actions_tag.length));
                   data.actions.forEach(action => {
-                      this.actions[action.name] = {
+                      this.action_specs[action.name] = {
                           callback: (...params) => {
                             if (action.params.length != params.length) {
-                                throw new Error(`Invalid params for action '${action.name}'`);
+                                throw new Error(`Invalid params for action '${action.name}'. Expected ${action.params.length} params, found ${params.length}`);
                             }
                             [...action.params].forEach((param, index) => {
-                                const map = {
-                                    s: "string",
-                                    b: "boolean",
-                                    i: "number",
-                                    f: "number",
-                                };
-                                if (map[param] !== typeof params[index]) {
-                                    throw new Error(`Incorrect argument type for argument ${index} in '${action.name}'. Expected: ${map[param]}, found ${typeof params[index]}`);
+                                if (param.type !== typeof params[index]) {
+                                    const err = `Incorrect argument type for argument ${index} in '${action.name}'. Expected: ${param.type}, found ${typeof params[index]}`;
+                                    switch (param.type) {
+                                      case "string":
+                                        params[index] = `${params[index]}`;
+                                        break;
+                                      case "integer":
+                                        try { params[index] = parseInt(params[index]) } catch {
+                                          throw new Error(err);
+                                        };
+                                        break;
+                                      case "float":
+                                        try { params[index] = parseFloat(params[index]) } catch {
+                                          throw new Error(err);
+                                        };
+                                      case "boolean":
+                                        params[index] = ["true", "y", "1", "yes", "t"].includes(params[index]);
+                                        break;
+                                      default:
+                                        throw new Error(err);
+                                    }
                                 }
                             });
 
@@ -72,8 +85,28 @@ jetzig = window.jetzig;
                           },
                       spec: { ...action },
                     };
+                    this.actions[action.name] = this.action_specs[action.name].callback;
                   });
-                  console.log(this.actions);
+                  document.querySelectorAll('[jetzig-click]').forEach(element => {
+                      const ref = element.getAttribute('jetzig-click');
+                      const action = this.action_specs[ref];
+                      if (action) {
+                        element.addEventListener('click', () => {
+                          const args = [];
+                          action.spec.params.forEach(param => {
+                            const arg = element.dataset[param.name];
+                            if (arg === undefined) {
+                              throw new Error(`Expected 'data-${param.name}' attribute for '${action.name}' click handler.`);
+                            } else {
+                              args.push(element.dataset[param.name]);
+                            }
+                          });
+                          action.callback(...args);
+                        });
+                      } else {
+                        throw new Error(`Unknown click handler: '${ref}'`);
+                      }
+                  });
               } else {
                   const data = JSON.parse(event.data);
                   this.messageCallbacks.forEach((callback) => {
@@ -107,13 +140,6 @@ jetzig = window.jetzig;
               element.setAttribute('jetzig-id', id);
               this.elementMap[ref].push(element);
               this.transformerMap[id] = element.getAttribute('jetzig-transform');
-          });
-          document.querySelectorAll('[jetzig-click]').forEach(element => {
-              const ref = element.getAttribute('jetzig-click');
-              const action = this.actions[ref];
-              if (action) {
-                
-              }
           });
 
           // this.websocket.addEventListener("open", (event) => {

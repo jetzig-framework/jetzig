@@ -148,7 +148,12 @@ fn encodeParams(Routes: type) !std.StaticStringMap([]const u8) {
             actions: []ActionSpec,
             pub const ActionSpec = struct {
                 name: []const u8,
-                params: []const u8,
+                params: []const ParamSpec,
+
+                pub const ParamSpec = struct {
+                    type: []const u8,
+                    name: []const u8,
+                };
             };
         };
         const Tuple = std.meta.Tuple(&.{ []const u8, []const u8 });
@@ -168,10 +173,17 @@ fn encodeParams(Routes: type) !std.StaticStringMap([]const u8) {
                 switch (@typeInfo(@TypeOf(@field(view.module.Channel.Actions, decl.name)))) {
                     .@"fn" => |info| {
                         verifyParams(info.params, view.name, decl.name);
+                        const route = Routes.channel_routes.get(view.name).?;
+                        const action = for (route.actions) |action| {
+                            if (std.mem.eql(u8, action.name, decl.name)) break action;
+                        } else unreachable;
                         if (info.params.len > 1) {
-                            var params: [info.params.len - 1]u8 = undefined;
+                            var params: [info.params.len - 1]Spec.ActionSpec.ParamSpec = undefined;
                             for (info.params[1..], 0..) |param, param_index| {
-                                params[param_index] = jsonTypeName(param.type.?);
+                                params[param_index] = .{
+                                    .type = jsonTypeName(param.type.?),
+                                    .name = action.params[param_index].name,
+                                };
                             }
                             actions[decl_index] = .{ .name = decl.name, .params = &params };
                         } else {
@@ -210,13 +222,13 @@ fn verifyParams(
     if (params[0].type.? != jetzig.channels.Channel) @compileError(missing_param);
 }
 
-fn jsonTypeName(T: type) u8 {
+fn jsonTypeName(T: type) []const u8 {
     return switch (T) {
-        []const u8 => 's',
+        []const u8 => "string",
         else => switch (@typeInfo(T)) {
-            .float, .comptime_float => 'f',
-            .bool => 'b',
-            .int, .comptime_int => 'i',
+            .float, .comptime_float => "float",
+            .int, .comptime_int => "integer",
+            .bool => "bool",
             else => @compileError("Unsupported Channel Action argument type: " ++ @typeName(T)),
         },
     };
