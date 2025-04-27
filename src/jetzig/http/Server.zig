@@ -502,6 +502,7 @@ pub fn RoutedServer(Routes: type) type {
                 view.data,
                 jetzig.TemplateContext,
                 template_context,
+                &.{},
                 .{},
             );
         }

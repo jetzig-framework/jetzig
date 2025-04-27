@@ -16,9 +16,10 @@ pub const jetzig_options = struct {
     pub const middleware: []const type = &.{
         // jetzig.middleware.AuthMiddleware,
         // jetzig.middleware.AntiCsrfMiddleware,
-        // jetzig.middleware.HtmxMiddleware,
-        // jetzig.middleware.CompressionMiddleware,
-        // @import("app/middleware/DemoMiddleware.zig"),
+        jetzig.middleware.HtmxMiddleware,
+            // jetzig.middleware.InertiaMiddleware,
+            // jetzig.middleware.CompressionMiddleware,
+            // @import("app/middleware/DemoMiddleware.zig"),
     };
 
     // Maximum bytes to allow in request body.
