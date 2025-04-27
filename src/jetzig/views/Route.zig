@@ -92,6 +92,8 @@ pub fn format(self: Route, _: []const u8, _: anytype, writer: anytype) !void {
 pub fn match(self: Route, request: *const jetzig.http.Request) bool {
     if (self.method != request.method) return false;
 
+    if (std.mem.eql(u8, request.path.file_path, self.uri_path)) return true;
+
     var request_path_it = std.mem.splitScalar(u8, request.path.base_path, '/');
     var uri_path_it = std.mem.splitScalar(u8, self.uri_path, '/');
 

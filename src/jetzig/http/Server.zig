@@ -208,9 +208,12 @@ pub fn RoutedServer(Routes: type) type {
         ) !bool {
             const route = self.matchChannelRoute(request.path.view_name) orelse return false;
             const session = try request.session();
-            const session_id = session.getT(.string, "_id") orelse {
-                try self.logger.ERROR("Error fetching session ID for websocket, aborting.", .{});
-                return false;
+            const session_id = session.getT(.string, "_id") orelse blk: {
+                try session.reset();
+                break :blk session.getT(.string, "_id") orelse {
+                    try self.logger.ERROR("Error fetching session ID for websocket, aborting.", .{});
+                    return false;
+                };
             };
 
             return try httpz.upgradeWebsocket(
@@ -344,9 +347,7 @@ pub fn RoutedServer(Routes: type) type {
                         return request.setResponse(rendered_error, .{});
                     };
 
-                    return if (request.state == .redirected or
-                        request.state == .failed or
-                        request.dynamic_assigned_template != null)
+                    return if (request.isRendered() or request.dynamic_assigned_template != null)
                         request.setResponse(rendered, .{})
                     else
                         request.setResponse(try self.renderNotFound(request), .{});
@@ -429,6 +430,10 @@ pub fn RoutedServer(Routes: type) type {
 
             if (request.rendered_view) |rendered_view| {
                 if (request.state == .redirected) return .{ .view = rendered_view, .content = "" };
+                if (request.state == .rendered_content) return .{
+                    .view = rendered_view,
+                    .content = rendered_view.content.?,
+                };
 
                 if (template) |capture| {
                     return .{
@@ -471,7 +476,8 @@ pub fn RoutedServer(Routes: type) type {
         ) ![]const u8 {
             try addTemplateConstants(view, route);
 
-            const template_context = jetzig.TemplateContext{ .request = request };
+            var template_context = jetzig.TemplateContext{ .request = request };
+            template_context.middleware.context = &template_context;
 
             if (request.getLayout(route)) |layout_name| {
                 // TODO: Allow user to configure layouts directory other than src/app/views/layouts/
@@ -487,6 +493,7 @@ pub fn RoutedServer(Routes: type) type {
                         view.data,
                         jetzig.TemplateContext,
                         template_context,
+                        &.{},
                         .{ .layout = layout },
                     );
                 } else {
@@ -495,6 +502,7 @@ pub fn RoutedServer(Routes: type) type {
                         view.data,
                         jetzig.TemplateContext,
                         template_context,
+                        &.{},
                         .{},
                     );
                 }
@@ -666,6 +674,7 @@ pub fn RoutedServer(Routes: type) type {
                                             request.response_data,
                                             jetzig.TemplateContext,
                                             .{ .request = request },
+                                            &.{},
                                             .{},
                                         ),
                                     };

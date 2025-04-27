@@ -6,6 +6,7 @@ pub const CompressionMiddleware = @import("middleware/CompressionMiddleware.zig"
 pub const AuthMiddleware = @import("middleware/AuthMiddleware.zig");
 pub const AntiCsrfMiddleware = @import("middleware/AntiCsrfMiddleware.zig");
 pub const InertiaMiddleware = @import("middleware/InertiaMiddleware.zig");
+pub const ChannelsMiddleware = @import("middleware/ChannelsMiddleware.zig");
 
 const RouteOptions = struct {
     content: ?[]const u8 = null,

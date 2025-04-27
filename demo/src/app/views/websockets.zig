@@ -3,6 +3,8 @@ const jetzig = @import("jetzig");
 
 const Game = @import("../lib/Game.zig");
 
+pub const layout = "application";
+
 pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }

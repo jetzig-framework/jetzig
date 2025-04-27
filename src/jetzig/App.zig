@@ -28,15 +28,15 @@ const AppOptions = struct {
 pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     defer self.env.deinit();
 
-    const action_router = comptime jetzig.channels.ActionRouter.initComptime(routes_module);
-    _ = action_router;
-    // inline for (action_router.actions) |action| std.debug.print("{s}\n", .{@typeName(action.params[0].type.?)});
-
     if (self.initHook) |hook| try hook(@constCast(self));
 
     var mime_map = jetzig.http.mime.MimeMap.init(self.allocator);
     defer mime_map.deinit();
     try mime_map.build();
+
+    inline for (jetzig.http.middleware.middlewares) |middleware| {
+        if (@hasDecl(middleware, "setup")) try middleware.setup(@constCast(self));
+    }
 
     const routes = try createRoutes(self.allocator, if (@hasDecl(routes_module, "routes"))
         &routes_module.routes

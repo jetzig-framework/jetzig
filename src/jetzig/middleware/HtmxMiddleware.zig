@@ -9,7 +9,7 @@ const HtmxMiddleware = @This();
 /// content rendered directly by the view function.
 pub fn afterRequest(request: *jetzig.http.Request) !void {
     if (request.headers.get("HX-Request")) |_| {
-        try request.server.logger.DEBUG(
+        try request.logger.DEBUG(
             "[middleware-htmx] HX-Request header, disabling layout.",
             .{},
         );

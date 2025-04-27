@@ -9,6 +9,31 @@ pub const TemplateContext = @This();
 
 request: ?*http.Request = null,
 route: ?views.Route = null,
+middleware: Middleware = .{},
+
+pub const Middleware = struct {
+    context: *TemplateContext = undefined,
+
+    pub inline fn renderHeader(middleware: Middleware) ![]const u8 {
+        return try middleware.render("header");
+    }
+
+    pub inline fn renderFooter(middleware: Middleware) ![]const u8 {
+        return try middleware.render("footer");
+    }
+
+    fn render(middleware: Middleware, comptime section: []const u8) ![]const u8 {
+        var buf = std.ArrayList(u8).init(middleware.context.*.request.?.allocator);
+        const writer = buf.writer();
+        inline for (http.middleware.middlewares) |middleware_type| {
+            if (@hasDecl(middleware_type, "Blocks") and @hasDecl(middleware_type.Blocks, section)) {
+                const renderFn = @field(middleware_type.Blocks, section);
+                try renderFn(middleware.context.*, writer);
+            }
+        }
+        return try buf.toOwnedSlice();
+    }
+};
 
 /// Return an authenticity token stored in the current request's session. If no token exists,
 /// generate and store before returning.

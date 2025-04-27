@@ -17,6 +17,7 @@ pub const RequestState = enum {
     after_request, // Initial middleware processing
     after_view, // View returned, response data ready for full response render
     rendered, // Rendered by middleware or view
+    rendered_content, // Rendered a plain string by middleware or view
     redirected, // Redirected by middleware or view
     failed, // Failed by middleware or view
     before_response, // Post middleware processing
@@ -249,8 +250,8 @@ pub fn renderContent(
 ) jetzig.views.View {
     if (self.isRendered()) self.rendered_multiple = true;
 
-    self.state = .rendered;
     self.rendered_view = .{ .data = self.response_data, .status_code = status_code, .content = content };
+    self.state = .rendered_content;
     return self.rendered_view.?;
 }
 
@@ -267,7 +268,7 @@ pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) je
 pub inline fn isRendered(self: *const Request) bool {
     return switch (self.state) {
         .initial, .processed, .after_request, .before_response => false,
-        .after_view, .rendered, .redirected, .failed, .finalized => true,
+        .after_view, .rendered, .rendered_content, .redirected, .failed, .finalized => true,
     };
 }
 
@@ -335,6 +336,9 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
 
     var root = try self.response_data.root(.object);
     try root.put("location", self.response_data.string(state.location));
+    var template_context = jetzig.TemplateContext{ .request = self };
+    template_context.middleware.context = &template_context;
+
     const content = switch (self.requestFormat()) {
         .HTML, .UNKNOWN => if (maybe_template) |template| blk: {
             try view.data.addConst("jetzig_view", view.data.string("internal"));
@@ -342,7 +346,7 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
             break :blk try template.render(
                 self.response_data,
                 jetzig.TemplateContext,
-                .{ .request = self },
+                template_context,
                 &.{},
                 .{},
             );
