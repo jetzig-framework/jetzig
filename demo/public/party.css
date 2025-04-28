@@ -40,9 +40,13 @@ body {
     color: white;
     border: none;
     border-radius: 5px;
+    display: inline;
 }
 #reset-button:hover {
     background-color: #45a049;
+}
+#reset-wrapper {
+    text-align: center;
 }
 #party-container {
     position: absolute;
@@ -116,7 +120,7 @@ body {
 }
 #victor {
   margin: 3rem;
-  font-size: 5rem;
+  font-size: 3.5rem;
   text-align: center;
   vertical-align: center;
 }

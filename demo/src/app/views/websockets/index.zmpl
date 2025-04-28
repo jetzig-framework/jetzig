@@ -1,3 +1,7 @@
+<link rel="stylesheet" href="/party.css" />
+
+<div id="party-container"></div>
+
 <div id="results-wrapper">
     <span class="trophy">&#127942;</span>
     <div id="results">
@@ -11,14 +15,13 @@
     <span class="trophy">&#127942;</span>
 </div>
 
-<div id="party-container"></div>
 
 <div class="board" id="board">
     @for (0..9) |index| {
         <div
             class="cell"
             jetzig-connect="$.cells.{{index}}"
-            jetzig-transform="cell"
+            jetzig-transform="{ player: '&#9992;&#65039;', cpu: '&#129422;', tie: '&#129309;' }[value] || ''"
             jetzig-click="move"
             id="tic-tac-toe-cell-{{index}}"
             data-cell="{{index}}"
@@ -27,47 +30,35 @@
     }
 </div>
 
-<button jetzig-click="reset" id="reset-button">Reset Game</button>
+<div id="reset-wrapper">
+    <button jetzig-click="reset" id="reset-button">Reset Game</button>
+</div>
 
-<div id="victor"></div>
-
-<script src="/party.js"></script>
-<link rel="stylesheet" href="/party.css" />
+<div jetzig-style="{ visibility: $.victor === null ? 'hidden' : 'visible' }" id="victor">
+    <span>&#127942;</span>
+    <span
+        jetzig-connect="$.victor"
+        jetzig-transform="{ player: '&#9992;&#65039;', cpu: '&#129422;', tie: '&#129309;' }[value] || ''"
+    ></span>
+    <span>&#127942;</span>
+</div>
 
 <script>
-    jetzig.channel.onStateChanged(state => {
-        if (!state.victor) {
-            const element = document.querySelector("#victor");
-            element.style.visibility = 'hidden';
-        }
-    });
-
-    jetzig.channel.onMessage(message => {
-        if (message.err) {
-            console.log(message.err);
-        }
-    });
-
-    jetzig.channel.receive("victor", (data) => {
-        const element = document.querySelector("#victor");
-        const emoji = {
-            player: "&#9992;&#65039;",
-            cpu: "&#129422;",
-            tie: "&#129309;"
-        }[data.params.type] || "";
-        element.innerHTML = `&#127942; ${emoji} &#127942;`;
-        element.style.visibility = 'visible';
-        triggerPartyAnimation();
-    });
-
-    jetzig.channel.receive("game_over", (data) => {
-        const element = document.querySelector("#board");
-        element.classList.remove('flash-animation');
-        void element.offsetWidth;
-        element.classList.add('flash-animation');
-    });
-
-    jetzig.channel.transform("cell", (value) => (
-        { player: "&#9992;&#65039;", cpu: "&#129422;" }[value] || ""
-    ));
+    @// jetzig.channel.onStateChanged(state => {
+    @// });
+    @//
+    @// jetzig.channel.onMessage(data => {
+    @// });
+    @//
+    @// jetzig.channel.receive("victor", data => {
+    @//     triggerPartyAnimation();
+    @// });
+    @//
+    @// jetzig.channel.receive("game_over", data => {
+    @//     const element = document.querySelector("#board");
+    @//     element.classList.remove('flash-animation');
+    @//     void element.offsetWidth;
+    @//     element.classList.add('flash-animation');
+    @// });
+    @//
 </script>

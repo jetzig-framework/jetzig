@@ -4,10 +4,9 @@ jetzig = window.jetzig;
 (() => {
   const transform = (value, state, element) => {
       const id = element.getAttribute('jetzig-id');
-      const key = id && jetzig.channel.transformerMap[id];
-      const transformers = key && jetzig.channel.transformers[key];
-      if (transformers) {
-          return transformers.reduce((acc, val) => val(acc), value);
+      const transformer = id && jetzig.channel.transformers[id];
+      if (transformer) {
+          return transformer(value, state, element);
       } else {
           return value === undefined || value == null ? '' : `${value}`
       }
@@ -21,7 +20,6 @@ jetzig = window.jetzig;
       messageCallbacks: [],
       invokeCallbacks: {},
       elementMap: {},
-      transformerMap: {},
       transformers: {},
       onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
       onMessage: function(callback) { this.messageCallbacks.push(callback); },
@@ -139,20 +137,27 @@ jetzig = window.jetzig;
               const id = `jetzig-${crypto.randomUUID()}`;
               element.setAttribute('jetzig-id', id);
               this.elementMap[ref].push(element);
-              this.transformerMap[id] = element.getAttribute('jetzig-transform');
+              const transformer = element.getAttribute('jetzig-transform');
+              if (transformer) {
+                this.transformers[id] = new Function("value", "$", "element", `return ${transformer};`);
+              }
+          });
+
+          const styled_elements = document.querySelectorAll('[jetzig-style]');
+          this.onStateChanged(state => {
+            styled_elements.forEach(element => {
+                const func = new Function("$", `return ${element.getAttribute('jetzig-style')};`)
+                const styles = func(state);
+                Object.entries(styles).forEach(([key, value]) => {
+                  element.style.setProperty(key, value);
+                });
+            });
           });
 
           // this.websocket.addEventListener("open", (event) => {
           //     // TODO
           //     this.publish("websockets", {});
           // });
-      },
-      transform: function(ref, callback) {
-          if (Object.hasOwn(this.transformers, ref)) {
-              this.transformers[ref].push(callback);
-          } else {
-              this.transformers[ref] = [callback];
-          }
       },
       receive: function(ref, callback) {
           if (Object.hasOwn(this.invokeCallbacks, ref)) {
