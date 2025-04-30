@@ -11,13 +11,17 @@ pub fn index(request: *jetzig.Request) !jetzig.View {
 
 pub const Channel = struct {
     pub fn open(channel: jetzig.channels.Channel) !void {
-        if (channel.get("cells") == null) try initGame(channel);
+        var state = try channel.connect("game");
+        if (state.get("cells") == null) try initGame(channel);
         try channel.sync();
     }
 
     pub const Actions = struct {
         pub fn move(channel: jetzig.channels.Channel, cell: usize) !void {
-            const cells = channel.getT(.array, "cells") orelse return;
+            var state = try channel.connect("game");
+            const cells = state.getT(.array, "cells") orelse {
+                return;
+            };
             const grid = Game.gridFromValues(cells.items());
             var game = Game{ .grid = grid };
             game.evaluate();
@@ -38,13 +42,15 @@ pub const Channel = struct {
     };
 
     fn resetGame(channel: jetzig.channels.Channel) !void {
-        try channel.put("victor", null);
-        var cells = try channel.put("cells", .array);
+        var state = try channel.connect("game");
+        try state.put("victor", null);
+        var cells = try state.put("cells", .array);
         for (0..9) |_| try cells.append(null);
     }
 
     fn initGame(channel: jetzig.channels.Channel) !void {
-        var results = try channel.put("results", .object);
+        var state = try channel.connect("game");
+        var results = try state.put("results", .object);
         try results.put("cpu", 0);
         try results.put("player", 0);
         try results.put("tie", 0);
@@ -68,8 +74,9 @@ pub const Channel = struct {
     }
 
     fn setVictor(channel: jetzig.channels.Channel, victor: Game.State) !void {
-        try channel.put("victor", @tagName(victor));
-        var results = channel.getT(.object, "results") orelse return;
+        var state = try channel.connect("game");
+        try state.put("victor", @tagName(victor));
+        var results = state.getT(.object, "results") orelse return;
         const count = results.getT(.integer, @tagName(victor)) orelse return;
         try results.put(@tagName(victor), count + 1);
         try channel.invoke(.victor, .{ .type = @tagName(victor) });
