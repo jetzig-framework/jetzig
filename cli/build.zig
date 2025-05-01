@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+        .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
     });
     exe.root_module.addImport("jetquery", jetquery_dep.module("jetquery"));
     exe.root_module.addImport("args", zig_args_dep.module("args"));

@@ -1,11 +1,11 @@
 pub const database = .{
     .development = .{
         .adapter = .postgresql,
-        .username = "postgres",
-        .password = "postgres",
+        .username = "root",
+        .password = "root",
         .hostname = "localhost",
         .database = "jetzig_demo_dev",
-        .port = 14173, // See `compose.yml`
+        .port = 5432, // See `compose.yml`
     },
     // This configuration is used for CI
     // in GitHub

@@ -6,6 +6,8 @@ const jetquery = @import("jetquery");
 const jetzig = @import("jetzig");
 const Migrate = @import("jetquery_migrate").Migrate;
 const MigrateSchema = @import("jetquery_migrate").MigrateSchema;
+const Seeder = @import("jetquery_seeder").Seed;
+const SeederSchema = @import("jetquery_seeder").SeederSchema;
 const Schema = @import("Schema");
 const util = @import("util.zig");
 
@@ -15,7 +17,7 @@ const production_drop_failure_message = "To drop a production database, " ++
 
 const environment = jetzig.build_options.environment;
 const config = @field(jetquery.config.database, @tagName(environment));
-const Action = enum { migrate, rollback, create, drop, reflect, setup, update };
+const Action = enum { migrate, rollback, create, drop, reflect, setup, update, seed };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -42,6 +44,7 @@ pub fn main() !void {
 
     const map = std.StaticStringMap(Action).initComptime(.{
         .{ "migrate", .migrate },
+        .{ "seed", .seed },
         .{ "rollback", .rollback },
         .{ "create", .create },
         .{ "drop", .drop },
@@ -68,6 +71,11 @@ pub fn main() !void {
             var repo = try migrationsRepo(action, allocator, repo_env);
             defer repo.deinit();
             try Migrate(config.adapter).init(&repo).migrate();
+        },
+        .seed => {
+            var repo = try seedersRepo(action, allocator, repo_env);
+            defer repo.deinit();
+            try Seeder(config.adapter, Schema).init(&repo).seed();
         },
         .rollback => {
             var repo = try migrationsRepo(action, allocator, repo_env);
@@ -136,12 +144,30 @@ fn migrationsRepo(action: Action, allocator: std.mem.Allocator, repo_env: anytyp
         @field(jetquery.Environment, @tagName(environment)),
         .{
             .admin = switch (action) {
-                .migrate, .rollback, .update => false,
+                .migrate, .seed, .rollback, .update => false,
                 .create, .drop => true,
                 .reflect => unreachable, // We use a separate repo for schema reflection.
                 .setup => unreachable, // Setup uses `create` and then `update`
             },
             .context = .migration,
+            .env = repo_env,
+        },
+    );
+}
+
+const SeedersRepo = jetquery.Repo(config.adapter, Schema);
+fn seedersRepo(action: Action, allocator: std.mem.Allocator, repo_env: anytype) !SeedersRepo {
+    return try SeedersRepo.loadConfig(
+        allocator,
+        @field(jetquery.Environment, @tagName(environment)),
+        .{
+            .admin = switch (action) {
+                .migrate, .seed, .rollback, .update => false,
+                .create, .drop => false,
+                .reflect => unreachable, // We use a separate repo for schema reflection.
+                .setup => unreachable, // Setup uses `create` and then `update`
+            },
+            .context = .seed,
             .env = repo_env,
         },
     );

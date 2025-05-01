@@ -10,11 +10,12 @@ const middleware = @import("generate/middleware.zig");
 const job = @import("generate/job.zig");
 const mailer = @import("generate/mailer.zig");
 const migration = @import("generate/migration.zig");
+const seeder = @import("generate/seeder.zig");
 
 /// Command line options for the `generate` command.
 pub const Options = struct {
     pub const meta = .{
-        .usage_summary = "[view|partial|layout|mailer|middleware|job|secret|migration] [options]",
+        .usage_summary = "[view|partial|layout|mailer|middleware|job|secret|migration|seeder] [options]",
         .full_text =
         \\Generate scaffolding for views, middleware, and other objects.
         \\
@@ -39,7 +40,17 @@ pub fn run(
 
     _ = options;
 
-    const Generator = enum { view, partial, layout, mailer, middleware, job, secret, migration };
+    const Generator = enum {
+        view,
+        partial,
+        layout,
+        mailer,
+        middleware,
+        job,
+        secret,
+        migration,
+        seeder,
+    };
     var sub_args = std.ArrayList([]const u8).init(allocator);
     defer sub_args.deinit();
 
@@ -55,6 +66,7 @@ pub fn run(
         .{ "middleware", .middleware },
         .{ "secret", .secret },
         .{ "migration", .migration },
+        .{ "seeder", .seeder },
     });
     for (map.keys()) |key| try available_buf.append(key);
 
@@ -92,6 +104,7 @@ pub fn run(
             .middleware => middleware.run(arena, cwd, sub_args.items, main_options.options.help),
             .secret => secret.run(arena, cwd, sub_args.items, main_options.options.help),
             .migration => migration.run(arena, cwd, sub_args.items, main_options.options.help),
+            .seeder => seeder.run(arena, cwd, sub_args.items, main_options.options.help),
         };
     }
 }
