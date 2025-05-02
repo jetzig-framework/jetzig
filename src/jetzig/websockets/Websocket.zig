@@ -9,6 +9,9 @@ pub const Context = struct {
     route: jetzig.channels.Route,
     session_id: []const u8,
     channels: *jetzig.kv.Store.ChannelStore,
+    store: *jetzig.kv.Store.GeneralStore,
+    cache: *jetzig.kv.Store.CacheStore,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
     logger: jetzig.loggers.Logger,
 };
 
@@ -17,6 +20,9 @@ pub fn RoutedWebsocket(Routes: type) type {
         allocator: std.mem.Allocator,
         connection: *httpz.websocket.Conn,
         channels: *jetzig.kv.Store.ChannelStore,
+        store: *jetzig.kv.Store.GeneralStore,
+        cache: *jetzig.kv.Store.CacheStore,
+        job_queue: *jetzig.kv.Store.JobQueueStore,
         route: jetzig.channels.Route,
         data: *jetzig.Data,
         session_id: []const u8,
@@ -35,6 +41,9 @@ pub fn RoutedWebsocket(Routes: type) type {
                 .route = context.route,
                 .session_id = context.session_id,
                 .channels = context.channels,
+                .store = context.store,
+                .cache = context.cache,
+                .job_queue = context.job_queue,
                 .logger = context.logger,
                 .data = data,
             };
@@ -56,22 +65,12 @@ pub fn RoutedWebsocket(Routes: type) type {
 
             const func = websocket.route.openConnectionFn orelse return;
 
-            const channel = jetzig.channels.Channel{
-                .allocator = websocket.allocator,
-                .websocket = websocket,
-                .state = try websocket.getState(),
-                .data = websocket.data,
-            };
+            const channel = try jetzig.channels.RoutedChannel(Routes).init(websocket.allocator, websocket);
             try func(channel);
         }
 
         pub fn clientMessage(websocket: *Websocket, allocator: std.mem.Allocator, data: []const u8) !void {
-            const channel = jetzig.channels.RoutedChannel(Routes){
-                .allocator = allocator,
-                .websocket = websocket,
-                .state = try websocket.getState(),
-                .data = websocket.data,
-            };
+            const channel = try jetzig.channels.RoutedChannel(Routes).init(allocator, websocket);
 
             if (websocket.invoke(channel, data)) |maybe_action| {
                 if (maybe_action) |action| {
@@ -94,18 +93,20 @@ pub fn RoutedWebsocket(Routes: type) type {
             websocket.logger.DEBUG("Routed Channel message for `{s}`", .{websocket.route.path}) catch {};
         }
 
-        pub fn syncState(websocket: *Websocket, channel: jetzig.channels.RoutedChannel(Routes)) !void {
-            var stack_fallback = std.heap.stackFallback(4096, channel.allocator);
+        pub fn syncState(websocket: *Websocket, data: *jetzig.Data, scope: []const u8) !void {
+            const value = data.value orelse return;
+
+            var stack_fallback = std.heap.stackFallback(4096, websocket.allocator);
             const allocator = stack_fallback.get();
 
-            var write_buffer = channel.websocket.connection.writeBuffer(allocator, .text);
+            var write_buffer = websocket.connection.writeBuffer(allocator, .text);
             defer write_buffer.deinit();
 
             const writer = write_buffer.writer();
 
             // TODO: Make this really fast.
-            try websocket.channels.put(websocket.session_id, channel.state);
-            try writer.print("__jetzig_channel_state__:{s}", .{try websocket.data.toJson()});
+            try websocket.channels.put(websocket.session_id, value);
+            try writer.print("__jetzig_channel_state__:{s}:{s}", .{ scope, try data.toJson() });
             try write_buffer.flush();
 
             websocket.logger.DEBUG("Synchronized Channel state for `{s}`", .{websocket.route.path}) catch {};

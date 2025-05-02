@@ -4,6 +4,13 @@ const httpz = @import("httpz");
 
 const jetzig = @import("../../jetzig.zig");
 
+pub const Env = struct {
+    store: *jetzig.kv.Store.GeneralStore,
+    cache: *jetzig.kv.Store.CacheStore,
+    job_queue: *jetzig.kv.Store.JobQueueStore,
+    logger: jetzig.loggers.Logger,
+};
+
 pub fn RoutedChannel(Routes: type) type {
     return struct {
         const Channel = @This();
@@ -12,6 +19,32 @@ pub fn RoutedChannel(Routes: type) type {
         websocket: *jetzig.websockets.RoutedWebsocket(Routes),
         state: *jetzig.data.Value,
         data: *jetzig.data.Data,
+        _connections: *std.StringHashMap(Connection),
+        env: Env,
+
+        const Connection = struct {
+            object: *jetzig.data.Value,
+            data: *jetzig.Data,
+        };
+
+        pub fn init(allocator: std.mem.Allocator, websocket: *jetzig.websockets.Websocket) !Channel {
+            const connections = try allocator.create(std.StringHashMap(Connection));
+            connections.* = std.StringHashMap(Connection).init(allocator);
+
+            return .{
+                .allocator = allocator,
+                .websocket = websocket,
+                .state = try websocket.getState(),
+                .data = websocket.data,
+                ._connections = connections,
+                .env = .{
+                    .store = websocket.store,
+                    .cache = websocket.cache,
+                    .job_queue = websocket.job_queue,
+                    .logger = websocket.logger,
+                },
+            };
+        }
 
         pub fn publish(channel: Channel, data: anytype) !void {
             var stack_fallback = std.heap.stackFallback(4096, channel.allocator);
@@ -23,7 +56,7 @@ pub fn RoutedChannel(Routes: type) type {
             const writer = write_buffer.writer();
             try std.json.stringify(data, .{}, writer);
             try write_buffer.flush();
-            channel.websocket.logger.DEBUG(
+            channel.env.logger.DEBUG(
                 "Published Channel message for `{s}`",
                 .{channel.websocket.route.path},
             ) catch {};
@@ -45,10 +78,46 @@ pub fn RoutedChannel(Routes: type) type {
             try writer.writeAll("__jetzig_event__:");
             try std.json.stringify(.{ .method = method, .params = args }, .{}, writer);
             try write_buffer.flush();
-            channel.websocket.logger.DEBUG(
+            channel.env.logger.DEBUG(
                 "Invoked Javascript function `{s}` for `{s}`",
                 .{ @tagName(method), channel.websocket.route.path },
             ) catch {};
+        }
+
+        pub fn connect(channel: Channel, comptime scope: []const u8) !*jetzig.data.Value {
+            if (channel._connections.get(scope)) |cached| {
+                return cached.object;
+            }
+
+            if (channel.websocket.session_id.len != 32) return error.JetzigInvalidSessionIdLength;
+
+            const connections = channel.get("_connections") orelse try channel.put("_connections", .array);
+            const connection_id = for (connections.items(.array)) |connection| {
+                if (connection.getT(.string, "scope")) |connection_scope| {
+                    if (std.mem.eql(u8, connection_scope, scope)) {
+                        break connection.getT(.string, "id") orelse return error.JetzigInvalidChannelState;
+                    }
+                }
+            } else blk: {
+                const id = try channel.allocator.alloc(u8, 32);
+                _ = jetzig.util.generateRandomString(id);
+                try connections.append(.{ .id = id, .scope = scope });
+                break :blk id;
+            };
+
+            var buf: [32 + ":".len + 32]u8 = undefined;
+            const connection_key = try std.fmt.bufPrint(&buf, "{s}:{s}", .{ channel.websocket.session_id, connection_id });
+            return try channel.websocket.channels.get(channel.data, connection_key) orelse blk: {
+                const data = try channel.allocator.create(jetzig.Data);
+                data.* = jetzig.Data.init(channel.allocator);
+                const object = try data.root(.object);
+                const duped_connection_key = try channel.allocator.dupe(u8, connection_key);
+                try channel.websocket.channels.put(duped_connection_key, object);
+                try channel._connections.put(scope, .{ .data = data, .object = object });
+                const connections_state = channel.get("_connections_state") orelse try channel.put("_connections_state", .object);
+                try connections_state.put(scope, object);
+                break :blk object;
+            };
         }
 
         pub fn getT(
@@ -76,7 +145,13 @@ pub fn RoutedChannel(Routes: type) type {
         }
 
         pub fn sync(channel: Channel) !void {
-            try channel.websocket.syncState(channel);
+            try channel.websocket.syncState(channel.data, "__root__");
+            var it = channel._connections.iterator();
+            while (it.next()) |entry| {
+                const data = entry.value_ptr.*.data;
+                const scope = entry.key_ptr.*;
+                try channel.websocket.syncState(data, scope);
+            }
         }
     };
 }

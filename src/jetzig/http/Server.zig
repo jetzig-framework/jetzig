@@ -225,6 +225,9 @@ pub fn RoutedServer(Routes: type) type {
                     .route = route,
                     .session_id = session_id,
                     .channels = self.channels,
+                    .store = self.store,
+                    .cache = self.cache,
+                    .job_queue = self.job_queue,
                     .logger = self.logger,
                 },
             );
