@@ -1,5 +1,4 @@
 const std = @import("std");
-const jetquery = @import("jetquery");
 
 pub fn run(repo: anytype) !void {
     try repo.insert(

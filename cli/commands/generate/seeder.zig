@@ -22,10 +22,6 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     }
 
     const name = args[0];
-    const command = if (args.len > 1)
-        try std.mem.join(allocator, " ", args[1..])
-    else
-        null;
 
     const seeders_dir = try cwd.makeOpenPath(
         try std.fs.path.join(allocator, &.{ "src", "app", "database", "seeders" }),
@@ -36,7 +32,6 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         name,
         .{
             .seeders_path = try seeders_dir.realpathAlloc(allocator, "."),
-            .command = command,
         },
     );
     const path = try seed.save();
