@@ -426,7 +426,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) void {
     const commands = .{
         .{ "migrate", "Migrate your Jetzig app's database." },
-        .{ "seed", "Run seeds and setup initial data." },
+        .{ "seed", "Run seeds and set up initial data." },
         .{ "rollback", "Roll back a migration in your Jetzig app's database." },
         .{ "create", "Create a database for your Jetzig app." },
         .{ "drop", "Drop your Jetzig app's database." },
