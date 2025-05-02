@@ -20,7 +20,6 @@ pub fn run(
             \\Example:
             \\
             \\  jetzig database seed
-            \\  jetzig database seed ./database/seeders/iguana.zig
             \\  jetzig --environment=testing database seed
             \\
         , .{});
