@@ -5,6 +5,7 @@ const args = @import("args");
 const util = @import("../util.zig");
 const cli = @import("../cli.zig");
 const migrate = @import("database/migrate.zig");
+const seed = @import("database/seed.zig");
 const rollback = @import("database/rollback.zig");
 const create = @import("database/create.zig");
 const drop = @import("database/drop.zig");
@@ -41,9 +42,19 @@ pub fn run(
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const Action = enum { migrate, rollback, create, drop, reflect, update, setup };
+    const Action = enum {
+        migrate,
+        seed,
+        rollback,
+        create,
+        drop,
+        reflect,
+        update,
+        setup,
+    };
     const map = std.StaticStringMap(Action).initComptime(.{
         .{ "migrate", .migrate },
+        .{ "seed", .seed },
         .{ "rollback", .rollback },
         .{ "create", .create },
         .{ "drop", .drop },
@@ -74,6 +85,7 @@ pub fn run(
 
         break :blk switch (capture) {
             .migrate => migrate.run(alloc, cwd, sub_args, options, T, main_options),
+            .seed => seed.run(alloc, cwd, sub_args, options, T, main_options),
             .rollback => rollback.run(alloc, cwd, sub_args, options, T, main_options),
             .create => create.run(alloc, cwd, sub_args, options, T, main_options),
             .drop => drop.run(alloc, cwd, sub_args, options, T, main_options),

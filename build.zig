@@ -62,6 +62,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+        .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
     });
     const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
@@ -76,6 +77,7 @@ pub fn build(b: *std.Build) !void {
     b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
     b.modules.put("jetcommon", jetcommon_dep.module("jetcommon")) catch @panic("Out of memory");
     b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
+    b.modules.put("jetquery_seeder", jetquery_dep.module("jetquery_seeder")) catch @panic("Out of memory");
 
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
@@ -174,6 +176,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
+        .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
     });
 
@@ -183,6 +186,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetquery_module = jetzig_dep.module("jetquery");
     const jetcommon_module = jetzig_dep.module("jetcommon");
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
+    const jetquery_seeder_module = jetzig_dep.module("jetquery_seeder");
     const jetquery_reflect_module = jetquery_dep.module("jetquery_reflect");
 
     const build_options = b.addOptions();
@@ -403,6 +407,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe_database.root_module.addImport("jetzig", jetzig_module);
     exe_database.root_module.addImport("jetcommon", jetcommon_module);
     exe_database.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
+    exe_database.root_module.addImport("jetquery_seeder", jetquery_seeder_module);
     exe_database.root_module.addImport("jetquery_reflect", jetquery_reflect_module);
     exe_database.root_module.addImport("Schema", schema_module);
 
@@ -421,6 +426,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) void {
     const commands = .{
         .{ "migrate", "Migrate your Jetzig app's database." },
+        .{ "seed", "Run seeds and set up initial data." },
         .{ "rollback", "Roll back a migration in your Jetzig app's database." },
         .{ "create", "Create a database for your Jetzig app." },
         .{ "drop", "Drop your Jetzig app's database." },
