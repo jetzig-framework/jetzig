@@ -101,21 +101,27 @@ const Jetzig = window.Jetzig;
       const ref = element.getAttribute('jetzig-click');
       const action = channel.action_specs[ref];
       if (action) {
-      element.addEventListener('click', () => {
-        const args = [];
-        action.spec.params.forEach(param => {
-        const arg = element.dataset[param.name];
-        if (arg === undefined) {
-          throw new Error(`Expected 'data-${param.name}' attribute for '${action.name}' click handler.`);
-        } else {
-          args.push(element.dataset[param.name]);
-        }
+        element.addEventListener('click', () => {
+          const args = [];
+          action.spec.params.forEach(param => {
+            const arg = element.dataset[param.name];
+            if (arg === undefined) {
+              throw new Error(`Expected 'data-${param.name}' attribute for '${action.name}' click handler.`);
+            } else {
+              args.push(element.dataset[param.name]);
+            }
+          });
+          action.callback(...args);
         });
-        action.callback(...args);
-      });
       } else {
-      throw new Error(`Unknown click handler: '${ref}'`);
+        throw new Error(`Unknown click handler: '${ref}'`);
       }
+    });
+  };
+
+  const initScopes = (channel) => {
+    document.querySelectorAll('jetzig-scope').forEach(element => {
+      channel.scopeWrappers.push(element);
     });
   };
 
@@ -124,6 +130,11 @@ const Jetzig = window.Jetzig;
       const ref = element.getAttribute('jetzig-connect');
       const id = `jetzig-${crypto.randomUUID()}`;
       element.setAttribute('jetzig-id', id);
+      channel.scopeWrappers.forEach(wrapper => {
+        if (wrapper.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_CONTAINED_BY) {
+          if (!element.getAttribute('jetzig-scope')) element.setAttribute('jetzig-scope', wrapper.getAttribute('name'));
+        }
+      });
       const scope = element.getAttribute('jetzig-scope') || '__root__';
       if (!channel.elementMap[scope]) channel.elementMap[scope] = {};
       if (!channel.elementMap[scope][ref]) channel.elementMap[scope][ref] = [];
@@ -182,7 +193,9 @@ const Jetzig = window.Jetzig;
     onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
     onMessage: function(callback) { this.messageCallbacks.push(callback); },
     scopedElements: function(scope) { return this.elementMap[scope] || {}; },
+    scopeWrappers: [],
     init: function(host, path) {
+      initScopes(this);
       initWebsocket(this, host, path);
       initElementConnections(this);
       initStyledElements(this);
