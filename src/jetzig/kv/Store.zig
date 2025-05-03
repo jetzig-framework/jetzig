@@ -155,8 +155,7 @@ pub fn Store(comptime options: KVOptions) type {
 
 fn parseValue(data: *jetzig.data.Data, maybe_json: ?[]const u8) !?*jetzig.data.Value {
     if (maybe_json) |json| {
-        try data.fromJson(json);
-        return data.value.?;
+        return try data.parseJsonSlice(json);
     } else {
         return null;
     }

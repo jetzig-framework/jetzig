@@ -21,7 +21,7 @@ pub const Blocks = struct {
             \\<script>
             \\    (() => {{
             \\        window.addEventListener('DOMContentLoaded', () => {{
-            \\            jetzig.channel.init("{s}", "{s}");
+            \\            Jetzig.channel.init("{s}", "{s}");
             \\        }});
             \\    }})();
             \\</script>

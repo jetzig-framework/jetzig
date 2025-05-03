@@ -1,5 +1,5 @@
-window.jetzig = window.jetzig ? window.jetzig : {}
-jetzig = window.jetzig;
+window.Jetzig = window.Jetzig ? window.Jetzig : {}
+const Jetzig = window.Jetzig;
 
 (() => {
   const state_tag = "__jetzig_channel_state__:";
@@ -8,7 +8,7 @@ jetzig = window.jetzig;
 
   const transform = (value, state, element) => {
     const id = element.getAttribute('jetzig-id');
-    const transformer = id && jetzig.channel.transformers[id];
+    const transformer = id && Jetzig.channel.transformers[id];
     if (transformer) {
         return transformer(value, state, element);
     } else {
@@ -38,12 +38,14 @@ jetzig = window.jetzig;
     const detagged = event.data.slice(state_tag.length);
     const scope = detagged.split(':', 1)[0];
     const state = JSON.parse(detagged.slice(scope.length + 1));
-    Object.entries(channel.elementMap).forEach(([ref, elements]) => {
+    console.log(scope, state);
+    Object.entries(channel.scopedElements(scope)).forEach(([ref, elements]) => {
         const value = reduceState(ref, state);
+        console.log(ref, state);
         elements.forEach(element => element.innerHTML = transform(value, state, element));
     });
     channel.stateChangedCallbacks.forEach((callback) => {
-        callback(state);
+        callback(scope, state);
     });
   };
 
@@ -61,40 +63,40 @@ jetzig = window.jetzig;
     data.actions.forEach(action => {
       channel.action_specs[action.name] = {
         callback: (...params) => {
-        if (action.params.length != params.length) {
-          throw new Error(`Invalid params for action '${action.name}'. Expected ${action.params.length} params, found ${params.length}`);
-        }
-        [...action.params].forEach((param, index) => {
-          if (param.type !== typeof params[index]) {
-            const err = `Incorrect argument type for argument ${index} in '${action.name}'. Expected: ${param.type}, found ${typeof params[index]}`;
-            switch (param.type) {
-              case "string":
-              params[index] = `${params[index]}`;
-              break;
-              case "integer":
-              try { params[index] = parseInt(params[index]) } catch {
-                throw new Error(err);
-              };
-              break;
-              case "float":
-              try { params[index] = parseFloat(params[index]) } catch {
-                throw new Error(err);
-              };
-              case "boolean":
-              params[index] = ["true", "y", "1", "yes", "t"].includes(params[index]);
-              break;
-              default:
-              throw new Error(err);
-            }
+          if (action.params.length != params.length) {
+            throw new Error(`Invalid params for action '${action.name}'. Expected ${action.params.length} params, found ${params.length}`);
           }
-        });
-
-        channel.websocket.send(`_invoke:${action.name}:${JSON.stringify(params)}`);
+          [...action.params].forEach((param, index) => {
+            if (param.type !== typeof params[index]) {
+              const err = `Incorrect argument type for argument ${index} in '${action.name}'. Expected: ${param.type}, found ${typeof params[index]}`;
+              switch (param.type) {
+                case "string":
+                params[index] = `${params[index]}`;
+                break;
+                case "integer":
+                try { params[index] = parseInt(params[index]) } catch {
+                  throw new Error(err);
+                };
+                break;
+                case "float":
+                try { params[index] = parseFloat(params[index]) } catch {
+                  throw new Error(err);
+                };
+                case "boolean":
+                params[index] = ["true", "y", "1", "yes", "t", true].includes(params[index]);
+                break;
+                default:
+                throw new Error(err);
+              }
+            }
+          });
+          channel.websocket.send(`_invoke:${action.name}:${JSON.stringify(params)}`);
         },
-      spec: { ...action },
-    };
-    channel.actions[action.name] = channel.action_specs[action.name].callback;
+        spec: { ...action },
+      };
+      channel.actions[action.name] = channel.action_specs[action.name].callback;
     });
+
     document.querySelectorAll('[jetzig-click]').forEach(element => {
       const ref = element.getAttribute('jetzig-click');
       const action = channel.action_specs[ref];
@@ -117,7 +119,58 @@ jetzig = window.jetzig;
     });
   };
 
-  jetzig.channel = {
+  const initElementConnections = (channel) => {
+    document.querySelectorAll('[jetzig-connect]').forEach(element => {
+      const ref = element.getAttribute('jetzig-connect');
+      const id = `jetzig-${crypto.randomUUID()}`;
+      element.setAttribute('jetzig-id', id);
+      const scope = element.getAttribute('jetzig-scope') || '__root__';
+      if (!channel.elementMap[scope]) channel.elementMap[scope] = {};
+      if (!channel.elementMap[scope][ref]) channel.elementMap[scope][ref] = [];
+      channel.elementMap[scope][ref].push(element);
+      const transformer = element.getAttribute('jetzig-transform');
+      if (transformer) {
+        channel.transformers[id] = new Function("value", "$", "element", `return ${transformer};`);
+      }
+    });
+  };
+
+  const initStyledElements = (channel) => {
+  const styled_elements = document.querySelectorAll('[jetzig-style]');
+    channel.onStateChanged(state => {
+      styled_elements.forEach(element => {
+        const func = new Function("$", `return ${element.getAttribute('jetzig-style')};`)
+        const styles = func(state);
+        Object.entries(styles).forEach(([key, value]) => {
+          element.style.setProperty(key, value);
+        });
+      });
+    });
+  };
+
+  const initWebsocket = (channel, host, path) => {
+    channel.websocket = new WebSocket(`ws://${host}${path}`);
+    channel.websocket.addEventListener("message", (event) => {
+      if (event.data.startsWith(state_tag)) {
+        handleState(event, channel);
+      } else if (event.data.startsWith(event_tag)) {
+        handleEvent(event, channel);
+      } else if (event.data.startsWith(actions_tag)) {
+        handleAction(event, channel);
+      } else {
+        const data = JSON.parse(event.data);
+        channel.messageCallbacks.forEach((callback) => {
+          callback(data);
+        });
+      }
+    });
+    channel.websocket.addEventListener("open", (event) => {
+      // TODO
+      channel.publish("websockets", {});
+    });
+  };
+
+  Jetzig.channel = {
     websocket: null,
     actions: {},
     action_specs: {},
@@ -128,50 +181,11 @@ jetzig = window.jetzig;
     transformers: {},
     onStateChanged: function(callback) { this.stateChangedCallbacks.push(callback); },
     onMessage: function(callback) { this.messageCallbacks.push(callback); },
+    scopedElements: function(scope) { return this.elementMap[scope] || {}; },
     init: function(host, path) {
-      this.websocket = new WebSocket(`ws://${host}${path}`);
-      this.websocket.addEventListener("message", (event) => {
-        if (event.data.startsWith(state_tag)) {
-          handleState(event, this);
-        } else if (event.data.startsWith(event_tag)) {
-          handleEvent(event, this);
-        } else if (event.data.startsWith(actions_tag)) {
-          handleAction(event, this);
-        } else {
-          const data = JSON.parse(event.data);
-          this.messageCallbacks.forEach((callback) => {
-            callback(data);
-          });
-        }
-      });
-
-      document.querySelectorAll('[jetzig-connect]').forEach(element => {
-        const ref = element.getAttribute('jetzig-connect');
-        if (!this.elementMap[ref]) this.elementMap[ref] = [];
-        const id = `jetzig-${crypto.randomUUID()}`;
-        element.setAttribute('jetzig-id', id);
-        this.elementMap[ref].push(element);
-        const transformer = element.getAttribute('jetzig-transform');
-        if (transformer) {
-        this.transformers[id] = new Function("value", "$", "element", `return ${transformer};`);
-        }
-      });
-
-      const styled_elements = document.querySelectorAll('[jetzig-style]');
-      this.onStateChanged(state => {
-        styled_elements.forEach(element => {
-          const func = new Function("$", `return ${element.getAttribute('jetzig-style')};`)
-          const styles = func(state);
-          Object.entries(styles).forEach(([key, value]) => {
-            element.style.setProperty(key, value);
-          });
-        });
-      });
-
-      // this.websocket.addEventListener("open", (event) => {
-      //   // TODO
-      //   this.publish("websockets", {});
-      // });
+      initWebsocket(this, host, path);
+      initElementConnections(this);
+      initStyledElements(this);
     },
     receive: function(ref, callback) {
       if (Object.hasOwn(this.invokeCallbacks, ref)) {

@@ -93,9 +93,7 @@ pub fn RoutedWebsocket(Routes: type) type {
             websocket.logger.DEBUG("Routed Channel message for `{s}`", .{websocket.route.path}) catch {};
         }
 
-        pub fn syncState(websocket: *Websocket, data: *jetzig.Data, scope: []const u8) !void {
-            const value = data.value orelse return;
-
+        pub fn syncState(websocket: *Websocket, value: *jetzig.data.Value, scope: []const u8, state_key: []const u8) !void {
             var stack_fallback = std.heap.stackFallback(4096, websocket.allocator);
             const allocator = stack_fallback.get();
 
@@ -105,8 +103,8 @@ pub fn RoutedWebsocket(Routes: type) type {
             const writer = write_buffer.writer();
 
             // TODO: Make this really fast.
-            try websocket.channels.put(websocket.session_id, value);
-            try writer.print("__jetzig_channel_state__:{s}:{s}", .{ scope, try data.toJson() });
+            try websocket.channels.put(state_key, value);
+            try writer.print("__jetzig_channel_state__:{s}:{s}", .{ scope, try value.toJson() });
             try write_buffer.flush();
 
             websocket.logger.DEBUG("Synchronized Channel state for `{s}`", .{websocket.route.path}) catch {};

@@ -23,8 +23,8 @@ pub fn RoutedChannel(Routes: type) type {
         env: Env,
 
         const Connection = struct {
-            object: *jetzig.data.Value,
-            data: *jetzig.Data,
+            state: *jetzig.data.Value,
+            key: []const u8,
         };
 
         pub fn init(allocator: std.mem.Allocator, websocket: *jetzig.websockets.Websocket) !Channel {
@@ -86,7 +86,9 @@ pub fn RoutedChannel(Routes: type) type {
 
         pub fn connect(channel: Channel, comptime scope: []const u8) !*jetzig.data.Value {
             if (channel._connections.get(scope)) |cached| {
-                return cached.object;
+                // Ensure an identical value is returned for each invocation of `connect` for a
+                // given scope.
+                return cached.state;
             }
 
             if (channel.websocket.session_id.len != 32) return error.JetzigInvalidSessionIdLength;
@@ -105,19 +107,14 @@ pub fn RoutedChannel(Routes: type) type {
                 break :blk id;
             };
 
-            var buf: [32 + ":".len + 32]u8 = undefined;
-            const connection_key = try std.fmt.bufPrint(&buf, "{s}:{s}", .{ channel.websocket.session_id, connection_id });
-            return try channel.websocket.channels.get(channel.data, connection_key) orelse blk: {
-                const data = try channel.allocator.create(jetzig.Data);
-                data.* = jetzig.Data.init(channel.allocator);
-                const object = try data.root(.object);
-                const duped_connection_key = try channel.allocator.dupe(u8, connection_key);
-                try channel.websocket.channels.put(duped_connection_key, object);
-                try channel._connections.put(scope, .{ .data = data, .object = object });
-                const connections_state = channel.get("_connections_state") orelse try channel.put("_connections_state", .object);
-                try connections_state.put(scope, object);
-                break :blk object;
+            const connection_key = try std.fmt.allocPrint(channel.allocator, "{s}:{s}", .{ channel.websocket.session_id, connection_id });
+            const state = try channel.websocket.channels.get(channel.data, connection_key) orelse blk: {
+                const state = try channel.data.object();
+                try channel.websocket.channels.put(connection_key, state);
+                break :blk state;
             };
+            try channel._connections.put(scope, .{ .key = connection_key, .state = state });
+            return state;
         }
 
         pub fn getT(
@@ -145,12 +142,13 @@ pub fn RoutedChannel(Routes: type) type {
         }
 
         pub fn sync(channel: Channel) !void {
-            try channel.websocket.syncState(channel.data, "__root__");
+            try channel.websocket.syncState(channel.state, "__root__", channel.websocket.session_id);
+
             var it = channel._connections.iterator();
             while (it.next()) |entry| {
-                const data = entry.value_ptr.*.data;
+                const connection = entry.value_ptr.*;
                 const scope = entry.key_ptr.*;
-                try channel.websocket.syncState(data, scope);
+                try channel.websocket.syncState(connection.state, scope, connection.key);
             }
         }
     };
