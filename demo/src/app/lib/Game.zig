@@ -52,10 +52,6 @@ pub fn evaluate(game: *Game) void {
     for (game.grid) |cell| {
         if (cell == .empty) full = false;
     }
-    if (full) {
-        game.victor = .tie;
-        return;
-    }
 
     const patterns = [_][3]usize{
         .{ 0, 1, 2 },
@@ -77,7 +73,15 @@ pub fn evaluate(game: *Game) void {
         }
 
         std.debug.assert(!(cpu_victor and player_victor));
-        if (cpu_victor) game.victor = .cpu;
-        if (player_victor) game.victor = .player;
+        if (cpu_victor) {
+            game.victor = .cpu;
+            break;
+        }
+        if (player_victor) {
+            game.victor = .player;
+            break;
+        }
+    } else if (full) {
+        game.victor = .tie;
     }
 }

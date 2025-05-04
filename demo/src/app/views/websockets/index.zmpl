@@ -43,6 +43,9 @@
         ></span>
         <span>&#127942;</span>
     </div>
+
+    <h4>Share this link to invite another player</h4>
+    <div jetzig-connect="$.__connect_url__"></div>
 </jetzig-scope>
 
 <script>

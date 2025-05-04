@@ -13,6 +13,8 @@ pub const Context = struct {
     cache: *jetzig.kv.Store.CacheStore,
     job_queue: *jetzig.kv.Store.JobQueueStore,
     logger: jetzig.loggers.Logger,
+    path: []const u8,
+    host: []const u8,
 };
 
 pub fn RoutedWebsocket(Routes: type) type {
@@ -27,6 +29,8 @@ pub fn RoutedWebsocket(Routes: type) type {
         data: *jetzig.Data,
         session_id: []const u8,
         logger: jetzig.loggers.Logger,
+        path: []const u8,
+        host: []const u8,
 
         const Websocket = @This();
         const router = jetzig.channels.ActionRouter.initComptime(Routes);
@@ -45,6 +49,8 @@ pub fn RoutedWebsocket(Routes: type) type {
                 .cache = context.cache,
                 .job_queue = context.job_queue,
                 .logger = context.logger,
+                .path = context.path,
+                .host = context.host,
                 .data = data,
             };
         }

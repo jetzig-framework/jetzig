@@ -11,14 +11,18 @@ pub fn index(request: *jetzig.Request) !jetzig.View {
 
 pub const Channel = struct {
     pub fn open(channel: jetzig.channels.Channel) !void {
-        var state = try channel.connect("game");
+        var state = try channel.state("game");
         if (state.get("cells") == null) try initGame(channel);
         try channel.sync();
     }
 
     pub const Actions = struct {
+        pub fn join(channel: jetzig.channels.Channel, token: []const u8) !void {
+            try channel.connect("game", token);
+        }
+
         pub fn move(channel: jetzig.channels.Channel, cell: usize) !void {
-            var state = try channel.connect("game");
+            var state = try channel.state("game");
             const cells = state.getT(.array, "cells") orelse {
                 return;
             };
@@ -42,14 +46,14 @@ pub const Channel = struct {
     };
 
     fn resetGame(channel: jetzig.channels.Channel) !void {
-        var state = try channel.connect("game");
+        var state = try channel.state("game");
         try state.put("victor", null);
         var cells = try state.put("cells", .array);
         for (0..9) |_| try cells.append(null);
     }
 
     fn initGame(channel: jetzig.channels.Channel) !void {
-        var state = try channel.connect("game");
+        var state = try channel.state("game");
         var results = try state.put("results", .object);
         try results.put("cpu", 0);
         try results.put("player", 0);
@@ -74,7 +78,7 @@ pub const Channel = struct {
     }
 
     fn setVictor(channel: jetzig.channels.Channel, victor: Game.State) !void {
-        var state = try channel.connect("game");
+        var state = try channel.state("game");
         try state.put("victor", @tagName(victor));
         var results = state.getT(.object, "results") orelse return;
         const count = results.getT(.integer, @tagName(victor)) orelse return;

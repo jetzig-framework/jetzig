@@ -223,6 +223,8 @@ pub fn RoutedServer(Routes: type) type {
                 jetzig.websockets.Context{
                     .allocator = self.allocator,
                     .route = route,
+                    .path = request.path.base_path,
+                    .host = request.headers.getLower("host") orelse "",
                     .session_id = session_id,
                     .channels = self.channels,
                     .store = self.store,
