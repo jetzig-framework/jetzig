@@ -107,10 +107,12 @@ pub fn deinit(self: *Cookies) void {
     self.arena.deinit();
 }
 
+/// Fetch a cookie by name.
 pub fn get(self: *Cookies, key: []const u8) ?*Cookie {
     return self.cookies.get(key);
 }
 
+/// Put a cookie into the cookie store.
 pub fn put(self: *Cookies, cookie: Cookie) !void {
     self.modified = true;
 
@@ -125,6 +127,18 @@ pub fn put(self: *Cookies, cookie: Cookie) !void {
     ptr.name = key;
     ptr.value = try self.allocator.dupe(u8, cookie.value);
     try self.cookies.put(key, ptr);
+}
+
+/// Overwrite a cookie with an empty string and expiry of 0. The browser should then no longer
+/// send the specified cookie value.
+///
+/// > Notice that servers can delete cookies by sending the user agent a new cookie with an
+/// > Expires attribute with a value in the past.
+/// - https://www.rfc-editor.org/rfc/rfc6265.html
+pub fn delete(self: *Cookies, key: []const u8) !void {
+    self.modified = true;
+
+    try self.put(.{ .name = key, .value = "", .expires = 0 });
 }
 
 pub const HeaderIterator = struct {
@@ -433,4 +447,18 @@ test "default flags" {
     try std.testing.expectEqualStrings(cookie.path.?, "/");
     try std.testing.expect(cookie.expires == null);
     try std.testing.expect(cookie.max_age == null);
+}
+
+test "delete" {
+    const allocator = std.testing.allocator;
+    var cookies = Cookies.init(allocator, "foo=bar;");
+    defer cookies.deinit();
+
+    try cookies.parse();
+
+    try cookies.delete("foo");
+    const cookie = cookies.get("foo").?;
+
+    try std.testing.expectEqualStrings(cookie.value, "");
+    try std.testing.expectEqual(cookie.expires.?, 0);
 }
