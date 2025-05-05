@@ -159,7 +159,7 @@ pub fn processNextRequest(
     }
 
     try self.renderResponse(&request);
-    try request.response.headers.append("Content-Type", response.content_type);
+    try request.response.headers.append("Content-Type", response.contentType());
 
     try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
     try request.respond();
@@ -178,7 +178,7 @@ fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.
             // TODO: Allow middleware to set content
             request.setResponse(.{ .view = rendered, .content = "" }, .{});
         }
-        try request.response.headers.append("Content-Type", response.content_type);
+        try request.response.headers.append("Content-Type", response.contentType());
         try request.respond();
         return true;
     } else return false;
@@ -356,12 +356,16 @@ fn renderView(
         return try self.renderInternalServerError(request, @errorReturnTrace(), err);
     };
 
-    if (request.state == .failed) {
-        const view: jetzig.views.View = request.rendered_view orelse .{
-            .data = request.response_data,
-            .status_code = .internal_server_error,
-        };
-        return try self.renderError(request, view.status_code, .{});
+    switch (request.state) {
+        .failed => {
+            const status_code = request.rendered_view.?.status_code;
+            return try self.renderError(request, status_code, .{});
+        },
+        .rendered_text => {
+            const view = request.rendered_view.?; // a panic here is a bug.
+            return .{ .view = view, .content = request.response.content };
+        },
+        else => {},
     }
 
     const template: ?zmpl.Template = if (request.dynamic_assigned_template) |request_template|
@@ -721,7 +725,7 @@ fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?jetz
 
 const StaticResource = struct {
     content: []const u8,
-    mime_type: []const u8 = "application/octet-stream",
+    mime_type: []const u8 = jetzig.http.default_content_type,
 };
 
 fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticResource {
@@ -780,7 +784,7 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
                 jetzig.config.get(usize, "max_bytes_public_content"),
             );
             const extension = std.fs.path.extension(file_path);
-            const mime_type = if (self.mime_map.get(extension)) |mime| mime else "application/octet-stream";
+            const mime_type = if (self.mime_map.get(extension)) |mime| mime else jetzig.http.default_content_type;
             return .{
                 .content = content,
                 .mime_type = mime_type,

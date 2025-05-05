@@ -120,14 +120,31 @@ pub fn expectBodyContains(expected: []const u8, response: TestResponse) !void {
 }
 
 pub fn expectHeader(expected_name: []const u8, expected_value: ?[]const u8, response: TestResponse) !void {
+    var mismatches = std.ArrayList([]const u8).init(response.allocator);
+    defer mismatches.deinit();
+
     for (response.headers) |header| {
         if (!std.ascii.eqlIgnoreCase(header.name, expected_name)) continue;
         if (expected_value) |value| {
-            if (std.mem.eql(u8, header.value, value)) return;
+            if (std.mem.eql(u8, header.value, value)) {
+                return;
+            } else {
+                try mismatches.append(header.value);
+            }
         } else {
             return;
         }
     }
+
+    logFailure(
+        "Expected header " ++
+            jetzig.colors.cyan("{s}") ++
+            ": " ++
+            jetzig.colors.green("{?s}") ++
+            ", found: " ++
+            jetzig.colors.red("{s}"),
+        .{ expected_name, expected_value, mismatches.items },
+    );
     return error.JetzigExpectHeaderError;
 }
 
