@@ -307,6 +307,7 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
                 self.response_data,
                 jetzig.TemplateContext,
                 .{ .request = self },
+                &.{},
                 .{},
             );
         } else try std.fmt.allocPrint(self.allocator, "Redirecting to {s}", .{state.location}),
