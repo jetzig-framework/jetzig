@@ -754,8 +754,15 @@ fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticRes
 }
 
 fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticResource {
-    if (request.path.file_path.len <= 1) return null;
+    const public_routing_path = comptime jetzig.config.get([]const u8, "public_routing_path");
+    if (!std.mem.startsWith(u8, request.path.file_path, public_routing_path)) return null;
     if (request.method != .GET) return null;
+
+    const match_path = if (comptime std.mem.endsWith(u8, public_routing_path, "/"))
+        request.path.file_path[public_routing_path.len..]
+    else if (request.path.file_path.len <= public_routing_path.len + 1) {
+        return null;
+    } else request.path.file_path[public_routing_path.len + 1 ..];
 
     var iterable_dir = std.fs.cwd().openDir(
         jetzig.config.get([]const u8, "public_content_path"),
@@ -777,7 +784,7 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
             _ = std.mem.replace(u8, file.path, std.fs.path.sep_str_windows, std.fs.path.sep_str_posix, &path_buffer);
             break :blk path_buffer[0..file.path.len];
         } else file.path;
-        if (std.mem.eql(u8, file_path, request.path.file_path[1..])) {
+        if (std.mem.eql(u8, file_path, match_path)) {
             const content = try iterable_dir.readFileAlloc(
                 request.allocator,
                 file_path,
