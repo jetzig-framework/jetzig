@@ -435,6 +435,7 @@ fn renderTemplateWithLayout(
                 view.data,
                 jetzig.TemplateContext,
                 template_context,
+                &.{},
                 .{ .layout = layout },
             );
         } else {
@@ -443,6 +444,7 @@ fn renderTemplateWithLayout(
                 view.data,
                 jetzig.TemplateContext,
                 template_context,
+                &.{},
                 .{},
             );
         }
@@ -450,6 +452,7 @@ fn renderTemplateWithLayout(
         view.data,
         jetzig.TemplateContext,
         template_context,
+        &.{},
         .{},
     );
 }
@@ -613,6 +616,7 @@ fn renderErrorView(
                                     request.response_data,
                                     jetzig.TemplateContext,
                                     .{ .request = request },
+                                    &.{},
                                     .{},
                                 ),
                             };

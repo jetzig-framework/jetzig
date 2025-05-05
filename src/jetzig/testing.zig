@@ -66,7 +66,7 @@ pub const TestResponse = struct {
     jobs: []Job,
 
     pub const Header = struct { name: []const u8, value: []const u8 };
-    pub const Job = struct { name: []const u8, params: ?[]const u8 = null };
+    pub const Job = struct { name: []const u8, params: ?*jetzig.data.Value = null };
 
     pub fn expectStatus(self: TestResponse, comptime expected: jetzig.http.status_codes.StatusCode) !void {
         try testing.expectStatus(expected, self);
@@ -299,13 +299,54 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
 }
 
 pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestResponse) !void {
+    var actual_params_buf = std.ArrayList([]const u8).init(response.allocator);
+    defer actual_params_buf.deinit();
+
+    const value: ?*jetzig.data.Value = if (@TypeOf(job_params) == @TypeOf(null))
+        null
+    else
+        try jetzig.Data.zmplValue(job_params, response.allocator);
     for (response.jobs) |job| {
-        comptime var has_args = false;
-        inline for (@typeInfo(@TypeOf(job_params)).Struct.fields) |field| {
-            has_args = true;
-            _ = field;
+        if (std.mem.eql(u8, job_name, job.name)) {
+            if (value != null and job.params != null) {
+                if (job.params.?.includes(value.?.*)) {
+                    return;
+                } else {
+                    try actual_params_buf.append(try job.params.?.toJson());
+                }
+            } else {
+                return;
+            }
         }
-        if (!has_args and std.mem.eql(u8, job_name, job.name)) return;
+    }
+
+    if (actual_params_buf.items.len == 0) {
+        logFailure(
+            "Expected job " ++
+                jetzig.colors.cyan("{s}") ++
+                " to have been scheduled but job was not found in the queue.",
+            .{job_name},
+        );
+    } else {
+        const actual_params_formatted = try std.mem.join(
+            response.allocator,
+            "\n",
+            actual_params_buf.items,
+        );
+        defer response.allocator.free(actual_params_formatted);
+        logFailure(
+            "Expected params for job " ++
+                jetzig.colors.cyan("{s}") ++
+                ":\n" ++
+                jetzig.colors.red("{s}\n") ++
+                "Actual job params:\n" ++
+                jetzig.colors.green("{s}"),
+            .{
+                job_name,
+                if (value) |v| try v.toJson() else "null",
+                actual_params_formatted,
+            },
+        );
     }
     return error.JetzigExpectJobError;
 }

@@ -15,3 +15,11 @@ pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
 
     return request.render(.ok);
 }
+
+test "index" {
+    var app = try jetzig.testing.app(std.testing.allocator, @import("routes"));
+    defer app.deinit();
+
+    const response = try app.request(.GET, "/background_jobs", .{});
+    try response.expectJob("example", .{ .foo = "bar" });
+}
