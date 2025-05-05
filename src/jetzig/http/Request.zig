@@ -16,6 +16,7 @@ pub const RequestState = enum {
     processed, // Request headers have been processed
     after_request, // Initial middleware processing
     rendered, // Rendered by middleware or view
+    rendered_text, // Rendered text by middleware or view
     redirected, // Redirected by middleware or view
     failed, // Failed by middleware or view
     before_response, // Post middleware processing
@@ -230,7 +231,7 @@ pub fn fail(self: *Request, status_code: jetzig.http.status_codes.StatusCode) je
 pub inline fn isRendered(self: *const Request) bool {
     return switch (self.state) {
         .initial, .processed, .after_request, .before_response => false,
-        .rendered, .redirected, .failed, .finalized => true,
+        .rendered, .rendered_text, .redirected, .failed, .finalized => true,
     };
 }
 
@@ -736,6 +737,18 @@ pub fn joinPath(self: *const Request, args: anytype) ![]const u8 {
     return try std.mem.join(self.allocator, "/", buf[0..]);
 }
 
+pub fn renderText(
+    self: *Request,
+    text: []const u8,
+    status_code: jetzig.http.StatusCode,
+) jetzig.views.View {
+    self.state = .rendered_text;
+    self.rendered_view = .{ .data = self.response_data, .status_code = status_code };
+    self.setResponse(.{ .view = self.rendered_view.?, .content = text }, .{});
+
+    return self.rendered_view.?;
+}
+
 pub fn joinPaths(self: *const Request, paths: []const []const []const u8) ![]const u8 {
     var buf = std.ArrayList([]const u8).init(self.allocator);
     defer buf.deinit();
@@ -753,10 +766,12 @@ pub fn setResponse(
 ) void {
     self.response.content = rendered_view.content;
     self.response.status_code = rendered_view.view.status_code;
-    self.response.content_type = options.content_type orelse switch (self.requestFormat()) {
-        .HTML, .UNKNOWN => "text/html",
-        .JSON => "application/json",
-    };
+    if (self.response.content_type == null) {
+        self.response.content_type = options.content_type orelse switch (self.requestFormat()) {
+            .HTML, .UNKNOWN => "text/html",
+            .JSON => "application/json",
+        };
+    }
 }
 
 fn setCookieHeaders(self: *Request) !void {
