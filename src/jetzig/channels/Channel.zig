@@ -116,7 +116,8 @@ pub fn RoutedChannel(Routes: type) type {
             const connection_key = try std.fmt.allocPrint(channel.allocator, "{s}:{s}", .{ channel.websocket.session_id, connection_id });
             const channel_state = try channel.websocket.channels.get(channel.data, connection_key) orelse blk: {
                 const channel_state = try channel.data.object();
-                try channel_state.put("__connection_key__", try std.fmt.allocPrint(channel.allocator, "http://{s}{s}?key={s}", .{ channel.host, channel.path, connection_key }));
+                // TODO - store this in a way that won't clobber the key with each new state.
+                try channel_state.put("__connection_url__", try std.fmt.allocPrint(channel.allocator, "http://{s}{s}?key={s}", .{ channel.host, channel.path, connection_key }));
                 try channel.websocket.channels.put(connection_key, channel_state);
                 break :blk channel_state;
             };

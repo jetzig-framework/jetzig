@@ -3,6 +3,10 @@
 
 <div id="party-container"></div>
 
+@if ($.join_token) |join_token|
+    <a href="#" jetzig-click="join" data-join-token="{{join_token}}">Join Game</a>
+@end
+
 <jetzig-scope name="game">
     <div id="results-wrapper">
         <span class="trophy">&#127942;</span>
@@ -45,8 +49,9 @@
     </div>
 
     <h4>Share this link to invite another player</h4>
-    <div jetzig-connect="$.__connect_url__"></div>
+    <div jetzig-connect="$.__connection_url__"></div>
 </jetzig-scope>
+
 
 <script>
     Jetzig.channel.receive("victor", data => {

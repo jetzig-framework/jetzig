@@ -104,9 +104,9 @@ const Jetzig = window.Jetzig;
         element.addEventListener('click', () => {
           const args = [];
           action.spec.params.forEach(param => {
-            const arg = element.dataset[param.name];
+            const arg = element.dataset[transformParam(param.name)];
             if (arg === undefined) {
-              throw new Error(`Expected 'data-${param.name}' attribute for '${action.name}' click handler.`);
+              throw new Error(`Expected 'data-${param.name}' HTML attribute for '${action.spec.name}' click handler.`);
             } else {
               args.push(element.dataset[param.name]);
             }
@@ -118,6 +118,10 @@ const Jetzig = window.Jetzig;
       }
     });
   };
+
+  const transformParam = (param) => param.toLowerCase()
+                                         .replace(/([-_][a-z])/g,
+                                                  group => group.toUpperCase().replace('-', '').replace('_', ''));
 
   const initScopes = (channel) => {
     document.querySelectorAll('jetzig-scope').forEach(element => {

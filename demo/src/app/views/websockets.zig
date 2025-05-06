@@ -9,6 +9,12 @@ pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
 
+pub fn get(id: []const u8, request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
+    try root.put("join_token", id);
+    return request.renderTemplate("websockets/index", .ok);
+}
+
 pub const Channel = struct {
     pub fn open(channel: jetzig.channels.Channel) !void {
         var state = try channel.state("game");
@@ -17,8 +23,8 @@ pub const Channel = struct {
     }
 
     pub const Actions = struct {
-        pub fn join(channel: jetzig.channels.Channel, token: []const u8) !void {
-            try channel.connect("game", token);
+        pub fn join(channel: jetzig.channels.Channel, join_token: []const u8) !void {
+            try channel.connect("game", join_token);
         }
 
         pub fn move(channel: jetzig.channels.Channel, cell: usize) !void {

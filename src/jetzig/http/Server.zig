@@ -481,7 +481,7 @@ pub fn RoutedServer(Routes: type) type {
         ) ![]const u8 {
             try addTemplateConstants(view, route);
 
-            var template_context = jetzig.TemplateContext{ .request = request };
+            var template_context = jetzig.TemplateContext{ .request = request, .route = route };
             template_context.middleware.context = &template_context;
 
             if (request.getLayout(route)) |layout_name| {
