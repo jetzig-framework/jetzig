@@ -7,7 +7,10 @@ const zmpl_build = @import("zmpl");
 const Environment = enum { development, testing, production };
 const builtin = @import("builtin");
 
-const use_llvm_default = builtin.os.tag != .linux;
+const use_llvm_default = switch (builtin.cpu.arch) {
+    .x86, .x86_64 => builtin.os.tag != .linux,
+    else => true,
+};
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
