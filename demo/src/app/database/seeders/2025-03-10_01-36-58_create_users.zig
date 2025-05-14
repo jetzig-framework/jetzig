@@ -1,11 +1,13 @@
 const std = @import("std");
 
+const jetzig = @import("jetzig");
+
 pub fn run(repo: anytype) !void {
     try repo.insert(
         .User,
         .{
             .email = "iguana@jetzig.dev",
-            .password_hash = "not_secure",
+            .password_hash = try jetzig.auth.hashPassword(repo.allocator, "password"),
         },
     );
 
@@ -13,7 +15,7 @@ pub fn run(repo: anytype) !void {
         .User,
         .{
             .email = "admin@jetzig.dev",
-            .password_hash = "do_not_use",
+            .password_hash = try jetzig.auth.hashPassword(repo.allocator, "admin"),
         },
     );
 }
