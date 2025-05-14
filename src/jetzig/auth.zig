@@ -22,6 +22,11 @@ pub fn signIn(request: *jetzig.Request, user_id: anytype) !void {
     try session.put("_jetzig_user_id", user_id);
 }
 
+pub fn signOut(request: *jetzig.Request) !void {
+    var session = try request.session();
+    _ = try session.remove("_jetzig_user_id");
+}
+
 pub fn verifyPassword(
     allocator: std.mem.Allocator,
     hash: []const u8,

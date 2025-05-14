@@ -82,6 +82,9 @@ pub fn build(b: *std.Build) !void {
     b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
     b.modules.put("jetquery_seeder", jetquery_dep.module("jetquery_seeder")) catch @panic("Out of memory");
 
+    jetquery_dep.module("jetquery_seeder").addImport("jetzig", jetzig_module);
+    jetquery_dep.module("jetquery_migrate").addImport("jetzig", jetzig_module);
+
     const smtp_client_dep = b.dependency("smtp_client", .{
         .target = target,
         .optimize = optimize,
@@ -191,6 +194,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const jetquery_migrate_module = jetzig_dep.module("jetquery_migrate");
     const jetquery_seeder_module = jetzig_dep.module("jetquery_seeder");
     const jetquery_reflect_module = jetquery_dep.module("jetquery_reflect");
+
+    jetquery_dep.module("jetquery_seeders").addImport("jetzig", jetzig_module);
+    jetquery_dep.module("jetquery_migrations").addImport("jetzig", jetzig_module);
 
     const build_options = b.addOptions();
     build_options.addOption(Environment, "environment", environment);
