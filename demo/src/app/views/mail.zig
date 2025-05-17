@@ -1,9 +1,9 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
-    try root.put("message", data.string("Welcome to Jetzig!"));
+pub fn index(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
+    try root.put("message", "Welcome to Jetzig!");
 
     // Create a new mail using `src/app/mailers/welcome.zig`.
     // HTML and text parts are rendered using Zmpl templates:

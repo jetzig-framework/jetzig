@@ -9,13 +9,11 @@ pub const formats: jetzig.Route.Formats = .{
     .get = &.{.html},
 };
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
 
-pub fn get(id: []const u8, request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn get(id: []const u8, request: *jetzig.Request) !jetzig.View {
     _ = id;
     return request.render(.ok);
 }
