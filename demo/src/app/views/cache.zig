@@ -1,15 +1,15 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+pub fn index(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
     try root.put("message", try request.cache.get("message"));
 
     return request.render(.ok);
 }
 
-pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+pub fn post(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
 
     const params = try request.params();
 
@@ -17,7 +17,7 @@ pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
         try request.cache.put("message", message);
         try root.put("message", message);
     } else {
-        try root.put("message", data.string("[no message param detected]"));
+        try root.put("message", "[no message param detected]");
     }
 
     return request.render(.ok);

@@ -1,7 +1,6 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn index(request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
