@@ -29,7 +29,7 @@ pub fn main() !void {
         mailers_path,
     );
     const generated_routes = try routes.generateRoutes();
-    var src_dir = try std.fs.openDirAbsolute(src_path, .{ .iterate = true });
+    var src_dir = try std.fs.cwd().openDir(src_path, .{ .iterate = true });
     defer src_dir.close();
     var walker = try src_dir.walk(allocator);
     defer walker.deinit();
@@ -39,7 +39,7 @@ pub fn main() !void {
             const stat = try src_dir.statFile(entry.path);
             const src_data = try src_dir.readFileAlloc(allocator, entry.path, @intCast(stat.size));
             const relpath = try std.fs.path.join(allocator, &[_][]const u8{ "src", entry.path });
-            var dir = try std.fs.openDirAbsolute(std.fs.path.dirname(output_path).?, .{});
+            var dir = try std.fs.cwd().openDir(std.fs.path.dirname(output_path).?, .{});
             const dest_dir = try dir.makeOpenPath(std.fs.path.dirname(relpath).?, .{});
             const src_file = try dest_dir.createFile(std.fs.path.basename(relpath), .{});
             try src_file.writeAll(src_data);
@@ -47,7 +47,7 @@ pub fn main() !void {
         }
     }
 
-    const file = try std.fs.createFileAbsolute(output_path, .{ .truncate = true });
+    const file = try std.fs.cwd().createFile(output_path, .{ .truncate = true });
     try file.writeAll(generated_routes);
     file.close();
 }
