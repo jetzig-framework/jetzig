@@ -31,7 +31,7 @@ pub fn main() !void {
     var index: usize = 0;
     while (it.next()) |arg| : (index += 1) {
         if (index == 0) continue;
-        const file = try std.fs.createFileAbsolute(arg, .{});
+        const file = try std.fs.cwd().createFile(arg, .{});
         const writer = file.writer();
         try compileStaticRoutes(allocator, writer);
         file.close();
