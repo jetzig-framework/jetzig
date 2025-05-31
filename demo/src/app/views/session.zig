@@ -1,15 +1,15 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    var root = try data.object();
+pub fn index(request: *jetzig.Request) !jetzig.View {
+    var root = try request.data(.object);
 
     const session = try request.session();
 
     if (session.get("message")) |message| {
         try root.put("message", message);
     } else {
-        try root.put("message", data.string("No message saved yet"));
+        try root.put("message", "No message saved yet");
     }
 
     return request.render(.ok);
@@ -20,8 +20,7 @@ pub fn edit(id: []const u8, request: *jetzig.Request) !jetzig.View {
     return request.render(.ok);
 }
 
-pub fn post(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    _ = data;
+pub fn post(request: *jetzig.Request) !jetzig.View {
     const params = try request.params();
     var session = try request.session();
 

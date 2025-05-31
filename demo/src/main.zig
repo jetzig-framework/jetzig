@@ -18,7 +18,10 @@ pub const jetzig_options = struct {
         // jetzig.middleware.AntiCsrfMiddleware,
         jetzig.middleware.HtmxMiddleware,
         jetzig.middleware.ChannelsMiddleware,
-            // jetzig.middleware.InertiaMiddleware,
+        // jetzig.middleware.InertiaMiddleware,
+        jetzig.middleware.AuthMiddleware,
+            // jetzig.middleware.AntiCsrfMiddleware,
+            // jetzig.middleware.HtmxMiddleware,
             // jetzig.middleware.CompressionMiddleware,
             // @import("app/middleware/DemoMiddleware.zig"),
     };
@@ -69,6 +72,10 @@ pub const jetzig_options = struct {
 
     // Path relative to cwd() to serve public content from. Symlinks are not followed.
     pub const public_content_path = "public";
+
+    /// Request path to map to public directory, e.g. if `public_routing_path` is `"/foo"` then a
+    /// request to `/foo/bar.png` will serve static content found in `public/bar.png`
+    pub const public_routing_path = "/";
 
     // HTTP buffer. Must be large enough to store all headers. This should typically not be modified.
     pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);

@@ -184,7 +184,7 @@ pub fn RoutedServer(Routes: type) type {
             }
 
             try self.renderResponse(&request);
-            try request.response.headers.append("Content-Type", response.content_type);
+            try request.response.headers.append("Content-Type", response.contentType());
 
             try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
             try request.respond();
@@ -244,7 +244,7 @@ pub fn RoutedServer(Routes: type) type {
                     // TODO: Allow middleware to set content
                     request.setResponse(.{ .view = rendered, .content = "" }, .{});
                 }
-                try request.response.headers.append("Content-Type", response.content_type);
+                try request.response.headers.append("Content-Type", response.contentType());
                 try request.respond();
                 return true;
             } else return false;
@@ -418,12 +418,16 @@ pub fn RoutedServer(Routes: type) type {
                 return try self.renderInternalServerError(request, @errorReturnTrace(), err);
             };
 
-            if (request.state == .failed) {
-                const view: jetzig.views.View = request.rendered_view orelse .{
-                    .data = request.response_data,
-                    .status_code = .internal_server_error,
-                };
-                return try self.renderError(request, view.status_code, .{});
+            switch (request.state) {
+                .failed => {
+                    const status_code = request.rendered_view.?.status_code;
+                    return try self.renderError(request, status_code, .{});
+                },
+                .rendered_text => {
+                    const view = request.rendered_view.?; // a panic here is a bug.
+                    return .{ .view = view, .content = request.response.content };
+                },
+                else => {},
             }
 
             const template: ?zmpl.Template = if (request.dynamic_assigned_template) |request_template|
@@ -435,7 +439,7 @@ pub fn RoutedServer(Routes: type) type {
 
             if (request.rendered_view) |rendered_view| {
                 if (request.state == .redirected) return .{ .view = rendered_view, .content = "" };
-                if (request.state == .rendered_content) return .{
+                if (request.state == .rendered_text) return .{
                     .view = rendered_view,
                     .content = rendered_view.content.?,
                 };

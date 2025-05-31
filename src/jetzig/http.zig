@@ -26,3 +26,5 @@ pub const params = @import("http/params.zig");
 pub const SimplifiedRequest = struct {
     location: ?[]const u8,
 };
+
+pub const default_content_type = "application/octet-stream";

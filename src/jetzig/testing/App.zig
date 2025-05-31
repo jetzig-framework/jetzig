@@ -234,6 +234,7 @@ pub fn request(
     while (try self.job_queue.popFirst(&data, "__jetzig_jobs")) |value| {
         if (value.getT(.string, "__jetzig_job_name")) |job_name| try jobs.append(.{
             .name = try allocator.dupe(u8, job_name),
+            .params = value,
         });
     }
 

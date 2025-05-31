@@ -12,14 +12,14 @@ const jetzig = @import("jetzig");
 /// PUT /1234 => put(id, request, data)
 /// PATCH /1234 => patch(id, request, data)
 /// DELETE /1234 => delete(id, request, data)
-pub fn index(request: *jetzig.Request, data: *jetzig.Data) !jetzig.View {
-    // The first call to `data.object()` or `data.array()` sets the root response data value.
+pub fn index(request: *jetzig.Request) !jetzig.View {
+    // Sets the root response data value.
     // JSON requests return a JSON string representation of the root data value.
     // Zmpl templates can access all values in the root data value.
-    var root = try data.object();
+    var root = try request.data(.object);
 
     // Add a string to the root object.
-    try root.put("welcome_message", data.string("Welcome to Jetzig!"));
+    try root.put("welcome_message", "Welcome to Jetzig!");
 
     // Request params have the same type as a `data.object()` so they can be inserted them
     // directly into the response data. Fetch `http://localhost:8080/?message=hello` to set the

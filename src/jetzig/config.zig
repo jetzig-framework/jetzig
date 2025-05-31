@@ -84,6 +84,10 @@ pub const max_connections: u16 = 512;
 /// Path relative to cwd() to serve public content from. Symlinks are not followed.
 pub const public_content_path = "public";
 
+/// Request path to map to public directory, e.g. if `public_routing_path` is `"/foo"` then a
+/// request to `/foo/bar.png` will serve static content found in `public/bar.png`
+pub const public_routing_path = "/";
+
 /// Middleware chain. Add any custom middleware here, or use middleware provided in
 /// `jetzig.middleware` (e.g. `jetzig.middleware.HtmxMiddleware`).
 pub const middleware = &.{};
