@@ -12,11 +12,11 @@ pub const jetzig_options = struct {
     /// Middleware chain. Add any custom middleware here, or use middleware provided in
     /// `jetzig.middleware` (e.g. `jetzig.middleware.HtmxMiddleware`).
     pub const middleware: []const type = &.{
+        // jetzig.middleware.AuthMiddleware,
         // jetzig.middleware.AntiCsrfMiddleware,
+        // jetzig.middleware.HtmxMiddleware,
         // jetzig.middleware.CompressionMiddleware,
         // @import("app/middleware/DemoMiddleware.zig"),
-        jetzig.middleware.AuthMiddleware,
-        jetzig.middleware.HtmxMiddleware,
     };
 
     // Maximum bytes to allow in request body.

@@ -114,7 +114,7 @@ pub fn run(
     try copySourceFile(
         allocator,
         install_dir,
-        "demo/src/main.zig",
+        "init/src/main.zig",
         "src/main.zig",
         null,
     );
@@ -217,7 +217,13 @@ pub fn run(
         \\
         \\    $ cd {s}
         \\
-        \\    $ zig build run or jetzig server
+        \\    then
+        \\
+        \\    $ zig build run
+        \\
+        \\    or
+        \\
+        \\    $ jetzig server
         \\
         \\And then browse to http://localhost:8080/
         \\

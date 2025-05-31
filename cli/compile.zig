@@ -20,8 +20,8 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
     const writer = buf.writer();
 
     const paths = .{
+        "init/src/main.zig",
         "demo/build.zig",
-        "demo/src/main.zig",
         "demo/src/app/middleware/DemoMiddleware.zig",
         "demo/src/app/views/init.zig",
         "demo/src/app/views/init/index.zmpl",
