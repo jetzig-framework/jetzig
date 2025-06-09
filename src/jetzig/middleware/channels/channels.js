@@ -180,7 +180,7 @@ const Jetzig = window.Jetzig;
       }
     });
     channel.websocket.addEventListener("open", (event) => {
-      // TODO
+      // TODO - init callback
       channel.publish("websockets", {});
     });
   };

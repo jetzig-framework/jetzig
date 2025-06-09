@@ -7,16 +7,21 @@ const jetzig = @import("../../jetzig.zig");
 allocator: std.mem.Allocator,
 httpz_headers: *httpz.key_value.StringKeyValue,
 new_headers: std.ArrayList(Header),
+options: Options,
 
 const Headers = @This();
-const Header = struct { name: []const u8, value: []const u8 };
+pub const Header = struct { name: []const u8, value: []const u8 };
 const max_bytes_header_name = jetzig.config.get(u8, "max_bytes_header_name");
 
-pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.StringKeyValue) Headers {
+pub const Options = struct {
+    read_only: bool = false,
+};
+pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.StringKeyValue, options: Options) Headers {
     return .{
         .allocator = allocator,
         .httpz_headers = httpz_headers,
         .new_headers = std.ArrayList(Header).init(allocator),
+        .options = options,
     };
 }
 
@@ -39,6 +44,20 @@ pub fn get(self: Headers, name: []const u8) ?[]const u8 {
     const lower = std.ascii.lowerString(&buf, name);
 
     return self.httpz_headers.get(lower);
+}
+
+/// Determine if a header exists. Names are case-insensitive.
+pub fn has(self: Headers, name: []const u8) bool {
+    std.debug.assert(name.len <= max_bytes_header_name);
+
+    var buf: [max_bytes_header_name]u8 = undefined;
+    const lower = std.ascii.lowerString(&buf, name);
+
+    var it = self.httpz_headers.iterator();
+    while (it.next()) |header| {
+        if (std.mem.eql(u8, header.key, lower)) return true;
+    }
+    return false;
 }
 
 /// Get the first value for a given header identified by `name`, which is assumed to be lower case.
@@ -70,6 +89,7 @@ pub fn count(self: Headers) usize {
 
 /// Add `name` and `value` to headers.
 pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
+    if (self.options.read_only) return error.JetzigReadOnlyHeaders;
     if (self.httpz_headers.len >= self.httpz_headers.keys.len) return error.JetzigTooManyHeaders;
 
     var buf: [max_bytes_header_name]u8 = undefined;

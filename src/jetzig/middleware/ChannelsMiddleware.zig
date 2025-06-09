@@ -32,5 +32,6 @@ pub const Blocks = struct {
 };
 
 pub fn renderChannels(request: *jetzig.Request) !jetzig.View {
+    try request.response.headers.append("Content-Type", "text/javascript");
     return request.renderContent(.ok, @embedFile("channels/channels.js"));
 }

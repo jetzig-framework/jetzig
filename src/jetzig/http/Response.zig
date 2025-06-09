@@ -23,7 +23,7 @@ pub fn init(
         .httpz_response = httpz_response,
         .status_code = .no_content,
         .content = "",
-        .headers = jetzig.http.Headers.init(allocator, &httpz_response.headers),
+        .headers = jetzig.http.Headers.init(allocator, &httpz_response.headers, .{}),
     };
 }
 

@@ -56,6 +56,7 @@ pub fn RoutedWebsocket(Routes: type) type {
         }
 
         pub fn afterInit(websocket: *Websocket, context: Context) !void {
+            std.debug.print("afterInit\n", .{});
             _ = context;
             if (router.encoded_params.get(websocket.route.path)) |params| {
                 var stack_fallback = std.heap.stackFallback(4096, websocket.allocator);

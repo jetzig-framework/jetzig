@@ -184,7 +184,9 @@ pub fn RoutedServer(Routes: type) type {
             }
 
             try self.renderResponse(&request);
-            try request.response.headers.append("Content-Type", response.contentType());
+            if (!request.response.headers.has("content-type")) {
+                try request.response.headers.append("Content-Type", response.contentType());
+            }
 
             try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
             try request.respond();
@@ -241,8 +243,7 @@ pub fn RoutedServer(Routes: type) type {
                 if (request.redirect_state) |state| {
                     try request.renderRedirect(state);
                 } else if (request.rendered_view) |rendered| {
-                    // TODO: Allow middleware to set content
-                    request.setResponse(.{ .view = rendered, .content = "" }, .{});
+                    request.setResponse(.{ .view = rendered, .content = rendered.content orelse "" }, .{});
                 }
                 try request.response.headers.append("Content-Type", response.contentType());
                 try request.respond();
@@ -272,7 +273,13 @@ pub fn RoutedServer(Routes: type) type {
                     };
                     request.setResponse(rendered, .{ .content_type = route.content_type });
                     return;
-                } else unreachable; // In future a MiddlewareRoute might provide a render function etc.
+                } else if (request.rendered_view) |rendered_view| {
+                    request.setResponse(
+                        .{ .view = rendered_view, .content = rendered_view.content orelse "" },
+                        .{ .content_type = route.content_type },
+                    );
+                    return;
+                }
             }
 
             const maybe_route = self.matchCustomRoute(request) orelse try self.matchRoute(request, false);
@@ -281,9 +288,7 @@ pub fn RoutedServer(Routes: type) type {
                 if (!route.validateFormat(request)) {
                     return request.setResponse(try self.renderNotFound(request), .{});
                 }
-            }
 
-            if (maybe_route) |route| {
                 for (route.before_callbacks) |callback| {
                     try callback(request, route);
                     if (request.rendered_view) |view| {
@@ -352,10 +357,9 @@ pub fn RoutedServer(Routes: type) type {
                         return request.setResponse(rendered_error, .{});
                     };
 
-                    return if (request.isRendered() or request.dynamic_assigned_template != null)
-                        request.setResponse(rendered, .{})
-                    else
-                        request.setResponse(try self.renderNotFound(request), .{});
+                    return if (request.isRendered() or request.dynamic_assigned_template != null) blk: {
+                        break :blk request.setResponse(rendered, .{});
+                    } else request.setResponse(try self.renderNotFound(request), .{});
                 }
             } else {
                 // If no matching route found, try to render a Markdown file in views directory.
@@ -425,7 +429,7 @@ pub fn RoutedServer(Routes: type) type {
                 },
                 .rendered_text => {
                     const view = request.rendered_view.?; // a panic here is a bug.
-                    return .{ .view = view, .content = request.response.content };
+                    return .{ .view = view, .content = view.content orelse request.response.content };
                 },
                 else => {},
             }

@@ -162,7 +162,7 @@ pub fn init(
 
     const response_data = try allocator.create(jetzig.data.Data);
     response_data.* = jetzig.data.Data.init(allocator);
-    const headers = jetzig.http.Headers.init(allocator, httpz_request.headers);
+    const headers = jetzig.http.Headers.init(allocator, httpz_request.headers, .{ .read_only = true });
     const host = headers.getLower("host") orelse "";
 
     return .{
