@@ -10,6 +10,7 @@ pub const bundle = @import("commands/bundle.zig");
 pub const tests = @import("commands/tests.zig");
 pub const database = @import("commands/database.zig");
 pub const auth = @import("commands/auth.zig");
+pub const version = @import("commands/version.zig");
 
 pub const Environment = enum { development, testing, production };
 
@@ -49,6 +50,7 @@ const Verb = union(enum) {
     @"test": tests.Options,
     database: database.Options,
     auth: auth.Options,
+    version: version.Options,
     g: generate.Options,
     s: server.Options,
     r: routes.Options,
@@ -91,6 +93,7 @@ pub fn main() !void {
             \\  database     Manage the application's database.
             \\  auth         Utilities for Jetzig authentication.
             \\  test         Run app tests.
+            \\  version      Print Jetzig version.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
             \\
@@ -118,6 +121,13 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
                 options,
             ),
             .update => |opts| update.run(
+                allocator,
+                opts,
+                writer,
+                OptionsType,
+                options,
+            ),
+            .version => |opts| version.run(
                 allocator,
                 opts,
                 writer,
