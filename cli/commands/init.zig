@@ -156,6 +156,14 @@ pub fn run(
     try copySourceFile(
         allocator,
         install_dir,
+        "demo/src/app/views/layouts/default.zmpl",
+        "src/app/views/layouts/default.zmpl",
+        null,
+    );
+
+    try copySourceFile(
+        allocator,
+        install_dir,
         "demo/public/jetzig.png",
         "public/jetzig.png",
         null,
