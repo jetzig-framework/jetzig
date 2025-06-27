@@ -1,6 +1,8 @@
 const std = @import("std");
 const jetzig = @import("jetzig");
 
+pub const layout = "default";
+
 /// `src/app/views/root.zig` represents the root URL `/`
 /// The `index` view function is invoked when when the HTTP verb is `GET`.
 /// Other view types are invoked either by passing a resource ID value (e.g. `/1234`) or by using

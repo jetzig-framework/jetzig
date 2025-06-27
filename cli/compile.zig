@@ -26,6 +26,7 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
         "demo/src/app/views/init.zig",
         "demo/src/app/views/init/index.zmpl",
         "demo/src/app/views/init/_content.zmpl",
+        "demo/src/app/views/layouts/default.zmpl",
         "demo/public/jetzig.png",
         "demo/public/zmpl.png",
         "demo/public/favicon.ico",
