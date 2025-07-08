@@ -11,6 +11,7 @@ pub const tests = @import("commands/tests.zig");
 pub const database = @import("commands/database.zig");
 pub const auth = @import("commands/auth.zig");
 pub const version = @import("commands/version.zig");
+pub const completion = @import("commands/completion.zig");
 
 pub const Environment = enum { development, testing, production };
 
@@ -36,6 +37,7 @@ pub const Options = struct {
             .database = "Manage the application's database",
             .help = "Print help and exit",
             .environment = "Jetzig environment.",
+            .completion = "Provide shell-completion.",
         },
     };
 };
@@ -51,6 +53,7 @@ const Verb = union(enum) {
     database: database.Options,
     auth: auth.Options,
     version: version.Options,
+    completion: completion.Options,
     g: generate.Options,
     s: server.Options,
     r: routes.Options,
@@ -70,8 +73,9 @@ pub fn main() !void {
     defer options.deinit();
 
     const writer = std.io.getStdErr().writer();
+    const stdout_writer = std.io.getStdOut().writer();
 
-    run(allocator, options, writer) catch |err| {
+    run(allocator, options, stdout_writer, writer) catch |err| {
         switch (err) {
             error.JetzigCommandError => std.process.exit(1),
             else => return err,
@@ -93,6 +97,7 @@ pub fn main() !void {
             \\  database     Manage the application's database.
             \\  auth         Utilities for Jetzig authentication.
             \\  test         Run app tests.
+            \\  completion   Provide shell-completion.
             \\  version      Print Jetzig version.
             \\
             \\ Pass --help to any command for more information, e.g. `jetzig init --help`
@@ -101,7 +106,7 @@ pub fn main() !void {
     }
 }
 
-fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb), writer: anytype) !void {
+fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb), stdout_writer: anytype, writer: anytype) !void {
     const OptionsType = args.ParseArgsResult(Options, Verb);
 
     if (options.verb) |verb| {
@@ -172,6 +177,14 @@ fn run(allocator: std.mem.Allocator, options: args.ParseArgsResult(Options, Verb
             .auth => |opts| auth.run(
                 allocator,
                 opts,
+                writer,
+                OptionsType,
+                options,
+            ),
+            .completion => |opts| completion.run(
+                allocator,
+                opts,
+                stdout_writer,
                 writer,
                 OptionsType,
                 options,
