@@ -10,7 +10,7 @@
         },
         .zmd = .{
             .url = "https://github.com/jetzig-framework/zmd/archive/d6c8aa9a9cde99674ccb096d8f94ed09cba8dab.tar.gz",
-            .hash = "1220d0e8734628fd910a73146e804d10a3269e3e7d065de6bb0e3e88d5ba234eb163",
+            .hash = "zmd-0.0.0-AAAAAOvgAADQ6HNGKP2RCnMUboBNEKMmnj59Bl3muw4-",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/5163c66cc42cdd93176a6b1cad45f3db3a291a6a.tar.gz",
