@@ -23,12 +23,16 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
-    const lib = b.addStaticLibrary(.{
-        .name = "jetzig",
-        .root_source_file = b.path("src/jetzig.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    const lib = b.addLibrary(
+        .{
+            .name = "jetzig",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/jetzig.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        },
+    );
 
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
 
@@ -101,9 +105,11 @@ pub fn build(b: *std.Build) !void {
     jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
 
     const main_tests = b.addTest(.{
-        .root_source_file = b.path("src/tests.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const docs_step = b.step("docs", "Generate documentation");
