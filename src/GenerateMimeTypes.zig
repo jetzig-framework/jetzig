@@ -20,7 +20,7 @@ pub fn generateMimeModule(build: *std.Build) !*std.Build.Module {
         .{ .ignore_unknown_fields = true },
     );
 
-    var buf = std.ArrayList(u8).init(build.allocator);
+    var buf = std.array_list.Managed(u8).init(build.allocator);
     defer buf.deinit();
 
     const writer = buf.writer();
