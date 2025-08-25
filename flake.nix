@@ -27,7 +27,7 @@
         devShells.default = pkgs.mkShell {
           name = "jetzig-dev-env";
           buildInputs = [
-            zigpkg valkey postgresql
+            zigpkg pkgs.valkey pkgs.postgresql
             (pkgs.stdenv.mkDerivation rec {
               pname = "zls";
               version = "0.15.0";
