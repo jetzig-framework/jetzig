@@ -182,7 +182,7 @@ pub fn request(
         self.cookies = cookies;
     }
 
-    var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(allocator);
+    var headers = std.array_list.Managed(jetzig.testing.TestResponse.Header).init(allocator);
     for (0..httpz_response.headers.len) |index| {
         const key = httpz_response.headers.keys[index];
         const value = httpz_response.headers.values[index];
@@ -204,7 +204,7 @@ pub fn request(
     var data = jetzig.data.Data.init(allocator);
     defer data.deinit();
 
-    var jobs = std.ArrayList(jetzig.testing.TestResponse.Job).init(allocator);
+    var jobs = std.array_list.Managed(jetzig.testing.TestResponse.Job).init(allocator);
     while (try self.job_queue.popFirst(&data, "__jetzig_jobs")) |value| {
         if (value.getT(.string, "__jetzig_job_name")) |job_name| try jobs.append(.{
             .name = try allocator.dupe(u8, job_name),
@@ -226,7 +226,7 @@ pub fn request(
 /// Generate query params to use with a request.
 pub fn params(self: App, args: anytype) []Param {
     const allocator = self.arena.allocator();
-    var array = std.ArrayList(Param).init(allocator);
+    var array = std.array_list.Managed(Param).init(allocator);
     inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |field| {
         const value = coerceString(allocator, @field(args, field.name));
         array.append(.{ .key = field.name, .value = value }) catch @panic("OOM");
@@ -252,7 +252,7 @@ pub fn json(self: App, args: anytype) []const u8 {
 
 /// Generate a `multipart/form-data`-encoded request body.
 pub fn multipart(self: *App, comptime args: anytype) []const u8 {
-    var buf = std.ArrayList(u8).init(self.arena.allocator());
+    var buf = std.array_list.Managed(u8).init(self.arena.allocator());
     const writer = buf.writer();
     var boundary_buf: [16]u8 = undefined;
 
@@ -307,7 +307,7 @@ fn stubbedRequest(
     for (options.headers) |header| request_headers.add(header.name, header.value);
 
     if (maybe_cookies) |cookies| {
-        var cookie_buf = std.ArrayList(u8).init(allocator);
+        var cookie_buf = std.array_list.Managed(u8).init(allocator);
         const cookie_writer = cookie_buf.writer();
         try cookie_writer.print("{}", .{cookies});
         const cookie = try cookie_buf.toOwnedSlice();
@@ -326,7 +326,7 @@ fn stubbedRequest(
         request_headers.add("content-type", header);
     }
 
-    var params_buf = std.ArrayList([]const u8).init(allocator);
+    var params_buf = std.array_list.Managed([]const u8).init(allocator);
     if (options.params) |array| {
         for (array) |param| {
             try params_buf.append(
@@ -449,7 +449,7 @@ fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !R
 }
 
 fn buildHeaders(allocator: std.mem.Allocator, args: anytype) ![]const jetzig.testing.TestResponse.Header {
-    var headers = std.ArrayList(jetzig.testing.TestResponse.Header).init(allocator);
+    var headers = std.array_list.Managed(jetzig.testing.TestResponse.Header).init(allocator);
     inline for (std.meta.fields(@TypeOf(args))) |field| {
         try headers.append(
             jetzig.testing.TestResponse.Header{

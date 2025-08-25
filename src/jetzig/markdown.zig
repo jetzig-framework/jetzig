@@ -27,7 +27,7 @@ pub fn renderFile(
     path: []const u8,
     comptime options: MarkdownRenderOptions,
 ) !?[]const u8 {
-    var path_buf = std.ArrayList([]const u8).init(allocator);
+    var path_buf = std.array_list.Managed([]const u8).init(allocator);
     defer path_buf.deinit();
 
     try path_buf.appendSlice(&[_][]const u8{ "src", "app", "views" });

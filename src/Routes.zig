@@ -8,10 +8,10 @@ templates_path: []const u8,
 views_path: []const u8,
 jobs_path: []const u8,
 mailers_path: []const u8,
-buffer: std.ArrayList(u8),
-dynamic_routes: std.ArrayList(Function),
-static_routes: std.ArrayList(Function),
-module_paths: std.ArrayList([]const u8),
+buffer: std.array_list.Managed(u8),
+dynamic_routes: std.array_list.Managed(Function),
+static_routes: std.array_list.Managed(Function),
+module_paths: std.array_list.Managed([]const u8),
 data: *jetzig.data.Data,
 
 const Routes = @This();
@@ -23,7 +23,7 @@ const Function = struct {
     routes: *const Routes,
     path: []const u8,
     source: []const u8,
-    params: std.ArrayList([]const u8),
+    params: std.array_list.Managed([]const u8),
     legacy: bool = false,
     static: bool = false,
 
@@ -117,10 +117,10 @@ pub fn init(
         .views_path = views_path,
         .jobs_path = jobs_path,
         .mailers_path = mailers_path,
-        .buffer = std.ArrayList(u8).init(allocator),
-        .static_routes = std.ArrayList(Function).init(allocator),
-        .dynamic_routes = std.ArrayList(Function).init(allocator),
-        .module_paths = std.ArrayList([]const u8).init(allocator),
+        .buffer = std.array_list.Managed(u8).init(allocator),
+        .static_routes = std.array_list.Managed(Function).init(allocator),
+        .dynamic_routes = std.array_list.Managed(Function).init(allocator),
+        .module_paths = std.array_list.Managed([]const u8).init(allocator),
         .data = data,
     };
 }
@@ -272,7 +272,7 @@ fn writeRoutes(self: *Routes, writer: anytype) !void {
     std.debug.print("[jetzig] Imported {} route(s)\n", .{self.dynamic_routes.items.len});
 }
 
-fn writeRoute(self: *Routes, writer: std.ArrayList(u8).Writer, route: Function) !void {
+fn writeRoute(self: *Routes, writer: std.array_list.Managed(u8).Writer, route: Function) !void {
     const full_name = try route.fullName();
     defer self.allocator.free(full_name);
 
@@ -383,8 +383,8 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
 
     self.ast = try std.zig.Ast.parse(self.allocator, source, .zig);
 
-    var static_routes = std.ArrayList(Function).init(self.allocator);
-    var dynamic_routes = std.ArrayList(Function).init(self.allocator);
+    var static_routes = std.array_list.Managed(Function).init(self.allocator);
+    var dynamic_routes = std.array_list.Managed(Function).init(self.allocator);
     var static_params: ?*jetzig.data.Value = null;
 
     for (self.ast.nodes.items(.tag), 0..) |tag, index| {
@@ -427,14 +427,14 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
     }
 
     for (static_routes.items) |*static_route| {
-        var encoded_params = std.ArrayList([]const u8).init(self.allocator);
+        var encoded_params = std.array_list.Managed([]const u8).init(self.allocator);
         defer encoded_params.deinit();
 
         if (static_params) |capture| {
             if (capture.get(static_route.name)) |params| {
                 for (params.items(.array)) |item| {
                     const json = try item.toJson();
-                    var encoded_buf = std.ArrayList(u8).init(self.allocator);
+                    var encoded_buf = std.array_list.Managed(u8).init(self.allocator);
                     defer encoded_buf.deinit();
                     const writer = encoded_buf.writer();
                     try std.json.encodeJsonString(json, .{}, writer);
@@ -608,7 +608,7 @@ fn parseFunction(
     };
     if (fn_proto.name_token) |token| {
         const function_name = try self.allocator.dupe(u8, self.ast.tokenSlice(token));
-        var args = std.ArrayList(Arg).init(self.allocator);
+        var args = std.array_list.Managed(Arg).init(self.allocator);
         defer args.deinit();
 
         if (!isActionFunctionName(function_name)) {
@@ -635,7 +635,7 @@ fn parseFunction(
             .path = path,
             .args = try self.allocator.dupe(Arg, args.items),
             .source = try self.allocator.dupe(u8, source),
-            .params = std.ArrayList([]const u8).init(self.allocator),
+            .params = std.array_list.Managed([]const u8).init(self.allocator),
         };
     }
 
@@ -647,7 +647,7 @@ fn parseTypeExpr(self: *Routes, node: std.zig.Ast.Node) ![]const u8 {
         // Currently all expected params are pointers, keeping this here in case that changes in future:
         .identifier => {},
         .ptr_type_aligned => {
-            var buf = std.ArrayList([]const u8).init(self.allocator);
+            var buf = std.array_list.Managed([]const u8).init(self.allocator);
             defer buf.deinit();
 
             for (0..(self.ast.tokens.len - node.main_token)) |index| {
@@ -679,14 +679,14 @@ inline fn chompExtension(path: []const u8) []const u8 {
 }
 
 fn zigEscape(self: Routes, input: []const u8) ![]const u8 {
-    var buf = std.ArrayList(u8).init(self.allocator);
+    var buf = std.array_list.Managed(u8).init(self.allocator);
     const writer = buf.writer();
     try std.zig.stringEscape(input, "", .{}, writer);
     return try buf.toOwnedSlice();
 }
 
 fn normalizePosix(self: Routes, path: []const u8) ![]u8 {
-    var buf = std.ArrayList([]const u8).init(self.allocator);
+    var buf = std.array_list.Managed([]const u8).init(self.allocator);
     defer buf.deinit();
 
     var it = std.mem.splitSequence(u8, path, std.fs.path.sep_str);

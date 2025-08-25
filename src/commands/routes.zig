@@ -48,7 +48,7 @@ pub fn main() !void {
     var jetzig_app = jetzig.App{
         .env = environment,
         .allocator = allocator,
-        .custom_routes = std.ArrayList(jetzig.views.Route).init(allocator),
+        .custom_routes = std.array_list.Managed(jetzig.views.Route).init(allocator),
         .initHook = initHook,
     };
 

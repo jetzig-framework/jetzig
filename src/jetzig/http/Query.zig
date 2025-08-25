@@ -5,7 +5,7 @@ const Query = @This();
 
 allocator: std.mem.Allocator,
 query_string: []const u8,
-query_items: std.ArrayList(QueryItem),
+query_items: std.array_list.Managed(QueryItem),
 data: *jetzig.data.Data,
 
 pub const QueryItem = struct {
@@ -17,7 +17,7 @@ pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzi
     return .{
         .allocator = allocator,
         .query_string = query_string,
-        .query_items = std.ArrayList(QueryItem).init(allocator),
+        .query_items = std.array_list.Managed(QueryItem).init(allocator),
         .data = data,
     };
 }

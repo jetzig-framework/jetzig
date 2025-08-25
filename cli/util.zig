@@ -189,8 +189,8 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
     }
     child.cwd = cwd_path;
 
-    var stdout = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
-    var stderr = try std.ArrayListUnmanaged(u8).initCapacity(allocator, 0);
+    var stdout = try std.array_list.Unmanaged(u8).initCapacity(allocator, 0);
+    var stderr = try std.array_list.Unmanaged(u8).initCapacity(allocator, 0);
     errdefer {
         stdout.deinit(allocator);
         stderr.deinit(allocator);
@@ -231,8 +231,8 @@ pub fn runCommandInDir(allocator: std.mem.Allocator, argv: []const []const u8, d
 fn collectOutput(
     child: std.process.Child,
     allocator: std.mem.Allocator,
-    stdout: *std.ArrayListUnmanaged(u8),
-    stderr: *std.ArrayListUnmanaged(u8),
+    stdout: *std.array_list.Unmanaged(u8),
+    stderr: *std.array_list.Unmanaged(u8),
 ) !void {
     const max_output_bytes = 50 * 1024;
     std.debug.assert(child.stdout_behavior == .Pipe);
@@ -261,7 +261,7 @@ fn collectOutput(
 
 // Borrowed from `std.process.Child.writeFifoDataToArrayList` - non-public but needed in our
 // modified `collectOutput`
-fn writeFifoDataToArrayList(allocator: std.mem.Allocator, list: *std.ArrayListUnmanaged(u8), fifo: *std.io.PollFifo) !void {
+fn writeFifoDataToArrayList(allocator: std.mem.Allocator, list: *std.array_list.Unmanaged(u8), fifo: *std.io.PollFifo) !void {
     if (fifo.head != 0) fifo.realign();
     if (list.capacity == 0) {
         list.* = .{
@@ -281,7 +281,7 @@ pub fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
     const url = "https://api.github.com/repos/jetzig-framework/jetzig/branches/main";
     const extra_headers = &[_]std.http.Header{.{ .name = "X-GitHub-Api-Version", .value = "2022-11-28" }};
 
-    var response_storage = std.ArrayList(u8).init(allocator);
+    var response_storage = std.array_list.Managed(u8).init(allocator);
     defer response_storage.deinit();
 
     const fetch_result = try client.fetch(.{

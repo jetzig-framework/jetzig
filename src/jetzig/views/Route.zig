@@ -54,7 +54,7 @@ static: bool = false,
 layout: ?[]const u8 = null,
 template: []const u8,
 json_params: []const []const u8,
-params: std.ArrayList(*jetzig.data.Data) = undefined,
+params: std.array_list.Managed(*jetzig.data.Data) = undefined,
 id: []const u8,
 formats: ?Formats = null,
 before_callbacks: []const jetzig.callbacks.BeforeCallback = &.{},
@@ -63,7 +63,7 @@ after_callbacks: []const jetzig.callbacks.AfterCallback = &.{},
 /// Initializes a route's static params on server launch. Converts static params (JSON strings)
 /// to `jetzig.data.Data` values. Memory is owned by caller (`App.start()`).
 pub fn initParams(self: *Route, allocator: std.mem.Allocator) !void {
-    self.params = std.ArrayList(*jetzig.data.Data).init(allocator);
+    self.params = std.array_list.Managed(*jetzig.data.Data).init(allocator);
     for (self.json_params) |params| {
         var data = try allocator.create(jetzig.data.Data);
         data.* = jetzig.data.Data.init(allocator);
