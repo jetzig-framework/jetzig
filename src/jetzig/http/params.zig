@@ -55,9 +55,9 @@ pub fn expectParams(request: *jetzig.http.Request, T: type) !?T {
     }
 
     request._params_info = .{
-        .fields = try std.BoundedArray([]const u8, 1024).init(@intCast(fields.len)),
-        .params = try std.BoundedArray(ParamInfo, 1024).init(@intCast(fields.len)),
-        .required = try std.BoundedArray(bool, 1024).init(@intCast(fields.len)),
+        .fields = try std.ArrayListUnmanaged([]const u8).init(@intCast(fields.len)),
+        .params = try std.ArrayListUnmanaged(ParamInfo).init(@intCast(fields.len)),
+        .required = try std.ArrayListUnmanaged(bool).init(@intCast(fields.len)),
     };
     inline for (fields, 0..) |field, index| {
         request._params_info.?.fields.set(index, field.name);
@@ -80,16 +80,16 @@ fn isBlank(maybe_value: ?*const jetzig.Data.Value) bool {
 
 /// See `Request.paramsInfo`.
 pub const ParamsInfo = struct {
-    params: std.BoundedArray(ParamInfo, 1024),
-    fields: std.BoundedArray([]const u8, 1024),
-    required: std.BoundedArray(bool, 1024),
+    params: std.ArrayListUnmanaged(ParamInfo),
+    fields: std.ArrayListUnmanaged([]const u8),
+    required: std.ArrayListUnmanaged(bool),
     state: enum { initial, ready } = .initial,
     hashmap: std.StringHashMap(ParamInfo) = undefined,
 
     pub fn init(self: ParamsInfo, allocator: std.mem.Allocator) !ParamsInfo {
         var hashmap = std.StringHashMap(ParamInfo).init(allocator);
         try hashmap.ensureTotalCapacity(@intCast(self.params.len));
-        for (self.fields.constSlice(), self.params.constSlice()) |field, param_info| {
+        for (self.fields.items, self.params.items) |field, param_info| {
             hashmap.putAssumeCapacity(field, param_info);
         }
         return .{
@@ -111,7 +111,7 @@ pub const ParamsInfo = struct {
     /// Detect if any required params are blank or if any errors occurred when coercing params to
     /// their target type.
     pub fn isValid(self: ParamsInfo) bool {
-        for (self.params.constSlice(), self.required.constSlice()) |param, required| {
+        for (self.params.items, self.required.items) |param, required| {
             if (required and param == .blank) return false;
             if (param == .failed) return false;
         }

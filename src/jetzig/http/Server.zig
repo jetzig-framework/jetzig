@@ -556,7 +556,7 @@ fn renderDebugConsole(
     error_info: jetzig.debug.ErrorInfo,
 ) !RenderedView {
     if (comptime jetzig.build_options.debug_console) {
-        var buf = std.ArrayList(u8).init(request.allocator);
+        var buf = std.array_list.Managed(u8).init(request.allocator);
         const writer = buf.writer();
 
         if (error_info.stack_trace) |stack_trace| {
@@ -679,7 +679,7 @@ fn logStackTrace(
     stack: *std.builtin.StackTrace,
     allocator: std.mem.Allocator,
 ) !void {
-    var buf = std.ArrayList(u8).init(allocator);
+    var buf = std.array_list.Managed(u8).init(allocator);
     defer buf.deinit();
     const writer = buf.writer();
     try stack.format("", .{}, writer);
@@ -844,7 +844,7 @@ pub fn decodeStaticParams(self: *Server) !void {
     if (comptime !@hasDecl(jetzig.root, "static")) return;
 
     // Store decoded static params (i.e. declared in views) for faster comparison at request time.
-    var decoded = std.ArrayList(*jetzig.data.Value).init(self.allocator);
+    var decoded = std.array_list.Managed(*jetzig.data.Value).init(self.allocator);
     for (jetzig.root.static.compiled) |compiled| {
         const data = try self.allocator.create(jetzig.data.Data);
         data.* = jetzig.data.Data.init(self.allocator);

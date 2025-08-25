@@ -38,7 +38,7 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
 
 pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
-    var compressed = std.ArrayList(u8).init(allocator);
+    var compressed = std.array_list.Managed(u8).init(allocator);
     var content_reader = std.io.fixedBufferStream(content);
     try std.compress.gzip.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
     return try compressed.toOwnedSlice();
@@ -46,7 +46,7 @@ pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {
 
 pub fn deflate(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
-    var compressed = std.ArrayList(u8).init(allocator);
+    var compressed = std.array_list.Managed(u8).init(allocator);
     var content_reader = std.io.fixedBufferStream(content);
     try std.compress.flate.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
     return try compressed.toOwnedSlice();

@@ -2,7 +2,7 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
 pub const middlewares: []const type = jetzig.config.get([]const type, "middleware");
-pub const MiddlewareData = std.BoundedArray(?*anyopaque, middlewares.len);
+pub const MiddlewareData = std.ArrayListUnmanaged(?*anyopaque);
 pub const Enum = MiddlewareEnum();
 
 fn MiddlewareEnum() type {

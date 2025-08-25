@@ -11,7 +11,7 @@ pub fn sourceLocations(
     debug_info: *std.debug.SelfInfo,
     stack_trace: *std.builtin.StackTrace,
 ) ![]const std.debug.SourceLocation {
-    var source_locations = std.ArrayList(std.debug.SourceLocation).init(allocator);
+    var source_locations = std.array_list.Managed(std.debug.SourceLocation).init(allocator);
 
     if (builtin.strip_debug_info) return error.MissingDebugInfo;
 
@@ -168,7 +168,7 @@ fn surroundingLinesFromFile(
         .next => target_line + 2,
     };
 
-    var lines = std.ArrayList(SourceLine).init(allocator);
+    var lines = std.array_list.Managed(SourceLine).init(allocator);
 
     switch (context) {
         .previous => {

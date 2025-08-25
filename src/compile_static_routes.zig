@@ -188,7 +188,7 @@ fn renderZmplTemplate(
 }
 
 fn zigEscape(allocator: std.mem.Allocator, content: []const u8) ![]const u8 {
-    var buf = std.ArrayList(u8).init(allocator);
+    var buf = std.array_list.Managed(u8).init(allocator);
     const writer = buf.writer();
     try std.zig.stringEscape(content, "", .{}, writer);
     return try buf.toOwnedSlice();

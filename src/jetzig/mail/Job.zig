@@ -83,7 +83,7 @@ fn resolveFrom(from: ?*const jetzig.data.Value) ?jetzig.mail.Address {
 }
 
 fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[]const jetzig.mail.Address {
-    var to = std.ArrayList(jetzig.mail.Address).init(allocator);
+    var to = std.array_list.Managed(jetzig.mail.Address).init(allocator);
     if (params.get("to")) |capture| {
         for (capture.items(.array)) |recipient| {
             const maybe_address: ?jetzig.mail.Address = switch (recipient.*) {

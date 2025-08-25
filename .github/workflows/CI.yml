@@ -23,12 +23,14 @@ jobs:
       - uses: ikalnytskyi/action-setup-postgres@v7
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@main
+        uses: mlugg/setup-zig@v2
+        with:
+          version: master
 
       - run: zig version
       - run: zig env

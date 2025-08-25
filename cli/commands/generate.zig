@@ -51,10 +51,10 @@ pub fn run(
         migration,
         seeder,
     };
-    var sub_args = std.ArrayList([]const u8).init(allocator);
+    var sub_args = std.array_list.Managed([]const u8).init(allocator);
     defer sub_args.deinit();
 
-    var available_buf = std.ArrayList([]const u8).init(allocator);
+    var available_buf = std.array_list.Managed([]const u8).init(allocator);
     defer available_buf.deinit();
 
     const map = std.StaticStringMap(Generator).initComptime(.{

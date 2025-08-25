@@ -57,7 +57,7 @@ pub fn resourceId(self: Path, route: jetzig.views.Route) []const u8 {
 }
 
 pub fn resourceArgs(self: Path, route: jetzig.views.Route, allocator: std.mem.Allocator) ![]const []const u8 {
-    var args = std.ArrayList([]const u8).init(allocator);
+    var args = std.array_list.Managed([]const u8).init(allocator);
     var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
     var path_it = std.mem.splitScalar(u8, self.base_path, '/');
 

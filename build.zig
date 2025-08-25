@@ -514,7 +514,7 @@ fn isSourceFile(b: *std.Build, path: []const u8) !bool {
 }
 
 fn scanSourceFiles(b: *std.Build) ![]const []const u8 {
-    var buf = std.ArrayList([]const u8).init(b.allocator);
+    var buf = std.array_list.Managed([]const u8).init(b.allocator);
 
     var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
     defer src_dir.close();
