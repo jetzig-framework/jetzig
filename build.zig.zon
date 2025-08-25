@@ -21,8 +21,8 @@
             .hash = "zig_args-0.0.0-jqtN6P_NAAC97fGpk9hS2K681jkiqPsWP6w3ucb_ctGH",
         },
         .jetkv = .{
-            .url = "https://github.com/jetzig-framework/jetkv/archive/5a94e3bac0a6e291efc9d6534beb2d311671ff17.tar.gz",
-            .hash = "jetkv-0.0.0-zCv0fmCGAgCyYqwHjk0P5KrYVRew1MJAtbtAcIO-WPpT",
+            .url = "https://github.com/jetzig-framework/jetkv/archive/7d793d1d95e830468849fa00169beef33698bdeb.tar.gz",
+            .hash = "jetkv-0.0.0-zCv0foOLAgBFvqbzeDP0nhnOd5cqGIVYQSbwSDOjm2Cv",
         },
         .zmpl = .{
             .url = "https://github.com/jetzig-framework/zmpl/archive/a4746fcab433a86b461a48c48aed80effcf5853a.tar.gz",
