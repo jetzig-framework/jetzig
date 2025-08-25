@@ -9,8 +9,8 @@
             .hash = "jetcommon-0.1.0-jPY_DRRJAADaN4sQby3c31hyFSAgqIP90D4DYcTNVquG",
         },
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/d6c8aa9a9cde99674ccb096d8f94ed09cba8dab.tar.gz",
-            .hash = "zmd-0.0.0-AAAAAOvgAADQ6HNGKP2RCnMUboBNEKMmnj59Bl3muw4-",
+            .url = "https://github.com/jetzig-framework/zmd/archive/89d4c7a17009d077b95822f87ed798e5a1d377fe.tar.gz",
+            .hash = "zmd-0.1.0-H8YV7T3iAABKSUpySUgTppc0BkTvQFI0E5KpmXWQabw5",
         },
         .smtp_client = .{
             .url = "https://github.com/karlseguin/smtp_client.zig/archive/857d6f7be55cc878eb55b87dfae2539f05eda14d.tar.gz",
