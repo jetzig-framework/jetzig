@@ -170,7 +170,7 @@ pub fn main() !void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    var tests = std.ArrayList(Test).init(allocator);
+    var tests = std.array_list.Managed(Test).init(allocator);
     defer tests.deinit();
 
     var mime_map = jetzig.http.mime.MimeMap.init(allocator);

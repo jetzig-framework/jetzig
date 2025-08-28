@@ -9,7 +9,7 @@ const App = @This();
 
 env: jetzig.Environment,
 allocator: std.mem.Allocator,
-custom_routes: std.ArrayList(jetzig.views.Route),
+custom_routes: std.array_list.Managed(jetzig.views.Route),
 initHook: ?*const fn (*App) anyerror!void,
 server: *jetzig.http.Server = undefined,
 
@@ -69,7 +69,7 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     if (self.env.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
-        var child_argv = std.ArrayList([]const u8).init(self.allocator);
+        var child_argv = std.array_list.Managed([]const u8).init(self.allocator);
         for (argv) |arg| {
             if (!std.mem.eql(u8, "-d", arg) and !std.mem.eql(u8, "--detach", arg)) {
                 try child_argv.append(arg);
@@ -203,7 +203,7 @@ pub fn createRoutes(
     allocator: std.mem.Allocator,
     comptime_routes: []const jetzig.views.Route,
 ) ![]const *const jetzig.views.Route {
-    var routes = std.ArrayList(*jetzig.views.Route).init(allocator);
+    var routes = std.array_list.Managed(*jetzig.views.Route).init(allocator);
 
     for (comptime_routes) |const_route| {
         var var_route = try allocator.create(jetzig.views.Route);

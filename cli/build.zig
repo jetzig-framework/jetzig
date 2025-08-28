@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) !void {
     const raw_hash = try getGitHash(b.allocator);
     defer b.allocator.free(raw_hash);
     const hash = std.mem.trim(u8, raw_hash, &std.ascii.whitespace);
-    var content = std.ArrayList(u8).init(b.allocator);
+    var content = std.array_list.Managed(u8).init(b.allocator);
     defer content.deinit();
     try content.appendSlice("pub const version = \"");
     try content.appendSlice(version_str);

@@ -52,7 +52,7 @@ pub fn generateData(self: Mail) ![]const u8 {
 
     const allocator = arena.allocator();
 
-    var sections = std.ArrayList([]const u8).init(allocator);
+    var sections = std.array_list.Managed([]const u8).init(allocator);
     try sections.append(try std.fmt.allocPrint(allocator, "From: {s}", .{self.params.get(.from).?}));
     try sections.append(try std.fmt.allocPrint(allocator, "Subject: {s}", .{self.params.get(.subject).?}));
 
@@ -118,7 +118,7 @@ fn htmlPart(self: Mail, allocator: std.mem.Allocator) ![]const u8 {
 }
 
 fn encode(allocator: std.mem.Allocator, content: []const u8) ![]const u8 {
-    var buf = std.ArrayList(u8).init(allocator);
+    var buf = std.array_list.Managed(u8).init(allocator);
     const writer = buf.writer();
     var line_len: u8 = 0;
 

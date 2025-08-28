@@ -751,7 +751,7 @@ pub fn renderText(
 }
 
 pub fn joinPaths(self: *const Request, paths: []const []const []const u8) ![]const u8 {
-    var buf = std.ArrayList([]const u8).init(self.allocator);
+    var buf = std.array_list.Managed([]const u8).init(self.allocator);
     defer buf.deinit();
 
     for (paths) |subpaths| {

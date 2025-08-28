@@ -28,7 +28,7 @@ pub const Logger = struct {
         output: []const u8,
     };
 
-    const LogCollection = std.ArrayList(LogEvent);
+    const LogCollection = std.array_list.Managed(LogEvent);
 
     pub fn init(allocator: std.mem.Allocator) Logger {
         return .{
@@ -120,7 +120,7 @@ pub fn expectBodyContains(expected: []const u8, response: TestResponse) !void {
 }
 
 pub fn expectHeader(expected_name: []const u8, expected_value: ?[]const u8, response: TestResponse) !void {
-    var mismatches = std.ArrayList([]const u8).init(response.allocator);
+    var mismatches = std.array_list.Managed([]const u8).init(response.allocator);
     defer mismatches.deinit();
 
     for (response.headers) |header| {
@@ -299,7 +299,7 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
 }
 
 pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestResponse) !void {
-    var actual_params_buf = std.ArrayList([]const u8).init(response.allocator);
+    var actual_params_buf = std.array_list.Managed([]const u8).init(response.allocator);
     defer actual_params_buf.deinit();
 
     const value: ?*jetzig.data.Value = if (@TypeOf(job_params) == @TypeOf(null))

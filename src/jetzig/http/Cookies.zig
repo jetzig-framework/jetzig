@@ -172,11 +172,11 @@ pub fn headerIterator(self: *Cookies, buf: *[4096]u8) HeaderIterator {
 // cookie-header = "Cookie:" OWS cookie-string OWS
 // cookie-string = cookie-pair *( ";" SP cookie-pair )
 pub fn parse(self: *Cookies) !void {
-    var key_buf = std.ArrayList(u8).init(self.allocator);
-    var value_buf = std.ArrayList(u8).init(self.allocator);
+    var key_buf = std.array_list.Managed(u8).init(self.allocator);
+    var value_buf = std.array_list.Managed(u8).init(self.allocator);
     var key_terminated = false;
     var value_started = false;
-    var cookie_buf = std.ArrayList(Cookie).init(self.allocator);
+    var cookie_buf = std.array_list.Managed(Cookie).init(self.allocator);
 
     defer key_buf.deinit();
     defer value_buf.deinit();
@@ -307,7 +307,7 @@ test "cookie string with irregular spaces" {
 
 test "headerIterator" {
     const allocator = std.testing.allocator;
-    var buf = std.ArrayList(u8).init(allocator);
+    var buf = std.array_list.Managed(u8).init(allocator);
     defer buf.deinit();
 
     const writer = buf.writer();
