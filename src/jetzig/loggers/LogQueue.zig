@@ -164,8 +164,8 @@ pub const Reader = struct {
     pub fn publish(self: *Reader, options: PublishOptions) !void {
         std.debug.assert(self.queue.state == .ready);
 
-        const stdout_writer = self.stdout_file.file.writer();
-        const stderr_writer = self.stderr_file.file.writer();
+        const stdout_writer = self.stdout_file.file.writer(&.{});
+        const stderr_writer = self.stderr_file.file.writer(&.{});
 
         while (true) {
             self.queue.condition_mutex.lock();
@@ -196,7 +196,7 @@ pub const Reader = struct {
                     },
                 }
 
-                const writer = switch (event.target) {
+                var writer = switch (event.target) {
                     .stdout => stdout_writer,
                     .stderr => stderr_writer,
                 };
@@ -204,11 +204,11 @@ pub const Reader = struct {
                 if (event.ptr) |ptr| {
                     // Log message spilled to heap
                     defer self.queue.allocator.free(ptr);
-                    try writer.writeAll(ptr);
+                    try writer.interface.writeAll(ptr);
                     continue;
                 }
 
-                try writer.writeAll(event.message[0..event.len]);
+                try writer.interface.writeAll(event.message[0..event.len]);
 
                 self.queue.writer.position -= 1;
 

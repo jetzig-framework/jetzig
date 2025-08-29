@@ -41,7 +41,7 @@ pub const Cookie = struct {
     pub fn bufPrint(self: Cookie, buf: *[4096]u8) ![]const u8 {
         var stream = std.io.fixedBufferStream(buf);
         const writer = stream.writer();
-        try writer.print("{}", .{self});
+        try writer.print("{any}", .{self});
         return stream.getWritten();
     }
 

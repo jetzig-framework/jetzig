@@ -2,26 +2,19 @@ subject: ?[]const u8 = null,
 from: ?Address = null,
 to: ?[]const Address = null,
 cc: ?[]const Address = null,
-bcc: ?[]const Address = null, // TODO
+bcc: ?[]const Address = null, // TODO:
 html: ?[]const u8 = null,
 text: ?[]const u8 = null,
-defaults: ?DefaultMailParams = null,
+boundary: ?u32 = null,
 
-pub const DefaultMailParams = struct {
-    subject: ?[]const u8 = null,
-    from: ?Address = null,
-    to: ?[]const Address = null,
-    cc: ?[]const Address = null,
-    bcc: ?[]const Address = null, // TODO
-    html: ?[]const u8 = null,
-    text: ?[]const u8 = null,
-};
+/// Initialize with null fields
+pub const empty = MailParams{};
 
 pub const Address = struct {
     name: ?[]const u8 = null,
     email: []const u8,
 
-    pub fn format(address: Address, _: anytype, _: anytype, writer: anytype) !void {
+    pub fn format(address: Address, writer: *Writer) !void {
         try writer.print("{s} <{s}>", .{ address.name orelse address.email, address.email });
     }
 };
@@ -40,8 +33,8 @@ pub fn get(
     .html => []const u8,
     .text => []const u8,
 } {
-    return @field(self, @tagName(field)) orelse if (self.defaults) |defaults|
-        @field(defaults, @tagName(field))
-    else
-        null;
+    return @field(self, @tagName(field));
 }
+
+const std = @import("std");
+const Writer = std.Io.Writer;

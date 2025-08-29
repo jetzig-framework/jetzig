@@ -10,6 +10,5 @@ pub const DeliverFn = *const fn (
 
 name: []const u8,
 deliverFn: DeliverFn,
-defaults: ?jetzig.mail.DefaultMailParams,
 text_template: []const u8,
 html_template: []const u8,
