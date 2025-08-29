@@ -1,8 +1,16 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+
 const jetzig = @import("../../jetzig.zig");
+const JobEnv = jetzig.jobs.JobEnv;
+const Value = jetzig.data.Value;
+const MailParams = jetzig.mail.MailParams;
+const Address = MailParams.Address;
+const MailerDefinition = jetzig.mail.MailerDefinition;
 
 /// Default Mail Job. Send an email with the given params in the background.
-pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig.jobs.JobEnv) !void {
+pub fn run(allocator: Allocator, params: *Value, env: JobEnv) !void {
     const mailer_name = if (params.get("mailer_name")) |param| switch (param.*) {
         .null => null,
         .string => |string| string.value,
@@ -27,22 +35,21 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
 
     const to = try resolveTo(allocator, params);
 
-    var mail_params = jetzig.mail.MailParams{
+    var mail_params: MailParams = .{
         .subject = resolveSubject(subject),
         .from = resolveFrom(from),
         .to = to,
-        .defaults = mailer.defaults,
     };
 
     try mailer.deliverFn(allocator, &mail_params, params.get("params").?, env);
 
-    const mail = jetzig.mail.Mail.init(allocator, env, .{
+    const test_mail: MailParams = .{
         .subject = mail_params.get(.subject) orelse "(No subject)",
         .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
         .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
         .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
         .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
-    });
+    };
 
     if (env.environment == .development and !jetzig.config.get(bool, "force_development_email_delivery")) {
         try env.logger.INFO(
@@ -50,27 +57,31 @@ pub fn run(allocator: std.mem.Allocator, params: *jetzig.data.Value, env: jetzig
             \\To: {?s}
             \\{s}
         ,
-            .{ mail.params.get(.to), try mail.generateData() },
+            .{ test_mail.get(.to), try jetzig.mail.render(allocator, test_mail) },
         );
     } else {
-        try mail.deliver();
-        try env.logger.INFO("Delivered mail to: {s}", .{mail.params.to.?});
+        try jetzig.mail.deliver(allocator, env, .{
+            .subject = mail_params.get(.subject) orelse "(No subject)",
+            .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
+            .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
+            .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
+            .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
+        }, .{});
+        try env.logger.INFO("Delivered mail to: {f}", .{test_mail.to.?});
     }
 }
 
-fn resolveSubject(subject: ?*const jetzig.data.Value) ?[]const u8 {
+fn resolveSubject(subject: ?*const Value) ?[]const u8 {
     if (subject) |capture| {
         return switch (capture.*) {
             .null => null,
             .string => |string| string.value,
             else => unreachable,
         };
-    } else {
-        return null;
-    }
+    } else return null;
 }
 
-fn resolveFrom(from: ?*const jetzig.data.Value) ?jetzig.mail.Address {
+fn resolveFrom(from: ?*const Value) ?Address {
     return if (from) |capture| switch (capture.*) {
         .null => null,
         .string => |string| .{ .email = string.value },
@@ -82,11 +93,12 @@ fn resolveFrom(from: ?*const jetzig.data.Value) ?jetzig.mail.Address {
     } else null;
 }
 
-fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[]const jetzig.mail.Address {
-    var to = std.array_list.Managed(jetzig.mail.Address).init(allocator);
+fn resolveTo(allocator: Allocator, params: *const Value) !?[]const Address {
+    var to: ArrayList(Address) = try .initCapacity(allocator, 0);
+    defer to.deinit(allocator);
     if (params.get("to")) |capture| {
         for (capture.items(.array)) |recipient| {
-            const maybe_address: ?jetzig.mail.Address = switch (recipient.*) {
+            const maybe_address: ?Address = switch (recipient.*) {
                 .null => null,
                 .string => |string| .{ .email = string.value },
                 .object => |object| .{
@@ -95,17 +107,17 @@ fn resolveTo(allocator: std.mem.Allocator, params: *const jetzig.data.Value) !?[
                 },
                 else => unreachable,
             };
-            if (maybe_address) |address| try to.append(address);
+            if (maybe_address) |address| try to.append(allocator, address);
         }
     }
-    return if (to.items.len > 0) try to.toOwnedSlice() else null;
+    return if (to.items.len > 0) try to.toOwnedSlice(allocator) else null;
 }
 
 fn resolveText(
-    allocator: std.mem.Allocator,
-    mailer: jetzig.mail.MailerDefinition,
-    text: ?*const jetzig.data.Value,
-    params: *jetzig.data.Value,
+    allocator: Allocator,
+    mailer: MailerDefinition,
+    text: ?*const Value,
+    params: *Value,
 ) !?[]const u8 {
     if (text) |capture| {
         return switch (capture.*) {
@@ -119,10 +131,10 @@ fn resolveText(
 }
 
 fn resolveHtml(
-    allocator: std.mem.Allocator,
-    mailer: jetzig.mail.MailerDefinition,
-    text: ?*const jetzig.data.Value,
-    params: *jetzig.data.Value,
+    allocator: Allocator,
+    mailer: MailerDefinition,
+    text: ?*const Value,
+    params: *Value,
 ) !?[]const u8 {
     if (text) |capture| {
         return switch (capture.*) {
@@ -136,9 +148,9 @@ fn resolveHtml(
 }
 
 fn defaultHtml(
-    allocator: std.mem.Allocator,
-    mailer: jetzig.mail.MailerDefinition,
-    params: *jetzig.data.Value,
+    allocator: Allocator,
+    mailer: MailerDefinition,
+    params: *Value,
 ) !?[]const u8 {
     var data = jetzig.data.Data.init(allocator);
     data.value = if (params.get("params")) |capture|
@@ -154,9 +166,9 @@ fn defaultHtml(
 }
 
 fn defaultText(
-    allocator: std.mem.Allocator,
-    mailer: jetzig.mail.MailerDefinition,
-    params: *jetzig.data.Value,
+    allocator: Allocator,
+    mailer: MailerDefinition,
+    params: *Value,
 ) !?[]const u8 {
     var data = jetzig.data.Data.init(allocator);
     data.value = if (params.get("params")) |capture|
@@ -171,7 +183,7 @@ fn defaultText(
         null;
 }
 
-fn findMailer(name: []const u8, env: jetzig.jobs.JobEnv) ?jetzig.mail.MailerDefinition {
+fn findMailer(name: []const u8, env: JobEnv) ?MailerDefinition {
     for (env.mailers) |mailer| {
         if (std.mem.eql(u8, mailer.name, name)) return mailer;
     }

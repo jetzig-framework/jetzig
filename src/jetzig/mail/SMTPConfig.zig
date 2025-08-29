@@ -1,8 +1,10 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const smtp = @import("smtp");
 
 const jetzig = @import("../../jetzig.zig");
+const JobEnv = jetzig.jobs.JobEnv;
 
 port: u16 = 25,
 encryption: enum { none, insecure, tls, start_tls } = .none,
@@ -12,12 +14,8 @@ password: ?[]const u8 = null,
 
 const SMTPConfig = @This();
 
-pub fn toSMTP(
-    self: SMTPConfig,
-    allocator: std.mem.Allocator,
-    env: jetzig.jobs.JobEnv,
-) !smtp.Config {
-    return smtp.Config{
+pub fn toSMTP(self: SMTPConfig, allocator: Allocator, env: JobEnv) !smtp.Config {
+    return .{
         .allocator = allocator,
         .port = try env.vars.getT(u16, "JETZIG_SMTP_PORT") orelse self.port,
         .encryption = try env.vars.getT(smtp.Encryption, "JETZIG_SMTP_ENCRYPTION") orelse
