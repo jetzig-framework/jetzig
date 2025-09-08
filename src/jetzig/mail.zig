@@ -25,7 +25,7 @@ pub fn render(allocator: Allocator, params: MailParams) ![]const u8 {
 
     try validate(params);
 
-    var sections: ArrayList([]const u8) = try .initCapacity(alloc, 0);
+    var sections: ArrayList([]const u8) = .empty;
     const from: MailParams.Address = params.get(.from) orelse return error.NoSender;
     const subject: []const u8 = params.get(.subject) orelse return error.NoSubject;
     const from_string = try std.fmt.allocPrint(alloc, "From: {f}", .{from});

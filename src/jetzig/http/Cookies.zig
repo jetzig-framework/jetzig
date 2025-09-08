@@ -1,12 +1,17 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
+const Writer = std.Io.Writer;
+const ArrayList = std.ArrayList;
+const StringArrayHashMap = std.StringArrayHashMap;
 
 const jetzig = @import("../../jetzig.zig");
 
-allocator: std.mem.Allocator,
+//allocator: Allocator,
 cookie_string: []const u8,
-cookies: std.StringArrayHashMap(*Cookie),
+cookies: StringArrayHashMap(*Cookie),
 modified: bool = false,
-arena: std.heap.ArenaAllocator,
+arena: ArenaAllocator,
 
 const Cookies = @This();
 
@@ -37,18 +42,26 @@ pub const Cookie = struct {
     expires: ?i64 = cookie_options.expires,
     max_age: ?i64 = cookie_options.max_age,
 
+    pub const blank = Cookie{
+        .name = undefined,
+        .value = undefined,
+    };
+
     /// Build a cookie string.
     pub fn bufPrint(self: Cookie, buf: *[4096]u8) ![]const u8 {
+        // FIX: fixedBufferStream is deprecated
         var stream = std.io.fixedBufferStream(buf);
+
+        //var writer: Writer = .fixed(&.{})
         const writer = stream.writer();
-        try writer.print("{any}", .{self});
+        try writer.print("{f}", .{self});
         return stream.getWritten();
     }
 
     /// Build a cookie string.
-    pub fn format(self: Cookie, _: anytype, _: anytype, writer: anytype) !void {
+    pub fn format(self: Cookie, writer: *Writer) !void {
         // secure is required if samesite is set to none
-        const require_secure = if (self.same_site) |same_site| same_site == .none else false;
+        //const require_secure = if (self.same_site) |same_site| same_site == .none else false;
 
         try writer.print("{s}={s}; path={s};", .{
             self.name,
@@ -61,7 +74,7 @@ pub const Cookie = struct {
             " SameSite={s};",
             .{@tagName(same_site)},
         );
-        if (self.secure or require_secure) try writer.writeAll(" Secure;");
+        if (self.secure or self.same_site == .none) try writer.writeAll(" Secure;");
         if (self.expires) |expires| {
             const seconds = std.time.timestamp() + expires;
             const timestamp = try jetzig.jetcommon.DateTime.fromUnix(seconds, .seconds);
@@ -73,7 +86,7 @@ pub const Cookie = struct {
         if (self.partitioned) try writer.writeAll(" Partitioned;");
     }
 
-    pub fn applyFlag(self: *Cookie, allocator: std.mem.Allocator, flag: Flag) !void {
+    pub fn applyFlag(self: *Cookie, allocator: Allocator, flag: Flag) !void {
         switch (flag) {
             .domain => |domain| self.domain = try allocator.dupe(u8, domain),
             .path => |path| self.path = try allocator.dupe(u8, path),
@@ -87,21 +100,21 @@ pub const Cookie = struct {
     }
 };
 
-pub fn init(allocator: std.mem.Allocator, cookie_string: []const u8) Cookies {
+pub fn init(allocator: Allocator, cookie_string: []const u8) Cookies {
     return .{
-        .allocator = allocator,
+        //.allocator = allocator,
         .cookie_string = cookie_string,
-        .cookies = std.StringArrayHashMap(*Cookie).init(allocator),
-        .arena = std.heap.ArenaAllocator.init(allocator),
+        .cookies = .init(allocator),
+        .arena = .init(allocator),
     };
 }
 
-pub fn deinit(self: *Cookies) void {
+pub fn deinit(self: *Cookies, allocator: Allocator) void {
     var it = self.cookies.iterator();
     while (it.next()) |item| {
-        self.allocator.free(item.key_ptr.*);
-        self.allocator.free(item.value_ptr.*.value);
-        self.allocator.destroy(item.value_ptr.*);
+        allocator.free(item.key_ptr.*);
+        allocator.free(item.value_ptr.*.value);
+        allocator.destroy(item.value_ptr.*);
     }
     self.cookies.deinit();
     self.arena.deinit();
@@ -113,19 +126,19 @@ pub fn get(self: *Cookies, key: []const u8) ?*Cookie {
 }
 
 /// Put a cookie into the cookie store.
-pub fn put(self: *Cookies, cookie: Cookie) !void {
+pub fn put(self: *Cookies, allocator: Allocator, cookie: Cookie) !void {
     self.modified = true;
 
     if (self.cookies.fetchSwapRemove(cookie.name)) |entry| {
-        self.allocator.free(entry.key);
-        self.allocator.free(entry.value.value);
-        self.allocator.destroy(entry.value);
+        allocator.free(entry.key);
+        allocator.free(entry.value.value);
+        allocator.destroy(entry.value);
     }
-    const key = try self.allocator.dupe(u8, cookie.name);
-    const ptr = try self.allocator.create(Cookie);
+    const key = try allocator.dupe(u8, cookie.name);
+    const ptr = try allocator.create(Cookie);
     ptr.* = cookie;
     ptr.name = key;
-    ptr.value = try self.allocator.dupe(u8, cookie.value);
+    ptr.value = try allocator.dupe(u8, cookie.value);
     try self.cookies.put(key, ptr);
 }
 
@@ -135,18 +148,22 @@ pub fn put(self: *Cookies, cookie: Cookie) !void {
 /// > Notice that servers can delete cookies by sending the user agent a new cookie with an
 /// > Expires attribute with a value in the past.
 /// - https://www.rfc-editor.org/rfc/rfc6265.html
-pub fn delete(self: *Cookies, key: []const u8) !void {
+pub fn delete(self: *Cookies, allocator: Allocator, key: []const u8) !void {
     self.modified = true;
 
-    try self.put(.{ .name = key, .value = "", .expires = 0 });
+    try self.put(allocator, .{
+        .name = key,
+        .value = "",
+        .expires = 0,
+    });
 }
 
 pub const HeaderIterator = struct {
-    allocator: std.mem.Allocator,
-    cookies_iterator: std.StringArrayHashMap(*Cookie).Iterator,
+    allocator: Allocator,
+    cookies_iterator: StringArrayHashMap(*Cookie).Iterator,
     buf: *[4096]u8,
 
-    pub fn init(allocator: std.mem.Allocator, cookies: *Cookies, buf: *[4096]u8) HeaderIterator {
+    pub fn init(allocator: Allocator, cookies: *Cookies, buf: *[4096]u8) HeaderIterator {
         return .{
             .allocator = allocator,
             .cookies_iterator = cookies.cookies.iterator(),
@@ -158,79 +175,39 @@ pub const HeaderIterator = struct {
         if (self.cookies_iterator.next()) |entry| {
             const cookie = entry.value_ptr.*;
             return try cookie.bufPrint(self.buf);
-        } else {
-            return null;
-        }
+        } else return null;
     }
 };
 
 pub fn headerIterator(self: *Cookies, buf: *[4096]u8) HeaderIterator {
-    return HeaderIterator.init(self.allocator, self, buf);
+    return .init(self.allocator, self, buf);
 }
 
 // https://datatracker.ietf.org/doc/html/rfc6265#section-4.2.1
 // cookie-header = "Cookie:" OWS cookie-string OWS
 // cookie-string = cookie-pair *( ";" SP cookie-pair )
-pub fn parse(self: *Cookies) !void {
-    var key_buf = std.array_list.Managed(u8).init(self.allocator);
-    var value_buf = std.array_list.Managed(u8).init(self.allocator);
-    var key_terminated = false;
-    var value_started = false;
-    var cookie_buf = std.array_list.Managed(Cookie).init(self.allocator);
-
-    defer key_buf.deinit();
-    defer value_buf.deinit();
-    defer cookie_buf.deinit();
+pub fn parse(self: *Cookies, allocator: Allocator) !void {
     defer self.modified = false;
-
-    for (self.cookie_string, 0..) |char, index| {
-        if (char == '=') {
-            key_terminated = true;
-            continue;
-        }
-
-        if (char == ';' or index == self.cookie_string.len - 1) {
-            if (char != ';') try value_buf.append(char);
-            if (parseFlag(key_buf.items, value_buf.items)) |flag| {
-                for (cookie_buf.items) |*cookie| try cookie.applyFlag(self.arena.allocator(), flag);
-            } else {
-                try cookie_buf.append(.{
-                    .name = try self.arena.allocator().dupe(u8, key_buf.items),
-                    .value = try self.arena.allocator().dupe(u8, value_buf.items),
-                });
-            }
-            key_buf.clearAndFree();
-            value_buf.clearAndFree();
-            value_started = false;
-            key_terminated = false;
-            continue;
-        }
-
-        if (!key_terminated and char == ' ') continue;
-
-        if (!key_terminated) {
-            try key_buf.append(char);
-            continue;
-        }
-
-        if (char == ' ' and !value_started) continue;
-        if (char != ' ' and !value_started) value_started = true;
-
-        if (key_terminated and value_started) {
-            try value_buf.append(char);
-            continue;
-        }
-
-        return error.JetzigInvalidCookieHeader;
+    var key: [64]u8 = undefined;
+    const iterator = std.mem.splitSequence(u8, self.cookie_string, ";");
+    while (iterator.next()) |segment| {
+        key = std.mem.zeroes([64]u8);
+        const cookie_iterator = std.mem.splitSequence(u8, segment, "=");
+        const raw_key = cookie_iterator.first();
+        const raw_value = cookie_iterator.next() orelse return error.MissingValue;
+        _ = std.mem.replace(u8, raw_key, " ", "", &key);
+        const value = std.mem.trim(u8, raw_value, &std.ascii.whitespace);
+        try self.put(allocator, .{
+            .name = try allocator.dupe(u8, key),
+            .value = try allocator.dupe(u8, value),
+        });
     }
-
-    for (cookie_buf.items) |cookie| try self.put(cookie);
 }
 
-pub fn format(self: Cookies, _: anytype, _: anytype, writer: anytype) !void {
+pub fn format(self: Cookies, writer: *Writer) !void {
     var it = self.cookies.iterator();
     while (it.next()) |entry| {
-        try writer.print("{}; ", .{entry.value_ptr.*});
+        try writer.print("{s}; ", .{entry.value_ptr.*});
     }
 }
 
@@ -282,7 +259,7 @@ fn parseFlag(key: []const u8, value: []const u8) ?Flag {
 
 test "basic cookie string" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux;");
     defer cookies.deinit();
     try cookies.parse();
     try std.testing.expectEqualStrings("bar", cookies.get("foo").?.value);
@@ -291,14 +268,14 @@ test "basic cookie string" {
 
 test "empty cookie string" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "");
+    var cookies: Cookies = .init(allocator, "");
     defer cookies.deinit();
     try cookies.parse();
 }
 
 test "cookie string with irregular spaces" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=   bar;     baz=        qux;");
+    var cookies: Cookies = .init(allocator, "foo=   bar;     baz=        qux;");
     defer cookies.deinit();
     try cookies.parse();
     try std.testing.expectEqualStrings("bar", cookies.get("foo").?.value);
@@ -307,12 +284,11 @@ test "cookie string with irregular spaces" {
 
 test "headerIterator" {
     const allocator = std.testing.allocator;
-    var buf = std.array_list.Managed(u8).init(allocator);
-    defer buf.deinit();
+    var aw: Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    var writer = &aw.writer;
 
-    const writer = buf.writer();
-
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux;");
     defer cookies.deinit();
     try cookies.parse();
 
@@ -327,12 +303,12 @@ test "headerIterator" {
         \\foo=bar; path=/; domain=localhost;
         \\baz=qux; path=/; domain=localhost;
         \\
-    , buf.items);
+    , try aw.toOwnedSlice());
 }
 
 test "modified" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -344,7 +320,7 @@ test "modified" {
 
 test "domain=example.com" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Domain=example.com;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Domain=example.com;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -354,7 +330,7 @@ test "domain=example.com" {
 
 test "path=/example_path" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Path=/example_path;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Path=/example_path;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -364,7 +340,7 @@ test "path=/example_path" {
 
 test "SameSite=lax" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; SameSite=lax;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; SameSite=lax;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -374,7 +350,7 @@ test "SameSite=lax" {
 
 test "SameSite=none" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; SameSite=none;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; SameSite=none;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -384,7 +360,7 @@ test "SameSite=none" {
 
 test "SameSite=strict" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; SameSite=strict;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; SameSite=strict;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -394,7 +370,7 @@ test "SameSite=strict" {
 
 test "Secure" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Secure;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Secure;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -404,7 +380,7 @@ test "Secure" {
 
 test "Partitioned" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Partitioned;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Partitioned;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -414,7 +390,7 @@ test "Partitioned" {
 
 test "Max-Age" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Max-Age=123123123;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Max-Age=123123123;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -424,7 +400,7 @@ test "Max-Age" {
 
 test "Expires" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux; Expires=123123123;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux; Expires=123123123;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -434,7 +410,7 @@ test "Expires" {
 
 test "default flags" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar; baz=qux;");
+    var cookies: Cookies = .init(allocator, "foo=bar; baz=qux;");
     defer cookies.deinit();
 
     try cookies.parse();
@@ -451,7 +427,7 @@ test "default flags" {
 
 test "delete" {
     const allocator = std.testing.allocator;
-    var cookies = Cookies.init(allocator, "foo=bar;");
+    var cookies: Cookies = .init(allocator, "foo=bar;");
     defer cookies.deinit();
 
     try cookies.parse();

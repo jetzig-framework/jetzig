@@ -94,7 +94,7 @@ fn resolveFrom(from: ?*const Value) ?Address {
 }
 
 fn resolveTo(allocator: Allocator, params: *const Value) !?[]const Address {
-    var to: ArrayList(Address) = try .initCapacity(allocator, 0);
+    var to: ArrayList(Address) = .empty;
     defer to.deinit(allocator);
     if (params.get("to")) |capture| {
         for (capture.items(.array)) |recipient| {
