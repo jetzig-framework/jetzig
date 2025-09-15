@@ -8,7 +8,7 @@ allocator: std.mem.Allocator,
 job_queue: *jetzig.kv.Store.JobQueueStore,
 job_env: jetzig.jobs.JobEnv,
 pool: std.Thread.Pool = undefined,
-workers: std.array_list.Managed(*jetzig.jobs.Worker),
+workers: std.ArrayList(*jetzig.jobs.Worker),
 
 /// Initialize a new worker thread pool.
 pub fn init(
@@ -20,7 +20,7 @@ pub fn init(
         .allocator = allocator,
         .job_queue = job_queue,
         .job_env = job_env,
-        .workers = std.array_list.Managed(*jetzig.jobs.Worker).init(allocator),
+        .workers = std.ArrayList(*jetzig.jobs.Worker).init(allocator),
     };
 }
 

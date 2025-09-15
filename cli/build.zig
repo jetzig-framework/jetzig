@@ -21,6 +21,8 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const version_config = .{ .version = "0.1.0" };
+
     const exe = b.addExecutable(.{
         .name = "jetzig",
         .root_source_file = b.path("cli.zig"),
@@ -39,7 +41,7 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("args", zig_args_dep.module("args"));
     exe.root_module.addImport("init_data", try compile.initDataModule(b));
 
-    const version_str = "0.1.0"; 
+    const version_str = version_config.version;
     const raw_hash = try getGitHash(b.allocator);
     defer b.allocator.free(raw_hash);
     const hash = std.mem.trim(u8, raw_hash, &std.ascii.whitespace);
