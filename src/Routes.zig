@@ -8,10 +8,10 @@ templates_path: []const u8,
 views_path: []const u8,
 jobs_path: []const u8,
 mailers_path: []const u8,
-buffer: std.array_list.Managed(u8),
-dynamic_routes: std.array_list.Managed(Function),
-static_routes: std.array_list.Managed(Function),
-module_paths: std.array_list.Managed([]const u8),
+buffer: std.ArrayList(u8),
+dynamic_routes: std.ArrayList(Function),
+static_routes: std.ArrayList(Function),
+module_paths: std.ArrayList([]const u8),
 data: *jetzig.data.Data,
 
 const Routes = @This();
@@ -23,7 +23,7 @@ const Function = struct {
     routes: *const Routes,
     path: []const u8,
     source: []const u8,
-    params: std.array_list.Managed([]const u8),
+    params: std.ArrayList([]const u8),
     legacy: bool = false,
     static: bool = false,
 
@@ -117,10 +117,10 @@ pub fn init(
         .views_path = views_path,
         .jobs_path = jobs_path,
         .mailers_path = mailers_path,
-        .buffer = std.array_list.Managed(u8).init(allocator),
-        .static_routes = std.array_list.Managed(Function).init(allocator),
-        .dynamic_routes = std.array_list.Managed(Function).init(allocator),
-        .module_paths = std.array_list.Managed([]const u8).init(allocator),
+        .buffer = std.ArrayList(u8).init(allocator),
+        .static_routes = std.ArrayList(Function).init(allocator),
+        .dynamic_routes = std.ArrayList(Function).init(allocator),
+        .module_paths = std.ArrayList([]const u8).init(allocator),
         .data = data,
     };
 }

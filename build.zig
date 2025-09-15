@@ -245,10 +245,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const exe_routes_file = b.addExecutable(.{
         .name = "routes",
-        .root_source_file = jetzig_dep.path("src/routes_file.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/routes_file.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     exe_routes_file.root_module.addImport("jetzig", jetzig_module);
@@ -273,10 +274,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const exe_static_routes = b.addExecutable(.{
         .name = "static",
-        .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
@@ -382,19 +384,21 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const routes_step = b.step("jetzig:routes", "List all routes in your app");
     const exe_routes = b.addExecutable(.{
         .name = "routes",
-        .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const auth_user_create_step = b.step("jetzig:auth:user:create", "List all routes in your app");
     const exe_auth = b.addExecutable(.{
         .name = "auth",
-        .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe_auth.root_module.addImport("jetquery", jetquery_module);
     exe_auth.root_module.addImport("jetzig", jetzig_module);
@@ -413,10 +417,11 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const exe_database = b.addExecutable(.{
         .name = "database",
-        .root_source_file = jetzig_dep.path("src/commands/database.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/database.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe_database.root_module.addImport("jetquery", jetquery_module);
     exe_database.root_module.addImport("jetzig", jetzig_module);
@@ -514,7 +519,7 @@ fn isSourceFile(b: *std.Build, path: []const u8) !bool {
 }
 
 fn scanSourceFiles(b: *std.Build) ![]const []const u8 {
-    var buf = std.array_list.Managed([]const u8).init(b.allocator);
+    var buf = std.ArrayList([]const u8).init(b.allocator);
 
     var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
     defer src_dir.close();

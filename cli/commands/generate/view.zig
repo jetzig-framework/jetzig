@@ -26,7 +26,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         return error.JetzigCommandError;
     }
 
-    var buf = std.array_list.Managed(u8).init(allocator);
+    var buf = std.ArrayList(u8).init(allocator);
     defer buf.deinit();
 
     const writer = buf.writer();
@@ -45,10 +45,10 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     else
         &[_][]const u8{ "index", "get", "new", "edit", "post", "put", "patch", "delete" };
 
-    var actions = std.array_list.Managed(Action).init(allocator);
+    var actions = std.ArrayList(Action).init(allocator);
     defer actions.deinit();
 
-    var static_actions = std.array_list.Managed(Action).init(allocator);
+    var static_actions = std.ArrayList(Action).init(allocator);
     defer static_actions.deinit();
 
     for (action_args) |arg| {

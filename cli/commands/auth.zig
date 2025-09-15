@@ -73,7 +73,7 @@ pub fn run(
                     std.debug.print("Missing argument. Expected an email/username parameter.\n", .{});
                     break :blk error.JetzigCommandError;
                 } else {
-                    var argv = std.array_list.Managed([]const u8).init(allocator);
+                    var argv = std.ArrayList([]const u8).init(allocator);
                     try argv.append("zig");
                     try argv.append("build");
                     try argv.append(util.environmentBuildOption(main_options.options.environment));

@@ -102,7 +102,7 @@ pub fn init(allocator: std.mem.Allocator) !App {
     return .{
         .env = env,
         .allocator = allocator,
-        .custom_routes = std.array_list.Managed(views.Route).init(allocator),
+        .custom_routes = std.ArrayList(views.Route).init(allocator),
         .initHook = initHook,
     };
 }

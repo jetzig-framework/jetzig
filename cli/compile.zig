@@ -14,7 +14,7 @@ fn base64Encode(allocator: std.mem.Allocator, input: []const u8) []const u8 {
 pub fn initDataModule(build: *std.Build) !*std.Build.Module {
     const root_path = build.pathFromRoot("..");
 
-    var buf = std.array_list.Managed(u8).init(build.allocator);
+    var buf = std.ArrayList(u8).init(build.allocator);
     defer buf.deinit();
 
     const writer = buf.writer();

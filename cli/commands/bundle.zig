@@ -105,7 +105,7 @@ pub fn run(
 
     try tmpdir.rename(exe_path, renamed_exe_path);
 
-    var tar_argv = std.array_list.Managed([]const u8).init(allocator);
+    var tar_argv = std.ArrayList([]const u8).init(allocator);
     defer tar_argv.deinit();
     switch (builtin.os.tag) {
         .windows => {}, // TODO
@@ -136,7 +136,7 @@ pub fn run(
         try copyTree(allocator, cwd, "static", dest_path);
     }
 
-    var markdown_paths = std.array_list.Managed([]const u8).init(allocator);
+    var markdown_paths = std.ArrayList([]const u8).init(allocator);
     try locateMarkdownFiles(allocator, cwd, views_path, &markdown_paths);
 
     defer markdown_paths.deinit();
@@ -158,7 +158,7 @@ pub fn run(
     util.printSuccess(null);
 }
 
-fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.array_list.Managed([]const u8)) !void {
+fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.ArrayList([]const u8)) !void {
     var views_dir = try dir.openDir(views_path, .{ .iterate = true });
     defer views_dir.close();
     var walker = try views_dir.walk(allocator);
@@ -173,7 +173,7 @@ fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path
 }
 
 fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Options) !?[]const u8 {
-    var install_argv = std.array_list.Managed([]const u8).init(allocator);
+    var install_argv = std.ArrayList([]const u8).init(allocator);
     defer install_argv.deinit();
 
     try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "-Denvironment=production" });
@@ -184,7 +184,7 @@ fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Op
         .Debug => try install_argv.append("-Doptimize=Debug"),
     }
 
-    var target_buf = std.array_list.Managed([]const u8).init(allocator);
+    var target_buf = std.ArrayList([]const u8).init(allocator);
     defer target_buf.deinit();
 
     try target_buf.append("-Dtarget=");

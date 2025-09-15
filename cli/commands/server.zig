@@ -60,7 +60,7 @@ pub fn run(
         },
     );
 
-    var argv = std.array_list.Managed([]const u8).init(allocator);
+    var argv = std.ArrayList([]const u8).init(allocator);
     defer argv.deinit();
 
     try argv.appendSlice(&.{
@@ -99,10 +99,10 @@ pub fn run(
         process.stderr_behavior = .Inherit;
         process.cwd = realpath;
 
-        var stdout_buf = std.array_list.Managed(u8).init(allocator);
+        var stdout_buf = std.ArrayList(u8).init(allocator);
         defer stdout_buf.deinit();
 
-        var stderr_buf = std.array_list.Managed(u8).init(allocator);
+        var stderr_buf = std.ArrayList(u8).init(allocator);
         defer stderr_buf.deinit();
 
         try process.spawn();

@@ -39,12 +39,11 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("args", zig_args_dep.module("args"));
     exe.root_module.addImport("init_data", try compile.initDataModule(b));
 
-    const version_config = @import("build.zig.zon");
-    const version_str = version_config.version;
+    const version_str = "0.1.0"; 
     const raw_hash = try getGitHash(b.allocator);
     defer b.allocator.free(raw_hash);
     const hash = std.mem.trim(u8, raw_hash, &std.ascii.whitespace);
-    var content = std.array_list.Managed(u8).init(b.allocator);
+    var content = std.ArrayList(u8).init(b.allocator);
     defer content.deinit();
     try content.appendSlice("pub const version = \"");
     try content.appendSlice(version_str);
