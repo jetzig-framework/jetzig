@@ -2,55 +2,144 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    zig.url = "github:mitchellh/zig-overlay";
-    zig.inputs.nixpkgs.follows = "nixpkgs";
-    
+    zig-overlay.url = "github:mitchellh/zig-overlay";
+    zig-overlay.inputs.nixpkgs.follows = "nixpkgs";
+    zls-flake.url = "github:zigtools/zls";
+    zls-flake.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils, zig }:
+  outputs = { self, nixpkgs, flake-utils, zig-overlay, zls-flake }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        zigpkg = zig.packages.${system}."0.15.1";
-      in {
-        packages.default = pkgs.stdenv.mkDerivation {
-          pname = "jetzig";
-          version = "0.15.1";
-          src = ./.;
-          nativeBuildInputs = [ zigpkg ];
-          buildPhase = ''
-            cd cli
-            zig build --prefix $out
-          '';
-          installPhase = "true";
+
+        defaultVersionConfig = zigVersions."v15";
+        defaultZigVersion = "0.15.1";
+        zigVersions = {
+          "v15" = {
+            zls = "0.15.0";
+            zig = "0.15.1";
+            jetzig = {
+              rev = "main";
+            };
+          };
+          "v14" = {
+            zls = "0.14.0";
+            zig = "0.14.1";
+            jetzig = {
+              rev = "2c52792217b9441ed5e91d67e7ec5a8959285307";
+            };
+          };
+          "master" = {
+            zig = "master";
+            zls = "master";
+            jetzig = {
+              ref = "main";
+            };
+          };
         };
-        devShells.default = pkgs.mkShell {
-          name = "jetzig-dev";
-          buildInputs = [
-            zigpkg pkgs.valkey pkgs.postgresql pkgs.openssl pkgs.pkg-config
-            (pkgs.stdenv.mkDerivation rec {
-              pname = "zls";
-              version = "0.15.0";
-              src = pkgs.fetchurl {
-                url = "https://github.com/zigtools/zls/releases/download/${version}/zls-${system}.tar.xz";
-                sha256 = {
-                  "x86_64-linux" = "1pih3bqb89mfbmf6h0vb243z8l83j2l7vz7k0wps1lipsqzzx2sh";
-                  "aarch64-linux" = "1m2pamnb95vz3wvjnb31h9jnxkn2wc3aazfq7d6a7mxv5lw9271d";
-                  "x86_64-macos" = "14rx2gp45wm5zsd66hl2wgxbp6ibxk1jh978zv3xqnpgpww1ihs6";
-                  "aarch64-macos" = "0apw0pxrkwafn9pqf5pwn33v6j9ckil5y1i402bnfzpnj0qs5ivn";
-                }.${pkgs.stdenv.hostPlatform.system} or (throw "unsupported system: ${pkgs.stdenv.hostPlatform.system}");
+
+        zlsBuilder = import ./zls.nix;
+
+        makeDevShell = friendlyName: versionConfig:
+          let
+            zig = zig-overlay.packages.${system}.${versionConfig.zig};
+            zlsVersion = versionConfig.zls;
+            zls = zlsBuilder {
+              inherit pkgs system zig zlsVersion zls-flake;
+            };
+          in
+            pkgs.mkShell {
+              name = "zig-${friendlyName}";
+              buildInputs = [
+                zig
+                zls
+                pkgs.zon2nix
+                pkgs.valkey
+                pkgs.postgresql
+                pkgs.openssl
+                pkgs.pkg-config
+              ];
+            };
+        makePackage = friendlyName: versionConfig:
+          let
+            zig = zig-overlay.packages.${system}.${versionConfig.zig};
+            jetzigSrc = if versionConfig.jetzig ? ref then
+              if versionConfig.jetzig ? rev then
+                builtins.fetchGit {
+                  url = "https://github.com/jetzig-framework/jetzig";
+                  ref = versionConfig.jetzig.ref;
+                  rev = versionConfig.jetzig.rev;
+                }
+              else
+                builtins.fetchGit {
+                  url = "https://github.com/jetzig-framework/jetzig";
+                  ref = versionConfig.jetzig.ref;
+                }
+            else
+              builtins.fetchGit {
+                url = "https://github.com/jetzig-framework/jetzig";
+                rev = versionConfig.jetzig.rev;
               };
-              nativeBuildInputs = [ pkgs.makeWrapper ];
-              dontUnpack = true;
-              installPhase = ''
-                mkdir -p $out/bin
-                cd $out/bin
-                tar -xf $src
-                chmod +x zls
-                wrapProgram $out/bin/zls --prefix PATH : ${zigpkg}/bin
+            deps = import "${jetzigSrc}/cli/deps.nix" { inherit (pkgs) fetchurl; };
+          in
+            pkgs.stdenv.mkDerivation {
+              pname = "jetzig";
+              version = versionConfig.zig;
+              src = jetzigSrc;
+              buildInputs = [
+                zig-overlay.packages.${system}.${versionConfig.zig}
+              ];
+              preBuild = ''
+                export ZIG_GLOBAL_CACHE_DIR=$(mktemp -d)
+                export ZIG_LOCAL_CACHE_DIR=$(mktemp -d)
+                ${deps.shellHook}
               '';
-            })
-          ];
+              buildPhase = ''
+                runHook preBuild
+                cd cli
+                zig build \
+                  --prefix $out \
+                  --cache-dir $ZIG_LOCAL_CACHE_DIR \
+                  --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
+                runHook postBuild
+              '';
+              installPhase = ''
+                runHook preInstall
+                runHook postInstall
+              '';
+            };
+
+        allPackages = builtins.mapAttrs makePackage zigVersions;
+        allDevShells = builtins.mapAttrs makeDevShell zigVersions;
+
+      in {
+        packages = allPackages // {
+          default = pkgs.stdenv.mkDerivation {
+            pname = "jetzig";
+            version = defaultVersionConfig.zig;
+            src = ./.;
+            buildInputs = [
+              zig-overlay.packages.${system}.${defaultVersionConfig.zig}
+            ];
+            buildPhase = ''
+              runHook preBuild
+              cd cli
+              zig build \
+                --prefix $out \
+                --cache-dir $ZIG_LOCAL_CACHE_DIR \
+                --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
+              runHook postBuild
+            '';
+            installPhase = ''
+              runHook preInstall
+              runHook postInstall
+            '';
+          };
+        };
+
+        devShells = allDevShells // {
+          default = makeDevShell "default" defaultVersionConfig;
         };
       });
 }
