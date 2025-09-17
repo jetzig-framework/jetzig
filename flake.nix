@@ -133,7 +133,7 @@
         };
 
         devShells = allDevShells // {
-          default = makeDevShell "default" defaultVersionConfig;
+          default = makeDevShell "master" defaultVersionConfig;
         };
       });
 }
