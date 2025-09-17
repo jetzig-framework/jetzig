@@ -13,8 +13,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        defaultVersionConfig = zigVersions."v15";
-        defaultZigVersion = "0.15.1";
+        defaultVersionConfig = zigVersions."master";
+        defaultZigVersion = "master";
         zigVersions = {
           "v15" = {
             zls = "0.15.0";
@@ -81,32 +81,26 @@
                 url = "https://github.com/jetzig-framework/jetzig";
                 rev = versionConfig.jetzig.rev;
               };
-            deps = import "${jetzigSrc}/cli/deps.nix" { inherit (pkgs) fetchurl; };
           in
             pkgs.stdenv.mkDerivation {
               pname = "jetzig";
               version = versionConfig.zig;
               src = jetzigSrc;
-              buildInputs = [
-                zig-overlay.packages.${system}.${versionConfig.zig}
-              ];
-              preBuild = ''
-                export ZIG_GLOBAL_CACHE_DIR=$(mktemp -d)
-                export ZIG_LOCAL_CACHE_DIR=$(mktemp -d)
-                ${deps.shellHook}
+              buildInputs = [ zig ];
+              dontInstall = true;
+              configurePhase = ''
+                export ZIG_GLOBAL_CACHE_DIR=$TEMP/.cache
               '';
               buildPhase = ''
-                runHook preBuild
                 cd cli
-                zig build \
+                PACKAGE_DIR=${pkgs.callPackage ./cli/deps.nix {}}
+
+                zig build install\
+                  --system $PACKAGE_DIR
                   --prefix $out \
+                  -Doptimize=ReleaseSafe
                   --cache-dir $ZIG_LOCAL_CACHE_DIR \
                   --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
-                runHook postBuild
-              '';
-              installPhase = ''
-                runHook preInstall
-                runHook postInstall
               '';
             };
 
