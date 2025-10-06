@@ -80,13 +80,21 @@ EOF
           fi
         '';
 
+        dependencies = [
+          zig
+          pkgs.openssl
+        ];
+
       in {
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "jetzig";
           version = zigVersion;
           src = ./.;
-          buildInputs = [ zig ];
-          dontInstall = true;
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+          ];
+          buildInputs = dependencies;
+          dontInstall = false;
           configurePhase = ''
             runHook preConfigure
             export ZIG_GLOBAL_CACHE_DIR=$TEMP/.cache
@@ -105,6 +113,13 @@ EOF
               --cache-dir $ZIG_LOCAL_CACHE_DIR \
               --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
             runHook postBuild
+          '';
+          postFixup = ''
+            for bin in $out/bin/*; do
+	      wrapProgram $bin \
+	        --prefix PATH : ${pkgs.lib.makeBinPath dependencies} \
+		--prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath dependencies}
+	    done
           '';
         };
 

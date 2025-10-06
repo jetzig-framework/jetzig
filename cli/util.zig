@@ -278,7 +278,7 @@ pub fn githubUrl(allocator: std.mem.Allocator) ![]const u8 {
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
 
-    const url = "https://api.github.com/repos/jetzig-framework/jetzig/branches/main";
+    const url = "https://api.github.com/repos/jetzig-framework/jetzig/branches/zig-0.14";
     const extra_headers = &[_]std.http.Header{.{ .name = "X-GitHub-Api-Version", .value = "2022-11-28" }};
 
     var response_storage = std.ArrayList(u8).init(allocator);
