@@ -67,13 +67,11 @@
               cat > "$VALKEY_DIR/valkey.conf" << EOF
 port 6379
 dir $VALKEY_DIR
-dbfilename dump.rdb
 logfile $VALKEY_DIR/valkey.log
 daemonize yes
-pidfile $FALKEY_DIR/valkey.pid
-save 900 1
-save 300 10
-save 60 10000
+pidfile $VALKEY_DIR/valkey.pid
+save ""
+appendonly no
 EOF
               valkey-server \
                 "$VALKEY_DIR/valkey.conf"
