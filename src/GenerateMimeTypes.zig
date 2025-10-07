@@ -1,4 +1,6 @@
 const std = @import("std");
+const Build = std.Build;
+const ArrayList = std.array_list.Managed;
 
 const JsonMimeType = struct {
     name: []const u8,
@@ -7,7 +9,7 @@ const JsonMimeType = struct {
 
 /// Invoked at build time to parse mimeData.json into an array of `MimeType` which can then be
 /// written out as a Zig struct and imported at runtime.
-pub fn generateMimeModule(build: *std.Build) !*std.Build.Module {
+pub fn generateMimeModule(build: *Build) !*Build.Module {
     const file = try std.fs.openFileAbsolute(build.pathFromRoot("src/jetzig/http/mime/mimeData.json"), .{});
     const stat = try file.stat();
     const json = try file.readToEndAlloc(build.allocator, @intCast(stat.size));
@@ -20,7 +22,7 @@ pub fn generateMimeModule(build: *std.Build) !*std.Build.Module {
         .{ .ignore_unknown_fields = true },
     );
 
-    var buf = std.ArrayList(u8).init(build.allocator);
+    var buf = ArrayList(u8).init(build.allocator);
     defer buf.deinit();
 
     const writer = buf.writer();

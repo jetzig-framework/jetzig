@@ -4,36 +4,36 @@
     .fingerprint = 0x93ad8bfa2d209022,
     .dependencies = .{
         .jetcommon = .{
-            .url = "https://github.com/jetzig-framework/jetcommon/archive/fb4edc13759d87bfcd9b1f5fcefdf93f8c9c62dd.tar.gz",
-            .hash = "jetcommon-0.1.0-jPY_DS1HAAAP8xp5HSWB_ZY7m9JEYUmm8adQFrse0lwB",
+            .url = "https://github.com/jetzig-framework/jetcommon/archive/da50c67de931bcfe68dc54633b406315152e0c60.tar.gz",
+            .hash = "jetcommon-0.1.0-jPY_DdhIAAAk0zqZQf6adpaL5s2g115R8TDZ9j-VboCO",
         },
         .zmd = .{
-            .url = "https://github.com/jetzig-framework/zmd/archive/d6c8aa9a9cde99674ccb096d8f94ed09cba8dab.tar.gz",
-            .hash = "1220d0e8734628fd910a73146e804d10a3269e3e7d065de6bb0e3e88d5ba234eb163",
+            .url = "https://github.com/jetzig-framework/zmd/archive/87b1c46b517f47b3384eba7ce98d197c463a9d5e.tar.gz",
+            .hash = "zmd-0.1.0-H8YV7bvdAABAVFR2lherqOup7valUMg9UTEiiMFxlTjZ",
         },
         .smtp_client = .{
-            .url = "https://github.com/karlseguin/smtp_client.zig/archive/5163c66cc42cdd93176a6b1cad45f3db3a291a6a.tar.gz",
-            .hash = "smtp_client-0.0.1-AAAAAIJkAQCngHtRYVUMsMuncmicSHK_7ugwWibDzQ4S",
+            .url = "https://github.com/karlseguin/smtp_client.zig/archive/857d6f7be55cc878eb55b87dfae2539f05eda14d.tar.gz",
+            .hash = "smtp_client-0.0.1-Vh9B1NFoAQDw7GpdHsd5IE4XVJN3spr7mG22diw54-1i",
         },
         .args = .{
-            .url = "https://github.com/bobf/zig-args/archive/88cbade9a517a4014824f8f53f3c48c8a0b2ffe1.tar.gz",
-            .hash = "zig_args-0.0.0-jqtN6P_NAAC97fGpk9hS2K681jkiqPsWP6w3ucb_ctGH",
+            .url = "https://github.com/ikskuh/zig-args/archive/8ae26b44a884ff20dca98ee84c098e8f8e94902f.tar.gz",
+            .hash = "args-0.0.0-CiLiqojRAACGzDRO7A9dw7kWSchNk29caJZkXuMCb0Cn",
         },
         .jetkv = .{
             .url = "https://github.com/jetzig-framework/jetkv/archive/5a94e3bac0a6e291efc9d6534beb2d311671ff17.tar.gz",
             .hash = "jetkv-0.0.0-zCv0fmCGAgCyYqwHjk0P5KrYVRew1MJAtbtAcIO-WPpT",
         },
         .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/c57fc9b83027e8c1459d9625c3509f59f0fb89f3.tar.gz",
-            .hash = "zmpl-0.0.1-SYFGBgdqAwDeA6xm4KAhpKoNrWs5CMQK6x447zhWclCs",
+            .url = "https://github.com/jetzig-framework/zmpl/archive/ffbfe4c5a3243fb63879e33a82ceaf0941a56817.tar.gz",
+            .hash = "zmpl-0.0.1-SYFGBoeqAwAVSZK5OD-wzQkL11iie_jNZ0w0F5z22j5u",
         },
         .httpz = .{
-            .url = "https://github.com/karlseguin/http.zig/archive/37d7cb9819b804ade5f4b974b82f8dd0622225ed.tar.gz",
-            .hash = "httpz-0.0.0-PNVzrEK4BgBpHQGA2m0RPqPGEjnTdDXHodBwzjYDrmps",
+            .url = "https://github.com/karlseguin/http.zig/archive/00014146eaf9e17750b752fa4905f7623fbe30f7.tar.gz",
+            .hash = "httpz-0.0.0-PNVzrFndBgDr9zQx7Mj_MFiqYslgcRlx45FJ_gERmRTb",
         },
         .jetquery = .{
-            .url = "https://github.com/jetzig-framework/jetquery/archive/e1f969f2e3e0e1ad9cc30d56fde9739aa692fdc3.tar.gz",
-            .hash = "jetquery-0.0.0-TNf3zo2ABgBgcsIAvJ1Ud2B2zDzrBy9GQ31kKmTYZ7Ya",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/0268accfbc299fd888546f720a5424dad9da2eb4.tar.gz",
+            .hash = "jetquery-0.0.0-TNf3zuTABgCuCBZIaRndYQNCXHgiLa8lm97pK9Kaujzk",
         },
     },
 

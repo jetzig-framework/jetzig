@@ -20,13 +20,15 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "jetzig",
-        .root_source_file = b.path("src/jetzig.zig"),
-        .target = target,
-        .optimize = optimize,
+        .linkage = .static,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/jetzig.zig"),
+        }),
     });
-
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
 
     const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
