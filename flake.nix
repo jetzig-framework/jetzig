@@ -124,7 +124,7 @@ EOF
         };
 
         devShells.default = pkgs.mkShell {
-          name = "zig-0.14.1";
+          name = "zig-${zigVersion}";
           buildInputs = [
             zig
             zls
