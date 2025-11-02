@@ -17,162 +17,140 @@
   outputs = { self, nixpkgs, flake-utils, zig-overlay, zls-flake }:
     flake-utils.lib.eachDefaultSystem (system:
       let
+        zigVersion = "master";
+        zlsVersion = "master";
+
         pkgs = nixpkgs.legacyPackages.${system};
-        zigVersions = {
-          "v15" = {
-            zls = "0.15.0";
-            zig = "0.15.1";
-          };
-          "v14" = {
-            zls = "0.14.0";
-            zig = "0.14.1";
-            jetzig = {
-              ref = "0.14.0";
-              rev = "f49e17bfd99f8e0eee9c489d52a4e75c352b140b";
-            };
-          };
-          "master" = {
-            zig = "master";
-            zls = "master";
-          };
+        zlsBuilder = import ./zls.nix;
+        zig = zig-overlay.packages.${system}.${zigVersion};
+        zls = zlsBuilder {
+          inherit pkgs system zig zls-flake;
+          zlsVersion = zlsVersion;
         };
 
-        zlsBuilder = import ./zls.nix;
-
-        makeDevShell = friendlyName: versionConfig:
-          let
-            zig = zig-overlay.packages.${system}.${versionConfig.zig};
-            zlsVersion = versionConfig.zls;
-            zls = zlsBuilder {
-              inherit pkgs system zig zlsVersion zls-flake;
-            };
-            testSetup = pkgs.writeShellScriptBin "test-setup" ''
-              JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
-              POSTGRES_DIR="$JETZIG_TEST_DIR/postgres-db"
-              VALKEY_DIR="$JETZIG_TEST_DIR/valkey-db"
-              mkdir -p "$POSTGRES_DIR"
-              mkdir -p "$VALKEY_DIR"
-              gum spin --spinner dot --title "Setting up postgres" -- initdb \
-                -D "$POSTGRES_DIR" \
-                --auth-local=trust \
-                --auth-host=trust \
-                --username=postgres
-              echo "port = 5432" >> "$POSTGRES_DIR/postgresql.conf"
-              echo "unix_socket_directories = '$PWD'" >> "$POSTGRES_DIR/postgresql.conf"
-              pg_ctl \
-                -D "$POSTGRES_DIR" \
-                -l "$POSTGRES_DIR/logfile" \
-                start
-              gum log --time=TimeOnly --prefix=JETZIG-ENV "Postgres started"
-              cat > "$VALKEY_DIR/valkey.conf" << EOF
+        testSetup = pkgs.writeShellScriptBin "test-setup" ''
+          JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
+          POSTGRES_DIR="$JETZIG_TEST_DIR/postgres-db"
+          VALKEY_DIR="$JETZIG_TEST_DIR/valkey-db"
+          mkdir -p "$POSTGRES_DIR"
+          mkdir -p "$VALKEY_DIR"
+          gum spin --spinner dot --title "Setting up postgres" -- initdb \
+            -D "$POSTGRES_DIR" \
+            --auth-local=trust \
+            --auth-host=trust \
+            --username=postgres
+          echo "port = 5432" >> "$POSTGRES_DIR/postgresql.conf"
+          echo "unix_socket_directories = '$PWD'" >> "$POSTGRES_DIR/postgresql.conf"
+          pg_ctl \
+            -D "$POSTGRES_DIR" \
+            -l "$POSTGRES_DIR/logfile" \
+            start
+          gum log --time=TimeOnly --prefix=JETZIG-ENV "Postgres started"
+          cat > "$VALKEY_DIR/valkey.conf" << EOF
 port 6379
 dir $VALKEY_DIR
+dbfilename dump.rdb
 logfile $VALKEY_DIR/valkey.log
 daemonize yes
-pidfile $VALKEY_DIR/valkey.pid
-save ""
-appendonly no
+pidfile $FALKEY_DIR/valkey.pid
+save 900 1
+save 300 10
+save 60 10000
 EOF
-              valkey-server \
-                "$VALKEY_DIR/valkey.conf"
-              gum log --time=TimeOnly --prefix=JETZIG-ENV "Valkey started"
-            '';
-            testTeardown = pkgs.writeShellScriptBin "test-teardown" ''
-              JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
-              POSTGRES_DIR="$JETZIG_TEST_DIR/postgres-db"
-              VALKEY_DIR="$JETZIG_TEST_DIR/valkey-db"
-              if pg_ctl -D "$POSTGRES_DIR" status > /dev/null 2>&1; then
-                pg_ctl -D "$POSTGRES_DIR" stop
-              fi
-              if [ -d "$POSTGRES_DIR" ]; then
-                rm -rf "$POSTGRES_DIR"
-              fi
-              if [ -f "$VALKEY_DIR/valkey.pid" ]; then
-                kill "$(cat "$VALKEY_DIR/valkey.pid")"
-              fi
-              if [ -d "$VALKEY_DIR" ]; then
-                rm -rf "$VALKEY_DIR"
-              fi
-            '';
-          in
-            pkgs.mkShell {
-              name = "zig-${friendlyName}";
-              buildInputs = [
-                zig
-                zls
-                pkgs.gum
-                pkgs.zon2nix
-                pkgs.valkey
-                pkgs.postgresql
-                pkgs.openssl
-                pkgs.pkg-config
-                testSetup
-                testTeardown
-              ];
-              shellHook = ''
-                JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
-                mkdir -p "$JETZIG_TEST_DIR"
-                gum format -- \
-                  "# JETZIG DEV ENV" \
-                  "Commands:" \
-                  "- test-setup: Starts postgres and valkey for jetzig tests" \
-                  "- test-teardown: Stops postgres and valkey and cleans up created dirs"
-                cleanup_jetzig_test() {
-                  test-teardown
-                  rm -rf "$TMPDIR/jetzig-env"
-                }
-                trap cleanup_jetzig_test EXIT
-              '';
-            };
-        makePackage = friendlyName: versionConfig:
-          let
-            zig = zig-overlay.packages.${system}.${versionConfig.zig};
-            jetzigSrc = if versionConfig ? jetzig then
-              builtins.fetchGit {
-                url = "https://github.com/jetzig-framework/jetzig";
-                ref = versionConfig.jetzig.ref;
-                rev = versionConfig.jetzig.rev;
-              }
-            else
-              ./.;
-          in
-            pkgs.stdenv.mkDerivation {
-              pname = "jetzig";
-              version = versionConfig.zig;
-              src = jetzigSrc;
-              buildInputs = [ zig ];
-              dontInstall = true;
-              configurePhase = ''
-                runHook preConfigure
-                export ZIG_GLOBAL_CACHE_DIR=$TEMP/.cache
-                export ZIG_LOCAL_CACHE_DIR=$TEMP/.local-cache
-                export PACKAGE_DIR=${pkgs.callPackage "${jetzigSrc}/cli/deps.nix" {}}
-                mkdir -p "$ZIG_GLOBAL_CACHE_DIR" "$ZIG_LOCAL_CACHE_DIR"
-                runHook postConfigure
-              '';
-              buildPhase = ''
-                runHook preBuild
-                cd cli
-                zig build install \
-                  --system $PACKAGE_DIR \
-                  --prefix $out \
-                  -Doptimize=ReleaseSafe \
-                  --cache-dir $ZIG_LOCAL_CACHE_DIR \
-                  --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
-                runHook postBuild
-              '';
-            };
+          valkey-server \
+            "$VALKEY_DIR/valkey.conf"
+          gum log --time=TimeOnly --prefix=JETZIG-ENV "Valkey started"
+        '';
 
-        allPackages = builtins.mapAttrs makePackage zigVersions;
-        allDevShells = builtins.mapAttrs makeDevShell zigVersions;
+        testTeardown = pkgs.writeShellScriptBin "test-teardown" ''
+          JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
+          POSTGRES_DIR="$JETZIG_TEST_DIR/postgres-db"
+          VALKEY_DIR="$JETZIG_TEST_DIR/valkey-db"
+          if pg_ctl -D "$POSTGRES_DIR" status > /dev/null 2>&1; then
+            pg_ctl -D "$POSTGRES_DIR" stop
+          fi
+          if [ -d "$POSTGRES_DIR" ]; then
+            rm -rf "$POSTGRES_DIR"
+          fi
+          if [ -f "$VALKEY_DIR/valkey.pid" ]; then
+            kill "$(cat "$VALKEY_DIR/valkey.pid")"
+          fi
+          if [ -d "$VALKEY_DIR" ]; then
+            rm -rf "$VALKEY_DIR"
+          fi
+        '';
+
+        dependencies = [
+          zig
+          pkgs.openssl
+        ];
 
       in {
-        packages = allPackages // {
-          default = allPackages.master;
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "jetzig";
+          version = zigVersion;
+          src = ./.;
+          nativeBuildInputs = [
+            pkgs.makeWrapper
+          ];
+          buildInputs = dependencies;
+          dontInstall = false;
+          configurePhase = ''
+            runHook preConfigure
+            export ZIG_GLOBAL_CACHE_DIR=$TEMP/.cache
+            export ZIG_LOCAL_CACHE_DIR=$TEMP/.local-cache
+            export PACKAGE_DIR=${pkgs.callPackage ./cli/deps.nix {}}
+            mkdir -p "$ZIG_GLOBAL_CACHE_DIR" "$ZIG_LOCAL_CACHE_DIR"
+            runHook postConfigure
+          '';
+          buildPhase = ''
+            runHook preBuild
+            cd cli
+            zig build install \
+              --system $PACKAGE_DIR \
+              --prefix $out \
+              -Doptimize=ReleaseSafe \
+              --cache-dir $ZIG_LOCAL_CACHE_DIR \
+              --global-cache-dir $ZIG_GLOBAL_CACHE_DIR
+            runHook postBuild
+          '';
+          postFixup = ''
+            for bin in $out/bin/*; do
+	      wrapProgram $bin \
+	        --prefix PATH : ${pkgs.lib.makeBinPath dependencies} \
+		--prefix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath dependencies}
+	    done
+          '';
         };
 
-        devShells = allDevShells // {
-          default = allDevShells.master;
+        devShells.default = pkgs.mkShell {
+          name = "zig-${zigVersion}";
+          buildInputs = [
+            zig
+            zls
+            pkgs.gum
+            pkgs.zon2nix
+            pkgs.valkey
+            pkgs.postgresql
+            pkgs.openssl
+            pkgs.pkg-config
+            testSetup
+            testTeardown
+          ];
+          shellHook = ''
+            JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
+            mkdir -p "$JETZIG_TEST_DIR"
+            gum format -- \
+              "# JETZIG DEV ENV" \
+              "Commands:" \
+              "- test-setup: Starts postgres and valkey for jetzig tests" \
+              "- test-teardown: Stops postgres and valkey and cleans up created dirs"
+            cleanup_jetzig_test() {
+              test-teardown
+              rm -rf "$TMPDIR/jetzig-env"
+            }
+            trap cleanup_jetzig_test EXIT
+          '';
         };
       });
 }
