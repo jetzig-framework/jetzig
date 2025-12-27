@@ -64,6 +64,8 @@ pub fn build(b: *std.Build) !void {
 
     const zmpl_module = zmpl_dep.module("zmpl");
 
+    const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
+    const jetcommon = jetcommon_dep.module("jetcommon");
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
     const jetquery_dep = b.dependency("jetquery", .{
         .target = target,
@@ -72,8 +74,9 @@ pub fn build(b: *std.Build) !void {
         .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
     });
-    const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
+    jetquery_dep.module("jetquery").addImport("jetcommon", jetcommon);
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
+    zmpl_dep.module("zmpl").addImport("jetcommon", jetcommon);
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
 
     // This is the way to make it look nice in the zig build script

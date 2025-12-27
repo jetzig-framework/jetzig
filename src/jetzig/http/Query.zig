@@ -1,9 +1,13 @@
 const std = @import("std");
+const testing = std.testing;
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 const jetzig = @import("../../jetzig.zig");
 
+const Data = jetzig.data.Data;
 const Query = @This();
 
-allocator: std.mem.Allocator,
+allocator: Allocator,
 query_string: []const u8,
 query_items: std.array_list.Managed(QueryItem),
 data: *jetzig.data.Data,
@@ -13,7 +17,7 @@ pub const QueryItem = struct {
     value: ?[]const u8,
 };
 
-pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzig.data.Data) Query {
+pub fn init(allocator: Allocator, query_string: []const u8, data: *Data) Query {
     return .{
         .allocator = allocator,
         .query_string = query_string,
@@ -24,7 +28,6 @@ pub fn init(allocator: std.mem.Allocator, query_string: []const u8, data: *jetzi
 
 pub fn deinit(self: *Query) void {
     self.query_items.deinit();
-    self.data.deinit();
 }
 
 pub fn parse(self: *Query) !void {
@@ -107,7 +110,7 @@ fn mappingParam(input: []const u8) ?struct { key: []const u8, field: []const u8 
     };
 }
 
-fn dataValue(self: Query, value: ?[]const u8) *jetzig.data.Data.Value {
+fn dataValue(self: Query, value: ?[]const u8) *Data.Value {
     if (value) |item_value| {
         const duped = self.data.allocator.dupe(u8, item_value) catch @panic("OOM");
         return self.data.string(uriDecode(duped));
@@ -122,24 +125,24 @@ fn uriDecode(input: []u8) []const u8 {
 }
 
 test "simple query string" {
-    const allocator = std.testing.allocator;
     const query_string = "foo=bar&baz=qux";
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
+    defer data.deinit();
 
-    var query = init(allocator, query_string, &data);
+    var query = init(testing.allocator, query_string, &data);
     defer query.deinit();
 
     try query.parse();
-    try std.testing.expectEqualStrings((data.get("foo")).?.string.value, "bar");
-    try std.testing.expectEqualStrings((data.get("baz")).?.string.value, "qux");
+    try testing.expectEqualStrings((data.get("foo")).?.string.value, "bar");
+    try testing.expectEqualStrings((data.get("baz")).?.string.value, "qux");
 }
 
 test "query string with array values" {
-    const allocator = std.testing.allocator;
     const query_string = "foo[]=bar&foo[]=baz";
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
+    defer data.deinit();
 
-    var query = init(allocator, query_string, &data);
+    var query = init(testing.allocator, query_string, &data);
     defer query.deinit();
 
     try query.parse();
@@ -147,19 +150,19 @@ test "query string with array values" {
     const value = data.get("foo").?;
     switch (value.*) {
         .array => |array| {
-            try std.testing.expectEqualStrings(array.get(0).?.string.value, "bar");
-            try std.testing.expectEqualStrings(array.get(1).?.string.value, "baz");
+            try testing.expectEqualStrings(array.get(0).?.string.value, "bar");
+            try testing.expectEqualStrings(array.get(1).?.string.value, "baz");
         },
         else => unreachable,
     }
 }
 
 test "query string with mapping values" {
-    const allocator = std.testing.allocator;
     const query_string = "foo[bar]=baz&foo[qux]=quux";
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
+    defer data.deinit();
 
-    var query = init(allocator, query_string, &data);
+    var query = init(testing.allocator, query_string, &data);
     defer query.deinit();
 
     try query.parse();
@@ -167,19 +170,19 @@ test "query string with mapping values" {
     const value = data.get("foo").?;
     switch (value.*) {
         .object => |object| {
-            try std.testing.expectEqualStrings(object.get("bar").?.string.value, "baz");
-            try std.testing.expectEqualStrings(object.get("qux").?.string.value, "quux");
+            try testing.expectEqualStrings(object.get("bar").?.string.value, "baz");
+            try testing.expectEqualStrings(object.get("qux").?.string.value, "quux");
         },
         else => unreachable,
     }
 }
 
 test "query string with param without value" {
-    const allocator = std.testing.allocator;
     const query_string = "foo&bar";
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
+    defer data.deinit();
 
-    var query = init(allocator, query_string, &data);
+    var query = init(testing.allocator, query_string, &data);
     defer query.deinit();
 
     try query.parse();
@@ -198,19 +201,19 @@ test "query string with param without value" {
 }
 
 test "query string with encoded characters" {
-    const allocator = std.testing.allocator;
     const query_string = "foo=bar+baz+qux&bar=hello%20%21%20how%20are%20you%20doing%20%3F%3F%3F";
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
+    defer data.deinit();
 
-    var query = init(allocator, query_string, &data);
+    var query = init(testing.allocator, query_string, &data);
     defer query.deinit();
 
     try query.parse();
-    try std.testing.expectEqualStrings(
+    try testing.expectEqualStrings(
         "bar baz qux",
         (data.getT(.string, "foo")).?,
     );
-    try std.testing.expectEqualStrings(
+    try testing.expectEqualStrings(
         "hello ! how are you doing ???",
         (data.getT(.string, "bar")).?,
     );

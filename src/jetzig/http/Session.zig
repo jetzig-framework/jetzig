@@ -1,19 +1,25 @@
 const std = @import("std");
+const testing = std.testing;
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
+const assert = std.debug.assert;
 
 const jetzig = @import("../../jetzig.zig");
+const Data = jetzig.data.Data;
+const Cookies = jetzig.http.Cookies;
 
 pub const Cipher = std.crypto.aead.chacha_poly.XChaCha20Poly1305;
 
-allocator: std.mem.Allocator,
+allocator: Allocator,
 encryption_key: []const u8,
-cookies: *jetzig.http.Cookies,
+cookies: *Cookies,
 cookie_name: []const u8,
 
 initialized: bool = false,
 data: jetzig.data.Data,
 state: enum { parsed, pending } = .pending,
 
-const Self = @This();
+const Session = @This();
 
 pub const default_cookie_name = "_jetzig-session";
 
@@ -22,14 +28,14 @@ pub const Options = struct {
 };
 
 pub fn init(
-    allocator: std.mem.Allocator,
-    cookies: *jetzig.http.Cookies,
+    allocator: Allocator,
+    cookies: *Cookies,
     encryption_key: []const u8,
     options: Options,
-) Self {
+) Session {
     return .{
         .allocator = allocator,
-        .data = jetzig.data.Data.init(allocator),
+        .data = .init(allocator),
         .cookies = cookies,
         .cookie_name = options.cookie_name,
         .encryption_key = encryption_key,
@@ -37,16 +43,15 @@ pub fn init(
 }
 
 /// Parse session cookie.
-pub fn parse(self: *Self) !void {
-    if (self.cookies.get(self.cookie_name)) |cookie| {
-        try self.parseSessionCookie(cookie.value);
-    } else {
+pub fn parse(self: *Session) !void {
+    if (self.cookies.get(self.cookie_name)) |cookie|
+        try self.parseSessionCookie(cookie.get(.value))
+    else
         try self.reset();
-    }
 }
 
 /// Reset session to an empty state.
-pub fn reset(self: *Self) !void {
+pub fn reset(self: *Session) !void {
     self.data.reset();
     _ = try self.data.object();
     self.state = .parsed;
@@ -54,12 +59,12 @@ pub fn reset(self: *Self) !void {
 }
 
 /// Free allocated memory.
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Session) void {
     self.data.deinit();
 }
 
 /// Get a value from the session.
-pub fn get(self: *Self, key: []const u8) ?*jetzig.data.Value {
+pub fn get(self: *Session, key: []const u8) ?*jetzig.data.Value {
     std.debug.assert(self.state == .parsed);
 
     return switch (self.data.value.?.*) {
@@ -70,11 +75,11 @@ pub fn get(self: *Self, key: []const u8) ?*jetzig.data.Value {
 
 /// Get a typed value from the session.
 pub fn getT(
-    self: *Self,
+    self: *Session,
     comptime T: jetzig.data.ValueType,
     key: []const u8,
 ) @TypeOf(self.data.value.?.object.getT(T, key)) {
-    std.debug.assert(self.state == .parsed);
+    assert(self.state == .parsed);
 
     return switch (self.data.value.?.*) {
         .object => self.data.value.?.object.getT(T, key),
@@ -83,8 +88,8 @@ pub fn getT(
 }
 
 /// Put a value into the session.
-pub fn put(self: *Self, key: []const u8, value: anytype) !void {
-    std.debug.assert(self.state == .parsed);
+pub fn put(self: *Session, key: []const u8, value: anytype) !void {
+    assert(self.state == .parsed);
 
     switch (self.data.value.?.*) {
         .object => |*object| {
@@ -97,8 +102,8 @@ pub fn put(self: *Self, key: []const u8, value: anytype) !void {
 }
 
 // Returns `true` if a value was removed and `false` otherwise.
-pub fn remove(self: *Self, key: []const u8) !bool {
-    std.debug.assert(self.state == .parsed);
+pub fn remove(self: *Session, key: []const u8) !bool {
+    assert(self.state == .parsed);
 
     // copied from `get()`
     const result = switch (self.data.value.?.*) {
@@ -110,7 +115,7 @@ pub fn remove(self: *Self, key: []const u8) !bool {
     return result;
 }
 
-fn save(self: *Self) !void {
+fn save(self: *Session) !void {
     if (self.state != .parsed) return error.UnparsedSessionCookie;
 
     const json = try self.data.toJson();
@@ -119,10 +124,10 @@ fn save(self: *Self) !void {
     defer self.allocator.free(encrypted);
     const encoded = try jetzig.util.base64Encode(self.allocator, encrypted);
     defer self.allocator.free(encoded);
-    try self.cookies.put(.{ .name = self.cookie_name, .value = encoded });
+    try self.cookies.put(try .init(self.cookie_name, encoded, .{}));
 }
 
-fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
+fn parseSessionCookie(self: *Session, cookie_value: []const u8) !void {
     const decoded = try jetzig.util.base64Decode(self.allocator, cookie_value);
     defer self.allocator.free(decoded);
 
@@ -138,7 +143,7 @@ fn parseSessionCookie(self: *Self, cookie_value: []const u8) !void {
     self.state = .parsed;
 }
 
-fn decrypt(self: *Self, data: []u8) ![]u8 {
+fn decrypt(self: *Session, data: []u8) ![]u8 {
     if (data.len < Cipher.nonce_length + Cipher.tag_length) return error.JetzigInvalidSessionCookie;
 
     const secret_bytes = std.mem.sliceAsBytes(self.encryption_key);
@@ -161,7 +166,7 @@ fn decrypt(self: *Self, data: []u8) ![]u8 {
     return buf;
 }
 
-fn encrypt(self: *Self, value: []const u8) ![]const u8 {
+fn encrypt(self: *Session, value: []const u8) ![]const u8 {
     const secret_bytes = std.mem.sliceAsBytes(self.encryption_key);
     const key: [Cipher.key_length]u8 = secret_bytes[0..Cipher.key_length].*;
     var nonce: [Cipher.nonce_length]u8 = undefined;
@@ -182,91 +187,88 @@ fn encrypt(self: *Self, value: []const u8) ![]const u8 {
 }
 
 test "put and get session key/value" {
-    const allocator = std.testing.allocator;
-    var cookies = jetzig.http.Cookies.init(allocator, "");
+    var cookies: Cookies = .init(testing.allocator, "");
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret, .{});
+    var session: Session = .init(testing.allocator, &cookies, &secret, .{});
     defer session.deinit();
 
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
     defer data.deinit();
 
     try session.parse();
     try session.put("foo", data.string("bar"));
     var value = (session.get("foo")).?;
-    try std.testing.expectEqualStrings(try value.toString(), "bar");
+    try testing.expectEqualStrings(try value.toString(), "bar");
 }
 
 test "remove session key/value" {
-    const allocator = std.testing.allocator;
-    var cookies = jetzig.http.Cookies.init(allocator, "");
+    var cookies: Cookies = .init(testing.allocator, "");
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret, .{});
+    var session = Session.init(testing.allocator, &cookies, &secret, .{});
     defer session.deinit();
 
-    var data = jetzig.data.Data.init(allocator);
+    var data: Data = .init(testing.allocator);
     defer data.deinit();
 
     try session.parse();
     try session.put("foo", data.string("bar"));
     var value = (session.get("foo")).?;
-    try std.testing.expectEqualStrings(try value.toString(), "bar");
+    try testing.expectEqualStrings(try value.toString(), "bar");
 
-    try std.testing.expectEqual(true, try session.remove("foo"));
-    try std.testing.expectEqual(null, session.get("foo"));
+    try testing.expectEqual(true, try session.remove("foo"));
+    try testing.expectEqual(null, session.get("foo"));
 }
 
 test "get value from parsed/decrypted cookie" {
-    const allocator = std.testing.allocator;
-    var cookies = jetzig.http.Cookies.init(
-        allocator,
+    var cookies: Cookies = .init(
+        testing.allocator,
         "_jetzig-session=fPCFwZHvPDT-XCVcsQUSspDLchS3tRuJDqPpB2v3127VXpRP_bPcPLgpHK6RiVkfcP1bMtU",
     );
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret, .{});
+    var session: Session = .init(testing.allocator, &cookies, &secret, .{});
     defer session.deinit();
 
     try session.parse();
     var value = (session.get("foo")).?;
-    try std.testing.expectEqualStrings("bar", try value.toString());
+    try testing.expectEqualStrings("bar", try value.toString());
 }
 
 test "invalid cookie value - too short" {
-    const allocator = std.testing.allocator;
-    var cookies = jetzig.http.Cookies.init(allocator, "_jetzig-session=abc");
+    var cookies: Cookies = .init(testing.allocator, "_jetzig-session=abc");
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret, .{});
+    var session: Session = .init(testing.allocator, &cookies, &secret, .{});
     defer session.deinit();
 
-    try std.testing.expectError(error.JetzigInvalidSessionCookie, session.parse());
+    try testing.expectError(error.JetzigInvalidSessionCookie, session.parse());
 }
 
 test "custom session cookie name" {
-    const allocator = std.testing.allocator;
-    var cookies = jetzig.http.Cookies.init(
-        allocator,
+    var cookies: Cookies = .init(
+        testing.allocator,
         "custom-cookie-name=fPCFwZHvPDT-XCVcsQUSspDLchS3tRuJDqPpB2v3127VXpRP_bPcPLgpHK6RiVkfcP1bMtU",
     );
     defer cookies.deinit();
     try cookies.parse();
 
     const secret: [Cipher.key_length]u8 = [_]u8{0x69} ** Cipher.key_length;
-    var session = Self.init(allocator, &cookies, &secret, .{ .cookie_name = "custom-cookie-name" });
+    var session: Session = .init(testing.allocator, &cookies, &secret, .{
+        .cookie_name = "custom-cookie-name",
+    });
     defer session.deinit();
 
     try session.parse();
     var value = (session.get("foo")).?;
-    try std.testing.expectEqualStrings("bar", try value.toString());
+    try testing.expectEqualStrings("bar", try value.toString());
 }

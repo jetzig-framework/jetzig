@@ -1,29 +1,42 @@
 const std = @import("std");
+const Io = std.Io;
+const testing = std.testing;
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
+const Mutex = std.Thread.Mutex;
+const Condition = std.Thread.Condition;
+const DoublyLinkedList = std.DoublyLinkedList;
+const Node = DoublyLinkedList.Node;
+const File = std.fs.File;
+const MemoryPool = std.heap.MemoryPool;
+const assert = std.debug.assert;
+
 const builtin = @import("builtin");
 
 const jetzig = @import("../../jetzig.zig");
+const LogFile = jetzig.loggers.LogFile;
 
 const buffer_size = jetzig.config.get(usize, "log_message_buffer_len");
 const max_pool_len = jetzig.config.get(usize, "max_log_pool_len");
 
-const List = std.DoublyLinkedList;
+const List = DoublyLinkedList;
 const ListNode = struct {
     event: Event,
-    node: std.DoublyLinkedList.Node = .{},
+    node: Node = .{},
 };
 const Buffer = [buffer_size]u8;
 
-allocator: std.mem.Allocator,
-node_allocator: std.heap.MemoryPool(ListNode),
-buffer_allocator: std.heap.MemoryPool(Buffer),
+allocator: Allocator,
+node_allocator: MemoryPool(ListNode),
+buffer_allocator: MemoryPool(Buffer),
 list: List,
-read_write_mutex: std.Thread.Mutex,
-condition: std.Thread.Condition,
-condition_mutex: std.Thread.Mutex,
+read_write_mutex: Mutex,
+condition: Condition,
+condition_mutex: Mutex,
 writer: Writer = undefined,
 reader: Reader = undefined,
-node_pool: std.array_list.Managed(*ListNode),
-buffer_pool: std.array_list.Managed(*Buffer),
+node_pool: ArrayList(*ListNode),
+buffer_pool: ArrayList(*Buffer),
 position: usize,
 stdout_is_tty: bool = undefined,
 stderr_is_tty: bool = undefined,
@@ -43,25 +56,25 @@ const Event = struct {
 };
 
 /// Create a new `LogQueue`.
-pub fn init(allocator: std.mem.Allocator) LogQueue {
+pub fn init(allocator: Allocator) LogQueue {
     return .{
         .allocator = allocator,
         .node_allocator = initPool(allocator, ListNode),
         .buffer_allocator = initPool(allocator, Buffer),
-        .list = List{},
-        .condition = std.Thread.Condition{},
-        .condition_mutex = std.Thread.Mutex{},
-        .read_write_mutex = std.Thread.Mutex{},
-        .node_pool = std.array_list.Managed(*ListNode).init(allocator),
-        .buffer_pool = std.array_list.Managed(*Buffer).init(allocator),
+        .list = .{},
+        .condition = .{},
+        .condition_mutex = .{},
+        .read_write_mutex = .{},
+        .node_pool = .empty,
+        .buffer_pool = .empty,
         .position = 0,
     };
 }
 
 /// Free allocated resources and return to `pending` state.
 pub fn deinit(self: *LogQueue) void {
-    self.node_pool.deinit();
-    self.buffer_pool.deinit();
+    self.node_pool.deinit(self.allocator);
+    self.buffer_pool.deinit(self.allocator);
 
     self.buffer_allocator.deinit();
     self.node_allocator.deinit();
@@ -72,12 +85,12 @@ pub fn deinit(self: *LogQueue) void {
 /// Set the stdout and stderr outputs. Must be called before `print`.
 pub fn setFiles(
     self: *LogQueue,
-    stdout_file: jetzig.loggers.LogFile,
-    stderr_file: jetzig.loggers.LogFile,
+    stdout_file: LogFile,
+    stderr_file: LogFile,
 ) !void {
     self.writer = Writer{
         .queue = self,
-        .mutex = std.Thread.Mutex{},
+        .mutex = .{},
     };
     self.reader = Reader{
         .stdout_file = stdout_file,
@@ -87,15 +100,17 @@ pub fn setFiles(
     self.stdout_is_tty = stdout_file.file.isTty();
     self.stderr_is_tty = stderr_file.file.isTty();
 
-    self.stdout_colorize = std.io.tty.detectConfig(stdout_file.file) != .no_color;
-    self.stderr_colorize = std.io.tty.detectConfig(stderr_file.file) != .no_color;
+    self.stdout_colorize = std.Io.tty.detectConfig(stdout_file.file) != .no_color;
+    self.stderr_colorize = std.Io.tty.detectConfig(stderr_file.file) != .no_color;
+
+    try self.node_pool.ensureTotalCapacity(self.allocator, max_pool_len);
+    try self.buffer_pool.ensureTotalCapacity(self.allocator, max_pool_len);
 
     self.state = .ready;
 }
 
 pub fn print(self: *LogQueue, comptime message: []const u8, args: anytype, target: Target) !void {
-    std.debug.assert(self.state == .ready);
-
+    assert(self.state == .ready);
     try self.writer.print(message, args, target);
 }
 
@@ -103,7 +118,7 @@ pub fn print(self: *LogQueue, comptime message: []const u8, args: anytype, targe
 pub const Writer = struct {
     queue: *LogQueue,
     position: usize = 0,
-    mutex: std.Thread.Mutex,
+    mutex: Mutex,
 
     /// Print a log event. Messages longer than `jetzig.config.get(usize, "log_message_buffer_len")`
     /// spill to heap with degraded performance. Adjust buffer length or limit long entries to
@@ -151,8 +166,8 @@ pub const Writer = struct {
 /// Reader for `LogQueue`. Reads log events from the queue and writes them to the designated
 /// target (stdout or stderr).
 pub const Reader = struct {
-    stdout_file: jetzig.loggers.LogFile,
-    stderr_file: jetzig.loggers.LogFile,
+    stdout_file: LogFile,
+    stderr_file: LogFile,
     queue: *LogQueue,
 
     pub const PublishOptions = struct {
@@ -162,10 +177,7 @@ pub const Reader = struct {
     /// Publish log events from the queue. Invoke from a dedicated thread. Sleeps when log queue
     /// is empty, wakes up when a new event is published.
     pub fn publish(self: *Reader, options: PublishOptions) !void {
-        std.debug.assert(self.queue.state == .ready);
-
-        const stdout_writer = self.stdout_file.file.writer(&.{});
-        const stderr_writer = self.stderr_file.file.writer(&.{});
+        assert(self.queue.state == .ready);
 
         while (true) {
             self.queue.condition_mutex.lock();
@@ -175,40 +187,37 @@ pub const Reader = struct {
 
             var stdout_written = false;
             var stderr_written = false;
-            var file: std.fs.File = undefined;
+            var file: File = undefined;
 
             while (try self.queue.popFirst()) |event| {
                 self.queue.writer.mutex.lock();
                 defer self.queue.writer.mutex.unlock();
 
-                switch (event.target) {
-                    .stdout => {
+                const target_file = switch (event.target) {
+                    .stdout => blk: {
                         stdout_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stdout_file.file;
                         }
+                        break :blk self.stdout_file.file;
                     },
-                    .stderr => {
+                    .stderr => blk: {
                         stderr_written = true;
                         if (builtin.os.tag == .windows) {
                             file = self.stderr_file.file;
                         }
+                        break :blk self.stderr_file.file;
                     },
-                }
-
-                var writer = switch (event.target) {
-                    .stdout => stdout_writer,
-                    .stderr => stderr_writer,
                 };
 
                 if (event.ptr) |ptr| {
                     // Log message spilled to heap
                     defer self.queue.allocator.free(ptr);
-                    try writer.interface.writeAll(ptr);
+                    try target_file.writeAll(ptr);
                     continue;
                 }
 
-                try writer.interface.writeAll(event.message[0..event.len]);
+                try target_file.writeAll(event.message[0..event.len]);
 
                 self.queue.writer.position -= 1;
 
@@ -219,7 +228,7 @@ pub const Reader = struct {
                         self.queue.buffer_allocator.destroy(@alignCast(event.message));
                         self.queue.writer.position += 1;
                     } else {
-                        try self.queue.buffer_pool.append(event.message);
+                        try self.queue.buffer_pool.append(self.queue.allocator, event.message);
                     }
                 }
             }
@@ -267,33 +276,32 @@ fn popFirst(self: *LogQueue) !?Event {
                 self.node_allocator.destroy(list_node);
                 self.position += 1;
             } else {
-                try self.node_pool.append(list_node);
+                try self.node_pool.append(self.allocator, list_node);
             }
         }
         return value;
-    } else {
-        return null;
     }
+    return null;
 }
 
-fn initPool(allocator: std.mem.Allocator, T: type) std.heap.MemoryPool(T) {
-    return std.heap.MemoryPool(T).initPreheated(allocator, max_pool_len) catch @panic("OOM");
+fn initPool(allocator: Allocator, T: type) MemoryPool(T) {
+    return MemoryPool(T).initPreheated(allocator, max_pool_len) catch @panic("OOM");
 }
 
 test "print to stdout and stderr" {
-    var log_queue = LogQueue.init(std.testing.allocator);
+    var log_queue: LogQueue = .init(testing.allocator);
     defer log_queue.deinit();
 
-    var tmp_dir = std.testing.tmpDir(.{});
+    var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
 
-    const stdout = try tmp_dir.dir.createFile("stdout.log", .{ .read = true });
+    const stdout = try tmp_dir.dir.createFile("stdout.log", .{ .read = true, .truncate = true });
     defer stdout.close();
 
-    const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true });
+    const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true, .truncate = true });
     defer stderr.close();
 
-    try log_queue.setFiles(.{ .file = stdout }, .{ .file = stderr });
+    try log_queue.setFiles(.{ .file = stdout, .sync = true }, .{ .file = stderr, .sync = true });
     try log_queue.print("foo {s}\n", .{"bar"}, .stdout);
     try log_queue.print("baz {s}\n", .{"qux"}, .stderr);
     try log_queue.print("quux {s}\n", .{"corge"}, .stdout);
@@ -307,7 +315,7 @@ test "print to stdout and stderr" {
     var buf: [1024]u8 = undefined;
     var len = try stdout.readAll(&buf);
 
-    try std.testing.expectEqualStrings(
+    try testing.expectEqualStrings(
         \\foo bar
         \\quux corge
         \\plugh zyzzy
@@ -316,7 +324,7 @@ test "print to stdout and stderr" {
 
     try stderr.seekTo(0);
     len = try stderr.readAll(&buf);
-    try std.testing.expectEqualStrings(
+    try testing.expectEqualStrings(
         \\baz qux
         \\grault garply
         \\waldo fred
@@ -325,19 +333,19 @@ test "print to stdout and stderr" {
 }
 
 test "long messages" {
-    var log_queue = LogQueue.init(std.testing.allocator);
+    var log_queue: LogQueue = .init(testing.allocator);
     defer log_queue.deinit();
 
-    var tmp_dir = std.testing.tmpDir(.{});
+    var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
 
-    const stdout = try tmp_dir.dir.createFile("stdout.log", .{ .read = true });
+    const stdout = try tmp_dir.dir.createFile("stdout.log", .{ .read = true, .truncate = true });
     defer stdout.close();
 
-    const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true });
+    const stderr = try tmp_dir.dir.createFile("stderr.log", .{ .read = true, .truncate = true });
     defer stderr.close();
 
-    try log_queue.setFiles(.{ .file = stdout }, .{ .file = stderr });
+    try log_queue.setFiles(.{ .file = stdout, .sync = true }, .{ .file = stderr, .sync = true });
     try log_queue.print("foo" ** buffer_size, .{}, .stdout);
 
     try log_queue.reader.publish(.{ .oneshot = true });
@@ -346,5 +354,5 @@ test "long messages" {
     var buf: [buffer_size * 3]u8 = undefined;
     const len = try stdout.readAll(&buf);
 
-    try std.testing.expectEqualStrings("foo" ** buffer_size, buf[0..len]);
+    try testing.expectEqualStrings("foo" ** buffer_size, buf[0..len]);
 }

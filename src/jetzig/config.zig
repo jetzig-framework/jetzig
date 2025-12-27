@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const zmpl = @import("zmpl").zmpl;
-pub const zmd = @import("zmd").zmd;
+pub const zmd = @import("zmd");
 pub const jetkv = @import("jetkv").jetkv;
 pub const jetquery = @import("jetquery");
 
@@ -159,15 +159,15 @@ pub const smtp: mail.SMTPConfig = .{
 };
 
 /// HTTP cookie configuration
-pub const cookies: http.Cookies.CookieOptions = switch (environment) {
+pub const cookies: http.Cookies.Cookie.Options = switch (environment) {
     .development, .testing => .{
         .domain = "localhost",
         .path = "/",
     },
     .production => .{
         .secure = true,
-        .http_only = true,
-        .same_site = .lax,
+        .httponly = true,
+        .samesite = .lax,
         .path = "/",
     },
 };
@@ -187,7 +187,7 @@ pub const auth: @import("auth.zig").AuthOptions = .{
 pub const force_development_email_delivery = false;
 
 /// Reconciles a configuration value from user-defined values and defaults provided by Jetzig.
-pub fn get(T: type, comptime key: []const u8) T {
+pub fn get(comptime T: type, comptime key: []const u8) T {
     const self = @This();
     if (!@hasDecl(self, key)) @compileError("Unknown config option: " ++ key);
 
