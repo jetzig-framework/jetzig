@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const ArrayList = std.ArrayList;
+
 pub const ErrorInfo = struct {
     stack_trace: ?*std.builtin.StackTrace = null,
     err: ?anyerror = null,
@@ -11,7 +13,7 @@ pub fn sourceLocations(
     debug_info: *std.debug.SelfInfo,
     stack_trace: *std.builtin.StackTrace,
 ) ![]const std.debug.SourceLocation {
-    var source_locations = std.array_list.Managed(std.debug.SourceLocation).init(allocator);
+    var source_locations: ArrayList(std.debug.SourceLocation) = .empty;
 
     if (builtin.strip_debug_info) return error.MissingDebugInfo;
 
@@ -28,11 +30,11 @@ pub fn sourceLocations(
         const symbol_info = try module.getSymbolAtAddress(debug_info.allocator, address);
 
         if (symbol_info.source_location) |source_location| {
-            try source_locations.append(source_location);
+            try source_locations.append(allocator, source_location);
         }
     }
 
-    return try source_locations.toOwnedSlice();
+    return try source_locations.toOwnedSlice(allocator);
 }
 
 pub const HtmlStackTrace = struct {
@@ -168,22 +170,22 @@ fn surroundingLinesFromFile(
         .next => target_line + 2,
     };
 
-    var lines = std.array_list.Managed(SourceLine).init(allocator);
+    var lines: ArrayList(SourceLine) = .empty;
 
     switch (context) {
         .previous => {
             for (start..target_line) |line| {
-                try lines.append(try readLineFromFile(allocator, path, line));
+                try lines.append(allocator, try readLineFromFile(allocator, path, line));
             }
         },
         .next => {
             for (0..desired_count, start..) |_, line| {
-                try lines.append(try readLineFromFile(allocator, path, line));
+                try lines.append(allocator, try readLineFromFile(allocator, path, line));
             }
         },
     }
 
-    return try lines.toOwnedSlice();
+    return try lines.toOwnedSlice(allocator);
 }
 
 pub const console_template =

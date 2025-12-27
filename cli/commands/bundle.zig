@@ -5,6 +5,8 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 
+const ArrayList = std.ArrayList;
+
 /// Command line options for the `bundle` command.
 pub const Options = struct {
     optimize: enum { Debug, ReleaseFast, ReleaseSmall } = .ReleaseFast,
@@ -105,12 +107,12 @@ pub fn run(
 
     try tmpdir.rename(exe_path, renamed_exe_path);
 
-    var tar_argv = std.array_list.Managed([]const u8).init(allocator);
-    defer tar_argv.deinit();
+    var tar_argv: ArrayList([]const u8) = .empty;
+    defer tar_argv.deinit(allocator);
     switch (builtin.os.tag) {
         .windows => {}, // TODO
         else => {
-            try tar_argv.appendSlice(&[_][]const u8{
+            try tar_argv.appendSlice(allocator, &[_][]const u8{
                 "tar",
                 "-zcf",
                 "../bundle.tar.gz",
@@ -136,10 +138,10 @@ pub fn run(
         try copyTree(allocator, cwd, "static", dest_path);
     }
 
-    var markdown_paths = std.array_list.Managed([]const u8).init(allocator);
+    var markdown_paths: ArrayList([]const u8) = .empty;
     try locateMarkdownFiles(allocator, cwd, views_path, &markdown_paths);
 
-    defer markdown_paths.deinit();
+    defer markdown_paths.deinit(allocator);
     defer for (markdown_paths.items) |markdown_path| allocator.free(markdown_path);
     for (markdown_paths.items) |markdown_path| {
         if (std.fs.path.dirname(markdown_path)) |dirname| bundle_dir.makePath(dirname) catch {};
@@ -158,7 +160,7 @@ pub fn run(
     util.printSuccess(null);
 }
 
-fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *std.array_list.Managed([]const u8)) !void {
+fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path: []const u8, paths: *ArrayList([]const u8)) !void {
     var views_dir = try dir.openDir(views_path, .{ .iterate = true });
     defer views_dir.close();
     var walker = try views_dir.walk(allocator);
@@ -167,47 +169,47 @@ fn locateMarkdownFiles(allocator: std.mem.Allocator, dir: std.fs.Dir, views_path
     while (try walker.next()) |entry| {
         if (std.mem.eql(u8, std.fs.path.extension(entry.path), ".md")) {
             const path = try std.fs.path.join(allocator, &[_][]const u8{ views_path, entry.path });
-            try paths.append(path);
+            try paths.append(allocator, path);
         }
     }
 }
 
 fn zig_build_install(allocator: std.mem.Allocator, path: []const u8, options: Options) !?[]const u8 {
-    var install_argv = std.array_list.Managed([]const u8).init(allocator);
-    defer install_argv.deinit();
+    var install_argv: ArrayList([]const u8) = .empty;
+    defer install_argv.deinit(allocator);
 
-    try install_argv.appendSlice(&[_][]const u8{ "zig", "build", "-Denvironment=production" });
+    try install_argv.appendSlice(allocator, &[_][]const u8{ "zig", "build", "-Denvironment=production" });
 
     switch (options.optimize) {
-        .ReleaseFast => try install_argv.append("-Doptimize=ReleaseFast"),
-        .ReleaseSmall => try install_argv.append("-Doptimize=ReleaseSmall"),
-        .Debug => try install_argv.append("-Doptimize=Debug"),
+        .ReleaseFast => try install_argv.append(allocator, "-Doptimize=ReleaseFast"),
+        .ReleaseSmall => try install_argv.append(allocator, "-Doptimize=ReleaseSmall"),
+        .Debug => try install_argv.append(allocator, "-Doptimize=Debug"),
     }
 
-    var target_buf = std.array_list.Managed([]const u8).init(allocator);
-    defer target_buf.deinit();
+    var target_buf: ArrayList([]const u8) = .empty;
+    defer target_buf.deinit(allocator);
 
-    try target_buf.append("-Dtarget=");
+    try target_buf.append(allocator, "-Dtarget=");
     switch (options.arch) {
-        .x86 => try target_buf.append("x86"),
-        .x86_64 => try target_buf.append("x86_64"),
-        .aarch64 => try target_buf.append("aarch64"),
-        .default => try target_buf.append(@tagName(builtin.cpu.arch)),
+        .x86 => try target_buf.append(allocator, "x86"),
+        .x86_64 => try target_buf.append(allocator, "x86_64"),
+        .aarch64 => try target_buf.append(allocator, "aarch64"),
+        .default => try target_buf.append(allocator, @tagName(builtin.cpu.arch)),
     }
 
-    try target_buf.append("-");
+    try target_buf.append(allocator, "-");
 
     switch (options.os) {
-        .linux => try target_buf.append("linux"),
-        .macos => try target_buf.append("macos"),
-        .windows => try target_buf.append("windows"),
-        .default => try target_buf.append(@tagName(builtin.os.tag)),
+        .linux => try target_buf.append(allocator, "linux"),
+        .macos => try target_buf.append(allocator, "macos"),
+        .windows => try target_buf.append(allocator, "windows"),
+        .default => try target_buf.append(allocator, @tagName(builtin.os.tag)),
     }
 
     const target = try std.mem.concat(allocator, u8, target_buf.items);
     defer allocator.free(target);
 
-    try install_argv.appendSlice(&[_][]const u8{
+    try install_argv.appendSlice(allocator, &[_][]const u8{
         target, "--prefix", ".bundle", "install",
     });
 

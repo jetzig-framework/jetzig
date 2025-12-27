@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const jetzig = @import("../../jetzig.zig");
 
@@ -9,7 +10,7 @@ const Query = @This();
 
 allocator: Allocator,
 query_string: []const u8,
-query_items: std.array_list.Managed(QueryItem),
+query_items: ArrayList(QueryItem),
 data: *jetzig.data.Data,
 
 pub const QueryItem = struct {
@@ -21,13 +22,13 @@ pub fn init(allocator: Allocator, query_string: []const u8, data: *Data) Query {
     return .{
         .allocator = allocator,
         .query_string = query_string,
-        .query_items = std.array_list.Managed(QueryItem).init(allocator),
+        .query_items = .empty,
         .data = data,
     };
 }
 
 pub fn deinit(self: *Query) void {
-    self.query_items.deinit();
+    self.query_items.deinit(self.allocator);
 }
 
 pub fn parse(self: *Query) !void {
@@ -49,7 +50,7 @@ pub fn parse(self: *Query) !void {
         }
         if (maybe_key) |key| {
             if (key.len > 0) {
-                try self.query_items.append(.{ .key = key, .value = value });
+                try self.query_items.append(self.allocator, .{ .key = key, .value = value });
             }
         }
     }

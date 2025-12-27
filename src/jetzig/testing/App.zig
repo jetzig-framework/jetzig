@@ -3,6 +3,9 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 const httpz = @import("httpz");
 
+const ArrayList = std.ArrayList;
+const Writer = std.Io.Writer;
+
 const App = @This();
 const MemoryStore = jetzig.kv.Store.Generic(.{ .backend = .memory });
 
@@ -182,12 +185,12 @@ pub fn request(
         self.cookies = cookies;
     }
 
-    var headers = std.array_list.Managed(jetzig.testing.TestResponse.Header).init(allocator);
+    var headers: ArrayList(jetzig.testing.TestResponse.Header) = .empty;
     for (0..httpz_response.headers.len) |index| {
         const key = httpz_response.headers.keys[index];
         const value = httpz_response.headers.values[index];
 
-        try headers.append(.{
+        try headers.append(allocator, .{
             .name = try allocator.dupe(u8, key),
             .value = try allocator.dupe(u8, httpz_response.headers.values[index]),
         });
@@ -204,9 +207,9 @@ pub fn request(
     var data = jetzig.data.Data.init(allocator);
     defer data.deinit();
 
-    var jobs = std.array_list.Managed(jetzig.testing.TestResponse.Job).init(allocator);
+    var jobs: ArrayList(jetzig.testing.TestResponse.Job) = .empty;
     while (try self.job_queue.popFirst(&data, "__jetzig_jobs")) |value| {
-        if (value.getT(.string, "__jetzig_job_name")) |job_name| try jobs.append(.{
+        if (value.getT(.string, "__jetzig_job_name")) |job_name| try jobs.append(allocator, .{
             .name = try allocator.dupe(u8, job_name),
             .params = value,
         });
@@ -218,20 +221,20 @@ pub fn request(
         .allocator = allocator,
         .status = httpz_response.status,
         .body = try allocator.dupe(u8, httpz_response.body),
-        .headers = try headers.toOwnedSlice(),
-        .jobs = try jobs.toOwnedSlice(),
+        .headers = try headers.toOwnedSlice(allocator),
+        .jobs = try jobs.toOwnedSlice(allocator),
     };
 }
 
 /// Generate query params to use with a request.
 pub fn params(self: App, args: anytype) []Param {
     const allocator = self.arena.allocator();
-    var array = std.array_list.Managed(Param).init(allocator);
+    var array: ArrayList(Param) = .empty;
     inline for (@typeInfo(@TypeOf(args)).@"struct".fields) |field| {
         const value = coerceString(allocator, @field(args, field.name));
-        array.append(.{ .key = field.name, .value = value }) catch @panic("OOM");
+        array.append(allocator, .{ .key = field.name, .value = value }) catch @panic("OOM");
     }
-    return array.toOwnedSlice() catch @panic("OOM");
+    return array.toOwnedSlice(allocator) catch @panic("OOM");
 }
 
 pub fn initSession(self: *App) !void {
@@ -252,40 +255,40 @@ pub fn json(self: App, args: anytype) []const u8 {
 
 /// Generate a `multipart/form-data`-encoded request body.
 pub fn multipart(self: *App, comptime args: anytype) []const u8 {
-    var buf = std.array_list.Managed(u8).init(self.arena.allocator());
-    const writer = buf.writer();
+    var buf: Writer.Allocating = .init(self.arena.allocator());
+    defer buf.deinit();
     var boundary_buf: [16]u8 = undefined;
 
     const boundary = jetzig.util.generateRandomString(&boundary_buf);
     self.multipart_boundary = boundary;
 
     inline for (@typeInfo(@TypeOf(args)).@"struct".fields, 0..) |field, index| {
-        if (index > 0) tryWrite(writer, "\r\n");
-        tryWrite(writer, "--");
-        tryWrite(writer, boundary);
-        tryWrite(writer, "\r\n");
+        if (index > 0) tryWrite(buf.writer, "\r\n");
+        tryWrite(buf.writer, "--");
+        tryWrite(buf.writer, boundary);
+        tryWrite(buf.writer, "\r\n");
         switch (@TypeOf(@field(args, field.name))) {
             jetzig.testing.File => {
                 const header = std.fmt.comptimePrint(
                     \\Content-Disposition: form-data; name="{s}"; filename="{s}"
                 , .{ field.name, @field(args, field.name).filename });
-                tryWrite(writer, header ++ "\r\n\r\n");
-                tryWrite(writer, @field(args, field.name).content);
+                tryWrite(buf.writer, header ++ "\r\n\r\n");
+                tryWrite(buf.writer, @field(args, field.name).content);
             },
             // Assume a string, let Zig fail for us if not.
             else => {
                 tryWrite(
-                    writer,
+                    buf.writer,
                     "Content-Disposition: form-data; name=\"" ++ field.name ++ "\"\r\n\r\n",
                 );
-                tryWrite(writer, @field(args, field.name));
+                tryWrite(buf.writer, @field(args, field.name));
             },
         }
     }
 
-    tryWrite(writer, "\r\n--");
-    tryWrite(writer, boundary);
-    tryWrite(writer, "--\r\n");
+    tryWrite(buf.writer, "\r\n--");
+    tryWrite(buf.writer, boundary);
+    tryWrite(buf.writer, "--\r\n");
     return buf.toOwnedSlice() catch @panic("OOM");
 }
 
@@ -307,9 +310,9 @@ fn stubbedRequest(
     for (options.headers) |header| request_headers.add(header.name, header.value);
 
     if (maybe_cookies) |cookies| {
-        var cookie_buf = std.array_list.Managed(u8).init(allocator);
-        const cookie_writer = cookie_buf.writer();
-        try cookie_writer.print("{}", .{cookies});
+        var cookie_buf: Writer.Allocating = .init(allocator);
+        defer cookie_buf.deinit();
+        try cookie_buf.writer.print("{}", .{cookies});
         const cookie = try cookie_buf.toOwnedSlice();
         request_headers.add("cookie", cookie);
     }
@@ -326,10 +329,11 @@ fn stubbedRequest(
         request_headers.add("content-type", header);
     }
 
-    var params_buf = std.array_list.Managed([]const u8).init(allocator);
+    var params_buf: ArrayList([]const u8) = .empty;
     if (options.params) |array| {
         for (array) |param| {
             try params_buf.append(
+                allocator,
                 try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{
                     param.key,
                     if (param.value != null) "=" else "",
@@ -338,7 +342,7 @@ fn stubbedRequest(
             );
         }
     }
-    const query = try std.mem.join(allocator, "&", try params_buf.toOwnedSlice());
+    const query = try std.mem.join(allocator, "&", try params_buf.toOwnedSlice(allocator));
     return .{
         .url = .{
             .raw = try std.mem.concat(allocator, u8, &.{ path, if (query.len > 0) "?" else "", query }),
@@ -449,16 +453,17 @@ fn buildOptions(allocator: std.mem.Allocator, app: *const App, args: anytype) !R
 }
 
 fn buildHeaders(allocator: std.mem.Allocator, args: anytype) ![]const jetzig.testing.TestResponse.Header {
-    var headers = std.array_list.Managed(jetzig.testing.TestResponse.Header).init(allocator);
+    var headers: ArrayList(jetzig.testing.TestResponse.Header) = .empty;
     inline for (std.meta.fields(@TypeOf(args))) |field| {
         try headers.append(
+            allocator,
             jetzig.testing.TestResponse.Header{
                 .name = field.name,
                 .value = @field(args, field.name),
             },
         );
     }
-    return try headers.toOwnedSlice();
+    return try headers.toOwnedSlice(allocator);
 }
 
 fn coerceString(allocator: std.mem.Allocator, value: anytype) []const u8 {

@@ -5,16 +5,18 @@ const args = @import("args");
 const jetzig = @import("../jetzig.zig");
 const mime_types = @import("mime_types").mime_types; // Generated at build time.
 
+const ArrayList = std.ArrayList;
+
 const App = @This();
 
 env: jetzig.Environment,
 allocator: std.mem.Allocator,
-custom_routes: std.array_list.Managed(jetzig.views.Route),
+custom_routes: ArrayList(jetzig.views.Route),
 initHook: ?*const fn (*App) anyerror!void,
 server: *jetzig.http.Server = undefined,
 
 pub fn deinit(self: *const App) void {
-    @constCast(self).custom_routes.deinit();
+    @constCast(self).custom_routes.deinit(self.allocator);
 }
 
 /// Specify a global value accessible as `request.server.global`.
@@ -69,10 +71,10 @@ pub fn start(self: *const App, routes_module: type, options: AppOptions) !void {
     if (self.env.detach) {
         const argv = try std.process.argsAlloc(self.allocator);
         defer std.process.argsFree(self.allocator, argv);
-        var child_argv = std.array_list.Managed([]const u8).init(self.allocator);
+        var child_argv: ArrayList([]const u8) = .empty;
         for (argv) |arg| {
             if (!std.mem.eql(u8, "-d", arg) and !std.mem.eql(u8, "--detach", arg)) {
-                try child_argv.append(arg);
+                try child_argv.append(self.allocator, arg);
             }
         }
         var child = std.process.Child.init(child_argv.items, self.allocator);
@@ -160,7 +162,7 @@ pub fn route(
     const args_fields = std.meta.fields(std.meta.ArgsTuple(@TypeOf(viewFn)));
     const legacy = args_fields.len > 0 and args_fields[args_fields.len - 1].type == *jetzig.Data;
 
-    self.custom_routes.append(.{
+    self.custom_routes.append(self.allocator, .{
         .id = "custom",
         .name = member,
         .action = .custom,
@@ -203,7 +205,7 @@ pub fn createRoutes(
     allocator: std.mem.Allocator,
     comptime_routes: []const jetzig.views.Route,
 ) ![]const *const jetzig.views.Route {
-    var routes = std.array_list.Managed(*jetzig.views.Route).init(allocator);
+    var routes: ArrayList(*jetzig.views.Route) = .empty;
 
     for (comptime_routes) |const_route| {
         var var_route = try allocator.create(jetzig.views.Route);
@@ -224,8 +226,8 @@ pub fn createRoutes(
         };
 
         try var_route.initParams(allocator);
-        try routes.append(var_route);
+        try routes.append(allocator, var_route);
     }
 
-    return try routes.toOwnedSlice();
+    return try routes.toOwnedSlice(allocator);
 }

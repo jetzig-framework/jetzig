@@ -3,6 +3,8 @@ const args = @import("args");
 const secret = @import("generate/secret.zig");
 const util = @import("../util.zig");
 
+const ArrayList = std.ArrayList;
+
 const view = @import("generate/view.zig");
 const partial = @import("generate/partial.zig");
 const layout = @import("generate/layout.zig");
@@ -51,11 +53,11 @@ pub fn run(
         migration,
         seeder,
     };
-    var sub_args = std.array_list.Managed([]const u8).init(allocator);
-    defer sub_args.deinit();
+    var sub_args: ArrayList([]const u8) = .empty;
+    defer sub_args.deinit(allocator);
 
-    var available_buf = std.array_list.Managed([]const u8).init(allocator);
-    defer available_buf.deinit();
+    var available_buf: ArrayList([]const u8) = .empty;
+    defer available_buf.deinit(allocator);
 
     const map = std.StaticStringMap(Generator).initComptime(.{
         .{ "view", .view },
@@ -68,7 +70,7 @@ pub fn run(
         .{ "migration", .migration },
         .{ "seeder", .seeder },
     });
-    for (map.keys()) |key| try available_buf.append(key);
+    for (map.keys()) |key| try available_buf.append(allocator, key);
 
     const available_help = try std.mem.join(allocator, "|", available_buf.items);
     defer allocator.free(available_help);
@@ -83,7 +85,7 @@ pub fn run(
         null;
 
     if (main_options.positionals.len > 1) {
-        for (main_options.positionals[1..]) |arg| try sub_args.append(arg);
+        for (main_options.positionals[1..]) |arg| try sub_args.append(allocator, arg);
     }
 
     if (main_options.options.help and generate_type == null) {

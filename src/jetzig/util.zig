@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 
 const colors = @import("colors.zig");
 
+const Writer = std.Io.Writer;
+
 /// Compare two strings with case-insensitive matching.
 pub fn equalStringsCaseInsensitive(expected: []const u8, actual: []const u8) bool {
     if (expected.len != actual.len) return false;
@@ -38,17 +40,19 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
 
 pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
-    var compressed = std.array_list.Managed(u8).init(allocator);
+    var compressed: Writer.Allocating = .init(allocator);
+    defer compressed.deinit();
     var content_reader = std.io.fixedBufferStream(content);
-    try std.compress.gzip.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
+    try std.compress.gzip.compress(content_reader.reader(), compressed.writer, .{ .level = .fast });
     return try compressed.toOwnedSlice();
 }
 
 pub fn deflate(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
-    var compressed = std.array_list.Managed(u8).init(allocator);
+    var compressed: Writer.Allocating = .init(allocator);
+    defer compressed.deinit();
     var content_reader = std.io.fixedBufferStream(content);
-    try std.compress.flate.compress(content_reader.reader(), compressed.writer(), .{ .level = .fast });
+    try std.compress.flate.compress(content_reader.reader(), compressed.writer, .{ .level = .fast });
     return try compressed.toOwnedSlice();
 }
 

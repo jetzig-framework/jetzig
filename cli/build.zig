@@ -2,6 +2,8 @@ const std = @import("std");
 
 const compile = @import("compile.zig");
 
+const ArrayList = std.ArrayList;
+
 fn getGitHash(allocator: std.mem.Allocator) ![]const u8 {
     const args = &[_][]const u8{ "git", "rev-parse", "--short=10", "HEAD" };
     const proc = try std.process.Child.run(.{
@@ -44,14 +46,14 @@ pub fn build(b: *std.Build) !void {
     const raw_hash = try getGitHash(b.allocator);
     defer b.allocator.free(raw_hash);
     const hash = std.mem.trim(u8, raw_hash, &std.ascii.whitespace);
-    var content = std.array_list.Managed(u8).init(b.allocator);
-    defer content.deinit();
-    try content.appendSlice("pub const version = \"");
-    try content.appendSlice(version_str);
-    try content.appendSlice("\";\n");
-    try content.appendSlice("pub const commit_hash = \"");
-    try content.appendSlice(hash);
-    try content.appendSlice("\";\n");
+    var content: ArrayList(u8) = .empty;
+    defer content.deinit(b.allocator);
+    try content.appendSlice(b.allocator, "pub const version = \"");
+    try content.appendSlice(b.allocator, version_str);
+    try content.appendSlice(b.allocator, "\";\n");
+    try content.appendSlice(b.allocator, "pub const commit_hash = \"");
+    try content.appendSlice(b.allocator, hash);
+    try content.appendSlice(b.allocator, "\";\n");
     const write_files = b.addWriteFiles();
     const version_src = write_files.add("version.zig", content.items);
     const version_module = b.createModule(.{ .root_source_file = version_src });

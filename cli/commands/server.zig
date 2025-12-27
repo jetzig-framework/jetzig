@@ -4,6 +4,8 @@ const args = @import("args");
 
 const util = @import("../util.zig");
 
+const ArrayList = std.ArrayList;
+
 pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
 
 /// Command line options for the `server` command.
@@ -60,18 +62,18 @@ pub fn run(
         },
     );
 
-    var argv = std.array_list.Managed([]const u8).init(allocator);
-    defer argv.deinit();
+    var argv: ArrayList([]const u8) = .empty;
+    defer argv.deinit(allocator);
 
-    try argv.appendSlice(&.{
+    try argv.appendSlice(allocator, &.{
         "zig",
         "build",
         util.environmentBuildOption(main_options.options.environment),
         "-Djetzig_runner=true",
     });
 
-    if (options.debug) try argv.append("-Ddebug_console=true");
-    try argv.appendSlice(&.{
+    if (options.debug) try argv.append(allocator, "-Ddebug_console=true");
+    try argv.appendSlice(allocator, &.{
         "install",
         "--color",
         "on",
@@ -99,11 +101,11 @@ pub fn run(
         process.stderr_behavior = .Inherit;
         process.cwd = realpath;
 
-        var stdout_buf = std.array_list.Managed(u8).init(allocator);
-        defer stdout_buf.deinit();
+        var stdout_buf: ArrayList(u8) = .empty;
+        defer stdout_buf.deinit(allocator);
 
-        var stderr_buf = std.array_list.Managed(u8).init(allocator);
-        defer stderr_buf.deinit();
+        var stderr_buf: ArrayList(u8) = .empty;
+        defer stderr_buf.deinit(allocator);
 
         try process.spawn();
 

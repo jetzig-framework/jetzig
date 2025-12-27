@@ -4,6 +4,8 @@ const httpz = @import("httpz");
 
 const jetzig = @import("../../jetzig.zig");
 
+const ArrayList = std.ArrayList;
+
 const Request = @This();
 const default_content_type = "text/html";
 
@@ -751,11 +753,11 @@ pub fn renderText(
 }
 
 pub fn joinPaths(self: *const Request, paths: []const []const []const u8) ![]const u8 {
-    var buf = std.array_list.Managed([]const u8).init(self.allocator);
-    defer buf.deinit();
+    var buf: ArrayList([]const u8) = .empty;
+    defer buf.deinit(self.allocator);
 
     for (paths) |subpaths| {
-        for (subpaths) |path| try buf.append(path);
+        for (subpaths) |path| try buf.append(self.allocator, path);
     }
     return try std.mem.join(self.allocator, "/", buf.items);
 }

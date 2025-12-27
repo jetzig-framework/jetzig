@@ -33,8 +33,8 @@
             .hash = "httpz-0.0.0-PNVzrHLABgDoVnzqKpEbx2rZIzmMclEdoEmdJDfZmxsv",
         },
         .jetquery = .{
-            .url = "https://github.com/jetzig-framework/jetquery/archive/a5a97b5f10dbd43b4dd18d9fddb7a1d9f1403c91.tar.gz",
-            .hash = "jetquery-0.0.0-TNf3zuDABgCbhjXEg2zcJSfspQd2MNwxZw3gdr1Do17U",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/2d7659ddba9252fad2b73c14204a43fd73e4fc12.tar.gz",
+            .hash = "jetquery-0.0.0-TNf3zjTDBgBjArdWf0K49scPrXrogdEC8ZYvDCye9-xb",
         },
     },
 

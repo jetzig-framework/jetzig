@@ -6,6 +6,9 @@ const zmpl = @import("zmpl");
 const zmd = @import("zmd");
 const httpz = @import("httpz");
 
+const ArrayList = std.ArrayList;
+const Writer = std.Io.Writer;
+
 allocator: std.mem.Allocator,
 logger: jetzig.loggers.Logger,
 env: jetzig.Environment,
@@ -556,8 +559,8 @@ fn renderDebugConsole(
     error_info: jetzig.debug.ErrorInfo,
 ) !RenderedView {
     if (comptime jetzig.build_options.debug_console) {
-        var buf = std.array_list.Managed(u8).init(request.allocator);
-        const writer = buf.writer();
+        var buf: Writer.Allocating = .init(request.allocator);
+        defer buf.deinit();
 
         if (error_info.stack_trace) |stack_trace| {
             const debug_content = jetzig.debug.HtmlStackTrace{
@@ -565,7 +568,7 @@ fn renderDebugConsole(
                 .stack_trace = stack_trace,
             };
             const error_name = if (error_info.err) |err| @errorName(err) else "[UnknownError]";
-            try writer.print(
+            try buf.writer.print(
                 jetzig.debug.console_template,
                 .{
                     error_name,
@@ -679,11 +682,10 @@ fn logStackTrace(
     stack: *std.builtin.StackTrace,
     allocator: std.mem.Allocator,
 ) !void {
-    var buf = std.array_list.Managed(u8).init(allocator);
+    var buf: Writer.Allocating = .init(allocator);
     defer buf.deinit();
-    const writer = buf.writer();
-    try stack.format("", .{}, writer);
-    if (buf.items.len > 0) try self.logger.ERROR("{s}\n", .{buf.items});
+    try stack.format("", .{}, buf.writer);
+    if (buf.items().len > 0) try self.logger.ERROR("{s}\n", .{buf.items()});
 }
 
 fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {
@@ -844,15 +846,15 @@ pub fn decodeStaticParams(self: *Server) !void {
     if (comptime !@hasDecl(jetzig.root, "static")) return;
 
     // Store decoded static params (i.e. declared in views) for faster comparison at request time.
-    var decoded = std.array_list.Managed(*jetzig.data.Value).init(self.allocator);
+    var decoded: ArrayList(*jetzig.data.Value) = .empty;
     for (jetzig.root.static.compiled) |compiled| {
         const data = try self.allocator.create(jetzig.data.Data);
         data.* = jetzig.data.Data.init(self.allocator);
         try data.fromJson(compiled.output.params orelse "{}");
-        try decoded.append(data.value.?);
+        try decoded.append(self.allocator, data.value.?);
     }
 
-    self.decoded_static_route_params = try decoded.toOwnedSlice();
+    self.decoded_static_route_params = try decoded.toOwnedSlice(self.allocator);
 }
 
 fn matchStaticOutput(

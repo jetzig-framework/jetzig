@@ -3,6 +3,8 @@ const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 const view_types = @import("view_types.zig");
 
+const ArrayList = std.ArrayList;
+
 const Route = @This();
 
 pub const Action = enum { index, get, new, edit, post, put, patch, delete, custom };
@@ -54,7 +56,7 @@ static: bool = false,
 layout: ?[]const u8 = null,
 template: []const u8,
 json_params: []const []const u8,
-params: std.array_list.Managed(*jetzig.data.Data) = undefined,
+params: ArrayList(*jetzig.data.Data) = undefined,
 id: []const u8,
 formats: ?Formats = null,
 before_callbacks: []const jetzig.callbacks.BeforeCallback = &.{},
@@ -63,21 +65,26 @@ after_callbacks: []const jetzig.callbacks.AfterCallback = &.{},
 /// Initializes a route's static params on server launch. Converts static params (JSON strings)
 /// to `jetzig.data.Data` values. Memory is owned by caller (`App.start()`).
 pub fn initParams(self: *Route, allocator: std.mem.Allocator) !void {
-    self.params = std.array_list.Managed(*jetzig.data.Data).init(allocator);
+    self.params = .empty;
     for (self.json_params) |params| {
         var data = try allocator.create(jetzig.data.Data);
         data.* = jetzig.data.Data.init(allocator);
-        try self.params.append(data);
+        try self.params.append(allocator, data);
         try data.fromJson(params);
     }
 }
 
 pub fn deinitParams(self: *const Route) void {
+    const allocator = if (self.params.items.len > 0)
+        self.params.items[0].parent_allocator
+    else
+        return;
+
     for (self.params.items) |data| {
         data.deinit();
         data.parent_allocator.destroy(data);
     }
-    self.params.deinit();
+    @constCast(&self.params).deinit(allocator);
 }
 
 pub fn format(self: Route, _: []const u8, _: anytype, writer: anytype) !void {

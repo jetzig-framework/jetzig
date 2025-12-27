@@ -2,6 +2,8 @@ const std = @import("std");
 const args = @import("args");
 const util = @import("../util.zig");
 
+const ArrayList = std.ArrayList;
+
 /// Command line options for the `update` command.
 pub const Options = struct {
     pub const meta = .{
@@ -73,15 +75,15 @@ pub fn run(
                     std.debug.print("Missing argument. Expected an email/username parameter.\n", .{});
                     break :blk error.JetzigCommandError;
                 } else {
-                    var argv = std.array_list.Managed([]const u8).init(allocator);
-                    try argv.append("zig");
-                    try argv.append("build");
-                    try argv.append(util.environmentBuildOption(main_options.options.environment));
-                    try argv.append(try std.mem.concat(allocator, u8, &.{ "-Dauth_username=", sub_args[0] }));
+                    var argv: ArrayList([]const u8) = .empty;
+                    try argv.append(allocator, "zig");
+                    try argv.append(allocator, "build");
+                    try argv.append(allocator, util.environmentBuildOption(main_options.options.environment));
+                    try argv.append(allocator, try std.mem.concat(allocator, u8, &.{ "-Dauth_username=", sub_args[0] }));
                     if (sub_args.len > 1) {
-                        try argv.append(try std.mem.concat(allocator, u8, &.{ "-Dauth_password=", sub_args[1] }));
+                        try argv.append(allocator, try std.mem.concat(allocator, u8, &.{ "-Dauth_password=", sub_args[1] }));
                     }
-                    try argv.append("jetzig:auth:user:create");
+                    try argv.append(allocator, "jetzig:auth:user:create");
                     try util.execCommand(allocator, argv.items);
                 }
             },

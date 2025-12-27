@@ -4,6 +4,7 @@ pub const Routes = @import("src/Routes.zig");
 pub const GenerateMimeTypes = @import("src/GenerateMimeTypes.zig");
 
 const zmpl_build = @import("zmpl");
+const ArrayList = std.ArrayList;
 const Environment = enum { development, testing, production };
 const builtin = @import("builtin");
 
@@ -67,12 +68,25 @@ pub fn build(b: *std.Build) !void {
     const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
     const jetcommon = jetcommon_dep.module("jetcommon");
     const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
+
+    const openssl_lib_name = b.option([]const u8, "openssl_lib_name", "OpenSSL library name");
+    const openssl_lib_path = b.option(std.Build.LazyPath, "openssl_lib_path", "OpenSSL library path");
+    const openssl_include_path = b.option(std.Build.LazyPath, "openssl_include_path", "OpenSSL include path");
+
+    if (openssl_lib_name == null) {
+        std.debug.print("Warning: OpenSSL not configured. PostgreSQL connections will use plain TCP.\n", .{});
+        std.debug.print("To enable SSL/TLS, add: -Dopenssl_lib_name=ssl\n", .{});
+    }
+
     const jetquery_dep = b.dependency("jetquery", .{
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
         .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
+        .openssl_lib_name = openssl_lib_name,
+        .openssl_lib_path = openssl_lib_path,
+        .openssl_include_path = openssl_include_path,
     });
     jetquery_dep.module("jetquery").addImport("jetcommon", jetcommon);
     const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
@@ -187,12 +201,24 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         .{ .optimize = optimize, .target = target },
     );
 
+    const openssl_lib_name = b.option([]const u8, "openssl_lib_name", "OpenSSL library name");
+    const openssl_lib_path = b.option(std.Build.LazyPath, "openssl_lib_path", "OpenSSL library path");
+    const openssl_include_path = b.option(std.Build.LazyPath, "openssl_include_path", "OpenSSL include path");
+
+    if (openssl_lib_name == null) {
+        std.debug.print("Warning: OpenSSL not configured. PostgreSQL connections will use plain TCP.\n", .{});
+        std.debug.print("To enable SSL/TLS, add: -Dopenssl_lib_name=ssl\n", .{});
+    }
+
     const jetquery_dep = jetzig_dep.builder.dependency("jetquery", .{
         .target = target,
         .optimize = optimize,
         .jetquery_migrations_path = @as([]const u8, "src/app/database/migrations"),
         .jetquery_seeders_path = @as([]const u8, "src/app/database/seeders"),
         .jetquery_config_path = @as([]const u8, "config/database.zig"),
+        .openssl_lib_name = openssl_lib_name,
+        .openssl_lib_path = openssl_lib_path,
+        .openssl_include_path = openssl_include_path,
     });
 
     const jetzig_module = jetzig_dep.module("jetzig");
@@ -517,7 +543,7 @@ fn isSourceFile(b: *std.Build, path: []const u8) !bool {
 }
 
 fn scanSourceFiles(b: *std.Build) ![]const []const u8 {
-    var buf = std.array_list.Managed([]const u8).init(b.allocator);
+    var buf: ArrayList([]const u8) = .empty;
 
     var src_dir = try std.fs.openDirAbsolute(b.pathFromRoot("src"), .{ .iterate = true });
     defer src_dir.close();
@@ -527,10 +553,11 @@ fn scanSourceFiles(b: *std.Build) ![]const []const u8 {
 
     while (try walker.next()) |entry| {
         if (entry.kind == .file) try buf.append(
+            b.allocator,
             try std.fs.path.join(b.allocator, &.{ "src", entry.path }),
         );
     }
-    return try buf.toOwnedSlice();
+    return try buf.toOwnedSlice(b.allocator);
 }
 
 fn randomSeed(b: *std.Build) ![]const u8 {

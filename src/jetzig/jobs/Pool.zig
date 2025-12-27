@@ -2,13 +2,15 @@ const std = @import("std");
 
 const jetzig = @import("../../jetzig.zig");
 
+const ArrayList = std.ArrayList;
+
 const Pool = @This();
 
 allocator: std.mem.Allocator,
 job_queue: *jetzig.kv.Store.JobQueueStore,
 job_env: jetzig.jobs.JobEnv,
 pool: std.Thread.Pool = undefined,
-workers: std.array_list.Managed(*jetzig.jobs.Worker),
+workers: ArrayList(*jetzig.jobs.Worker),
 
 /// Initialize a new worker thread pool.
 pub fn init(
@@ -20,7 +22,7 @@ pub fn init(
         .allocator = allocator,
         .job_queue = job_queue,
         .job_env = job_env,
-        .workers = std.array_list.Managed(*jetzig.jobs.Worker).init(allocator),
+        .workers = .empty,
     };
 }
 
@@ -28,7 +30,7 @@ pub fn init(
 pub fn deinit(self: *Pool) void {
     self.pool.deinit();
     for (self.workers.items) |worker| self.allocator.destroy(worker);
-    self.workers.deinit();
+    self.workers.deinit(self.allocator);
 }
 
 /// Spawn a given number of threads and start processing jobs, sleep for a given interval (ms)
@@ -45,7 +47,7 @@ pub fn work(self: *Pool, threads: usize, interval: usize) !void {
             self.job_queue,
             interval,
         );
-        try self.workers.append(worker);
+        try self.workers.append(self.allocator, worker);
         try self.pool.spawn(jetzig.jobs.Worker.work, .{worker});
     }
 }

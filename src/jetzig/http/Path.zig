@@ -9,6 +9,8 @@
 const std = @import("std");
 const jetzig = @import("../../jetzig.zig");
 
+const ArrayList = std.ArrayList;
+
 path: []const u8,
 base_path: []const u8,
 directory: []const u8,
@@ -57,7 +59,7 @@ pub fn resourceId(self: Path, route: jetzig.views.Route) []const u8 {
 }
 
 pub fn resourceArgs(self: Path, route: jetzig.views.Route, allocator: std.mem.Allocator) ![]const []const u8 {
-    var args = std.array_list.Managed([]const u8).init(allocator);
+    var args: ArrayList([]const u8) = .empty;
     var route_uri_path_it = std.mem.splitScalar(u8, route.uri_path, '/');
     var path_it = std.mem.splitScalar(u8, self.base_path, '/');
 
@@ -73,11 +75,11 @@ pub fn resourceArgs(self: Path, route: jetzig.views.Route, allocator: std.mem.Al
             matched = true;
         }
         if (matched) {
-            try args.append(path_segment);
+            try args.append(allocator, path_segment);
         }
     }
 
-    return try args.toOwnedSlice();
+    return try args.toOwnedSlice(allocator);
 }
 
 // Extract `"/foo/bar/baz"` from:

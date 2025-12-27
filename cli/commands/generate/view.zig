@@ -1,6 +1,9 @@
 const std = @import("std");
 const util = @import("../../util.zig");
 
+const ArrayList = std.ArrayList;
+const Writer = std.Io.Writer;
+
 /// Run the view generator. Create a view in `src/app/views/`
 pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, help: bool) !void {
     if (help or args.len == 0) {
@@ -26,12 +29,10 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
         return error.JetzigCommandError;
     }
 
-    var buf = std.array_list.Managed(u8).init(allocator);
+    var buf: Writer.Allocating = .init(allocator);
     defer buf.deinit();
 
-    const writer = buf.writer();
-
-    try writer.writeAll(
+    try buf.writer.writeAll(
         \\const std = @import("std");
         \\const jetzig = @import("jetzig");
         \\
@@ -45,31 +46,31 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
     else
         &[_][]const u8{ "index", "get", "new", "edit", "post", "put", "patch", "delete" };
 
-    var actions = std.array_list.Managed(Action).init(allocator);
-    defer actions.deinit();
+    var actions: ArrayList(Action) = .empty;
+    defer actions.deinit(allocator);
 
-    var static_actions = std.array_list.Managed(Action).init(allocator);
-    defer static_actions.deinit();
+    var static_actions: ArrayList(Action) = .empty;
+    defer static_actions.deinit(allocator);
 
     for (action_args) |arg| {
         if (parseAction(arg)) |action| {
-            try actions.append(action);
-            if (action.static) try static_actions.append(action);
+            try actions.append(allocator, action);
+            if (action.static) try static_actions.append(allocator, action);
         } else {
             std.debug.print("Unexpected argument: {s}\n", .{arg});
             return error.JetzigCommandError;
         }
     }
 
-    if (static_actions.items.len > 0) try writeStaticParams(allocator, static_actions.items, writer);
+    if (static_actions.items.len > 0) try writeStaticParams(allocator, static_actions.items, buf.writer);
 
     for (actions.items) |action| {
-        try writeAction(allocator, writer, action);
+        try writeAction(allocator, buf.writer, action);
         try writeTemplate(allocator, cwd, args[0], action);
     }
 
     for (actions.items) |action| {
-        try writeTest(allocator, writer, args[0], action);
+        try writeTest(allocator, buf.writer, args[0], action);
     }
 
     var dir = try cwd.openDir("src/app/views", .{});
@@ -84,7 +85,7 @@ pub fn run(allocator: std.mem.Allocator, cwd: std.fs.Dir, args: [][]const u8, he
             else => return err,
         }
     };
-    try file.writeAll(util.strip(buf.items));
+    try file.writeAll(util.strip(buf.items()));
     try file.writeAll("\n");
     file.close();
     const realpath = try dir.realpathAlloc(allocator, filename);

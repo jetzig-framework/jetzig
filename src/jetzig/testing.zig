@@ -4,6 +4,8 @@ const jetzig = @import("../jetzig.zig");
 const zmpl = @import("zmpl");
 const httpz = @import("httpz");
 
+const ArrayList = std.ArrayList;
+
 /// An app used for testing. Processes requests and renders responses.
 pub const App = @import("testing/App.zig");
 
@@ -28,7 +30,7 @@ pub const Logger = struct {
         output: []const u8,
     };
 
-    const LogCollection = std.array_list.Managed(LogEvent);
+    const LogCollection = ArrayList(LogEvent);
 
     pub fn init(allocator: std.mem.Allocator) Logger {
         return .{
@@ -48,11 +50,11 @@ pub const Logger = struct {
         const output = std.fmt.allocPrint(self.allocator, format, args) catch @panic("OOM");
         const log_event: LogEvent = .{ .level = message_level, .output = output };
         if (self.logs.get(self.index)) |*item| {
-            item.*.append(log_event) catch @panic("OOM");
+            item.*.append(self.allocator, log_event) catch @panic("OOM");
         } else {
             const array = self.allocator.create(LogCollection) catch @panic("OOM");
-            array.* = LogCollection.init(self.allocator);
-            array.append(log_event) catch @panic("OOM");
+            array.* = .empty;
+            array.append(self.allocator, log_event) catch @panic("OOM");
             self.logs.put(self.index, array) catch @panic("OOM");
         }
     }
@@ -120,8 +122,8 @@ pub fn expectBodyContains(expected: []const u8, response: TestResponse) !void {
 }
 
 pub fn expectHeader(expected_name: []const u8, expected_value: ?[]const u8, response: TestResponse) !void {
-    var mismatches = std.array_list.Managed([]const u8).init(response.allocator);
-    defer mismatches.deinit();
+    var mismatches: ArrayList([]const u8) = .empty;
+    defer mismatches.deinit(response.allocator);
 
     for (response.headers) |header| {
         if (!std.ascii.eqlIgnoreCase(header.name, expected_name)) continue;
@@ -129,7 +131,7 @@ pub fn expectHeader(expected_name: []const u8, expected_value: ?[]const u8, resp
             if (std.mem.eql(u8, header.value, value)) {
                 return;
             } else {
-                try mismatches.append(header.value);
+                try mismatches.append(response.allocator, header.value);
             }
         } else {
             return;
@@ -299,8 +301,8 @@ pub fn expectJson(expected_path: []const u8, expected_value: anytype, response: 
 }
 
 pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestResponse) !void {
-    var actual_params_buf = std.array_list.Managed([]const u8).init(response.allocator);
-    defer actual_params_buf.deinit();
+    var actual_params_buf: ArrayList([]const u8) = .empty;
+    defer actual_params_buf.deinit(response.allocator);
 
     const value: ?*jetzig.data.Value = if (@TypeOf(job_params) == @TypeOf(null))
         null
@@ -312,7 +314,7 @@ pub fn expectJob(job_name: []const u8, job_params: anytype, response: TestRespon
                 if (job.params.?.includes(value.?.*)) {
                     return;
                 } else {
-                    try actual_params_buf.append(try job.params.?.toJson());
+                    try actual_params_buf.append(response.allocator, try job.params.?.toJson());
                 }
             } else {
                 return;

@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const Writer = std.Io.Writer;
+
 fn base64Encode(allocator: std.mem.Allocator, input: []const u8) []const u8 {
     const encoder = std.base64.Base64Encoder.init(
         std.base64.url_safe_no_pad.alphabet_chars,
@@ -14,10 +16,8 @@ fn base64Encode(allocator: std.mem.Allocator, input: []const u8) []const u8 {
 pub fn initDataModule(build: *std.Build) !*std.Build.Module {
     const root_path = build.pathFromRoot("..");
 
-    var buf = std.array_list.Managed(u8).init(build.allocator);
+    var buf: Writer.Allocating = .init(build.allocator);
     defer buf.deinit();
-
-    const writer = buf.writer();
 
     const paths = .{
         "init/src/main.zig",
@@ -35,7 +35,7 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
         ".gitignore",
     };
 
-    try writer.writeAll(
+    try buf.writer.writeAll(
         \\pub const init_data = .{
         \\
     );
@@ -59,15 +59,15 @@ pub fn initDataModule(build: *std.Build) !*std.Build.Module {
         );
         defer build.allocator.free(output);
 
-        try writer.writeAll(output);
+        try buf.writer.writeAll(output);
     }
 
-    try writer.writeAll(
+    try buf.writer.writeAll(
         \\};
         \\
     );
 
     const write_files = build.addWriteFiles();
-    const init_data_source = write_files.add("init_data.zig", buf.items);
+    const init_data_source = write_files.add("init_data.zig", buf.items());
     return build.createModule(.{ .root_source_file = init_data_source });
 }

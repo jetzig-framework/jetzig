@@ -174,15 +174,15 @@ pub fn headerIterator(self: *Cookies, buf: *[4096]u8) HeaderIterator {
 // cookie-header = "Cookie:" OWS cookie-string OWS
 // cookie-string = cookie-pair *( ";" SP cookie-pair )
 pub fn parse(self: *Cookies) !void {
-    var key_buf = std.array_list.Managed(u8).init(self.allocator);
-    var value_buf = std.array_list.Managed(u8).init(self.allocator);
+    var key_buf: ArrayList(u8) = .empty;
+    var value_buf: ArrayList(u8) = .empty;
     var key_terminated = false;
     var value_started = false;
-    var cookie_buf = std.array_list.Managed(Cookie).init(self.allocator);
+    var cookie_buf: ArrayList(Cookie) = .empty;
 
-    defer key_buf.deinit();
-    defer value_buf.deinit();
-    defer cookie_buf.deinit();
+    defer key_buf.deinit(self.allocator);
+    defer value_buf.deinit(self.allocator);
+    defer cookie_buf.deinit(self.allocator);
     defer self.modified = false;
 
     for (self.cookie_string, 0..) |char, index| {
@@ -192,19 +192,19 @@ pub fn parse(self: *Cookies) !void {
         }
 
         if (char == ';' or index == self.cookie_string.len - 1) {
-            if (char != ';') try value_buf.append(char);
+            if (char != ';') try value_buf.append(self.allocator, char);
             if (parseFlag(key_buf.items, value_buf.items)) |flag| {
                 // for (cookie_buf.items) |*cookie| try cookie.applyFlag(self.arena.allocator(), flag);
                 for (cookie_buf.items) |*cookie| try cookie.set(flag);
             } else {
-                try cookie_buf.append(try .init(key_buf.items, value_buf.items, .{}));
+                try cookie_buf.append(self.allocator, try .init(key_buf.items, value_buf.items, .{}));
                 // try cookie_buf.append(.{
                 //     .name = try self.arena.allocator().dupe(u8, key_buf.items),
                 //     .value = try self.arena.allocator().dupe(u8, value_buf.items),
                 // });
             }
-            key_buf.clearAndFree();
-            value_buf.clearAndFree();
+            key_buf.clearAndFree(self.allocator);
+            value_buf.clearAndFree(self.allocator);
             value_started = false;
             key_terminated = false;
             continue;
@@ -213,7 +213,7 @@ pub fn parse(self: *Cookies) !void {
         if (!key_terminated and char == ' ') continue;
 
         if (!key_terminated) {
-            try key_buf.append(char);
+            try key_buf.append(self.allocator, char);
             continue;
         }
 
@@ -221,7 +221,7 @@ pub fn parse(self: *Cookies) !void {
         if (char != ' ' and !value_started) value_started = true;
 
         if (key_terminated and value_started) {
-            try value_buf.append(char);
+            try value_buf.append(self.allocator, char);
             continue;
         }
 

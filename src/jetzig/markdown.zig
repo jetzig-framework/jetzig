@@ -4,6 +4,8 @@ const Zmd = @import("zmd").Zmd;
 
 const jetzig = @import("../jetzig.zig");
 
+const ArrayList = std.ArrayList;
+
 pub const MarkdownRenderOptions = struct {
     fragments: ?type = null,
 };
@@ -27,14 +29,14 @@ pub fn renderFile(
     path: []const u8,
     comptime options: MarkdownRenderOptions,
 ) !?[]const u8 {
-    var path_buf = std.array_list.Managed([]const u8).init(allocator);
-    defer path_buf.deinit();
+    var path_buf: ArrayList([]const u8) = .empty;
+    defer path_buf.deinit(allocator);
 
-    try path_buf.appendSlice(&[_][]const u8{ "src", "app", "views" });
+    try path_buf.appendSlice(allocator, &[_][]const u8{ "src", "app", "views" });
 
     var it = std.mem.splitScalar(u8, path, '/');
     while (it.next()) |segment| {
-        try path_buf.append(segment);
+        try path_buf.append(allocator, segment);
     }
 
     const base_path = try std.fs.path.join(allocator, path_buf.items);

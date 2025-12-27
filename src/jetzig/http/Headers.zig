@@ -4,9 +4,11 @@ const httpz = @import("httpz");
 
 const jetzig = @import("../../jetzig.zig");
 
+const ArrayList = std.ArrayList;
+
 allocator: std.mem.Allocator,
 httpz_headers: *httpz.key_value.StringKeyValue,
-new_headers: std.array_list.Managed(Header),
+new_headers: ArrayList(Header),
 
 const Headers = @This();
 const Header = struct { name: []const u8, value: []const u8 };
@@ -16,7 +18,7 @@ pub fn init(allocator: std.mem.Allocator, httpz_headers: *httpz.key_value.String
     return .{
         .allocator = allocator,
         .httpz_headers = httpz_headers,
-        .new_headers = std.array_list.Managed(Header).init(allocator),
+        .new_headers = .empty,
     };
 }
 
@@ -28,7 +30,7 @@ pub fn deinit(self: *Headers) void {
         self.allocator.free(header.value);
     }
 
-    self.new_headers.deinit();
+    self.new_headers.deinit(self.allocator);
 }
 
 /// Get the first value for a given header identified by `name`. Names are case insensitive.
@@ -43,14 +45,14 @@ pub fn get(self: Headers, name: []const u8) ?[]const u8 {
 
 /// Get all values for a given header identified by `name`. Names are case insensitive.
 pub fn getAll(self: Headers, name: []const u8) []const []const u8 {
-    var headers = std.array_list.Managed([]const u8).init(self.allocator);
+    var headers: ArrayList([]const u8) = .empty;
 
     for (self.httpz_headers.keys, 0..) |key, index| {
         if (std.ascii.eqlIgnoreCase(name, key)) {
-            headers.append(self.httpz_headers.values[index]) catch @panic("OOM");
+            headers.append(self.allocator, self.httpz_headers.values[index]) catch @panic("OOM");
         }
     }
-    return headers.toOwnedSlice() catch @panic("OOM");
+    return headers.toOwnedSlice(self.allocator) catch @panic("OOM");
 }
 
 /// Deprecated
@@ -74,7 +76,7 @@ pub fn append(self: *Headers, name: []const u8, value: []const u8) !void {
         .value = try self.allocator.dupe(u8, value),
     };
 
-    try self.new_headers.append(header);
+    try self.new_headers.append(self.allocator, header);
     self.httpz_headers.add(header.name, header.value);
 }
 
