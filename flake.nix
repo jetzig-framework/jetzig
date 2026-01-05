@@ -7,6 +7,7 @@
       nixpkgs.follows = "nixpkgs";
       flake-utils.follows = "flake-utils";
     };
+    # Pin to ZLS 0.15.1 release tag for Zig 0.15.x compatibility
     zls-flake.url = "github:zigtools/zls";
     zls-flake.inputs = {
       nixpkgs.follows = "nixpkgs";
@@ -18,15 +19,12 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         zigVersion = "master";
-        zlsVersion = "master";
 
         pkgs = nixpkgs.legacyPackages.${system};
-        zlsBuilder = import ./zls.nix;
         zig = zig-overlay.packages.${system}.${zigVersion};
-        zls = zlsBuilder {
-          inherit pkgs system zig zls-flake;
-          zlsVersion = zlsVersion;
-        };
+
+        # ZLS from the pinned 0.15.1 release
+        zls = zls-flake.packages.${system}.zls;
 
         testSetup = pkgs.writeShellScriptBin "test-setup" ''
           JETZIG_TEST_DIR="$TMPDIR/jetzig-env"
@@ -40,7 +38,7 @@
             --auth-host=trust \
             --username=postgres
           echo "port = 5432" >> "$POSTGRES_DIR/postgresql.conf"
-          echo "unix_socket_directories = '$PWD'" >> "$POSTGRES_DIR/postgresql.conf"
+          echo "unix_socket_directories = '$JETZIG_TEST_DIR'" >> "$POSTGRES_DIR/postgresql.conf"
           pg_ctl \
             -D "$POSTGRES_DIR" \
             -l "$POSTGRES_DIR/logfile" \
@@ -52,13 +50,13 @@ dir $VALKEY_DIR
 dbfilename dump.rdb
 logfile $VALKEY_DIR/valkey.log
 daemonize yes
-pidfile $FALKEY_DIR/valkey.pid
+pidfile $VALKEY_DIR/valkey.pid
 save 900 1
 save 300 10
 save 60 10000
+stop-writes-on-bgsave-error no
 EOF
-          valkey-server \
-            "$VALKEY_DIR/valkey.conf"
+          valkey-server "$VALKEY_DIR/valkey.conf"
           gum log --time=TimeOnly --prefix=JETZIG-ENV "Valkey started"
         '';
 
@@ -89,7 +87,14 @@ EOF
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "jetzig";
           version = zigVersion;
-          src = ./.;
+          src = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./src
+              ./build.zig
+              ./build.zig.zon
+            ];
+          };
           nativeBuildInputs = [
             pkgs.makeWrapper
           ];
