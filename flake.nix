@@ -17,8 +17,8 @@
   outputs = { self, nixpkgs, flake-utils, zig-overlay, zls-flake }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        zigVersion = "master";
-        zlsVersion = "master";
+        zigVersion = "0.15.2";
+        zlsVersion = "0.15.1";
 
         pkgs = nixpkgs.legacyPackages.${system};
         zlsBuilder = import ./zls.nix;
