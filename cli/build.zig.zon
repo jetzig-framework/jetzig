@@ -10,7 +10,7 @@
             .hash = "args-0.0.0-CiLiqo_RAADz2TiHUzG5-0Mk7IZHR-h1SZgUrb_k4c7d",
         },
         .jetquery = .{
-            .url = "https://github.com/emneo-dev/jetquery/archive/517e66ef08287597ec5bb78aeceb4cd074324a53.tar.gz",
+            .url = "https://github.com/jetzig-framework/jetquery/archive/5f38db4abbf318d0c57a8d3c9dade4ed2cbf174b.tar.gz",
             .hash = "jetquery-0.0.0-TNf3zrbDBgC9T5a627RE9aUZDwQK8-ll2BdzvsDJqITa",
         },
     },

@@ -90,6 +90,7 @@ EOF
             root = ./.;
             fileset = pkgs.lib.fileset.unions [
               ./src
+              ./cli
               ./build.zig
               ./build.zig.zon
             ];
