@@ -16,6 +16,21 @@ const use_llvm_default = switch (builtin.cpu.arch) {
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const openssl_lib_name = b.option(
+        []const u8,
+        "openssl_lib_name",
+        "OpenSSL library name",
+    );
+    const openssl_lib_path = b.option(
+        std.Build.LazyPath,
+        "openssl_lib_path",
+        "OpenSSL library path",
+    );
+    const openssl_include_path = b.option(
+        std.Build.LazyPath,
+        "openssl_include_path",
+        "OpenSSL include path",
+    );
     const templates_paths = try zmpl_build.templatesPaths(
         b.allocator,
         &.{
@@ -24,59 +39,12 @@ pub fn build(b: *std.Build) !void {
         },
     );
 
-    const lib = b.addLibrary(
-        .{
-            .name = "jetzig",
-            .root_module = b.createModule(.{
-                .root_source_file = b.path("src/jetzig.zig"),
-                .target = target,
-                .optimize = optimize,
-            }),
-        },
-    );
-
     const mime_module = try GenerateMimeTypes.generateMimeModule(b);
 
-    const zig_args_dep = b.dependency("args", .{ .target = target, .optimize = optimize });
-    const jetzig_module = b.addModule("jetzig", .{ .root_source_file = b.path("src/jetzig.zig") });
-    jetzig_module.addImport("mime_types", mime_module);
-    lib.root_module.addImport("jetzig", jetzig_module);
-
-    const zmpl_dep = b.dependency(
-        "zmpl",
-        .{
-            .target = target,
-            .optimize = optimize,
-            .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
-            .zmpl_templates_paths = templates_paths,
-            .zmpl_auto_build = false,
-            .zmpl_markdown_fragments = try generateMarkdownFragments(b),
-            .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
-                jetzig_view: []const u8,
-                jetzig_action: []const u8,
-            }),
-        },
-    );
-
-    const zmpl_steps = zmpl_dep.builder.top_level_steps;
-    const zmpl_compile_step = zmpl_steps.get("compile").?;
-    const compile_step = b.step("compile", "Compile Zmpl templates");
-    compile_step.dependOn(&zmpl_compile_step.step);
-
-    const zmpl_module = zmpl_dep.module("zmpl");
-
-    const jetcommon_dep = b.dependency("jetcommon", .{ .target = target, .optimize = optimize });
-    const jetcommon = jetcommon_dep.module("jetcommon");
-    const jetkv_dep = b.dependency("jetkv", .{ .target = target, .optimize = optimize });
-
-    const openssl_lib_name = b.option([]const u8, "openssl_lib_name", "OpenSSL library name");
-    const openssl_lib_path = b.option(std.Build.LazyPath, "openssl_lib_path", "OpenSSL library path");
-    const openssl_include_path = b.option(std.Build.LazyPath, "openssl_include_path", "OpenSSL include path");
-
-    if (openssl_lib_name == null) {
-        std.debug.print("Warning: OpenSSL not configured. PostgreSQL connections will use plain TCP.\n", .{});
-        std.debug.print("To enable SSL/TLS, add: -Dopenssl_lib_name=ssl\n", .{});
-    }
+    const jetcommon = b.dependency("jetcommon", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("jetcommon");
 
     const jetquery_dep = b.dependency("jetquery", .{
         .target = target,
@@ -88,46 +56,126 @@ pub fn build(b: *std.Build) !void {
         .openssl_lib_path = openssl_lib_path,
         .openssl_include_path = openssl_include_path,
     });
-    jetquery_dep.module("jetquery").addImport("jetcommon", jetcommon);
-    const zmd_dep = b.dependency("zmd", .{ .target = target, .optimize = optimize });
-    zmpl_dep.module("zmpl").addImport("jetcommon", jetcommon);
-    const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
+    const jetquery = jetquery_dep.module("jetquery");
+    jetquery.addImport("jetcommon", jetcommon);
+
+    const jetkv = b.dependency("jetkv", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("jetkv");
+
+    const smtp_client = b.dependency("smtp_client", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("smtp_client");
+
+    const zmpl_dep = b.dependency("zmpl", .{
+        .target = target,
+        .optimize = optimize,
+        .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
+        .zmpl_templates_paths = templates_paths,
+        .zmpl_auto_build = false,
+        .zmpl_markdown_fragments = try generateMarkdownFragments(b),
+        .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
+            jetzig_view: []const u8,
+            jetzig_action: []const u8,
+        }),
+    });
+    const zmpl = zmpl_dep.module("zmpl");
+    const zmpl_steps = zmpl_dep.builder.top_level_steps;
+    const zmpl_compile_step = zmpl_steps.get("compile").?;
+
+    const zig_args = b.dependency("args", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("args");
+
+    const compile_step = b.step("compile", "Compile Zmpl templates");
+    compile_step.dependOn(&zmpl_compile_step.step);
+
+    if (openssl_lib_name == null) {
+        std.debug.print("Warning: OpenSSL not configured. PostgreSQL connections will use plain TCP.\n", .{});
+        std.debug.print("To enable SSL/TLS, add: -Dopenssl_lib_name=ssl\n", .{});
+    }
+
+    const zmd = b.dependency("zmd", .{
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "jetcommon", .module = jetcommon },
+        },
+    }).module("zmd");
+    // zmpl.addImport("jetcommon", jetcommon);
+    const httpz = b.dependency("httpz", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("httpz");
 
     // This is the way to make it look nice in the zig build script
     // If we would do it the other way around, we would have to do
     // b.dependency("jetzig",.{}).builder.dependency("zmpl",.{}).module("zmpl");
-    b.modules.put("zmpl", zmpl_dep.module("zmpl")) catch @panic("Out of memory");
-    b.modules.put("zmd", zmd_dep.module("zmd")) catch @panic("Out of memory");
-    b.modules.put("jetquery", jetquery_dep.module("jetquery")) catch @panic("Out of memory");
-    b.modules.put("jetcommon", jetcommon_dep.module("jetcommon")) catch @panic("Out of memory");
+    b.modules.put("zmpl", zmpl) catch @panic("Out of memory");
+    b.modules.put("zmd", zmd) catch @panic("Out of memory");
+    b.modules.put("jetquery", jetquery) catch @panic("Out of memory");
+    b.modules.put("jetcommon", jetcommon) catch @panic("Out of memory");
     b.modules.put("jetquery_migrate", jetquery_dep.module("jetquery_migrate")) catch @panic("Out of memory");
     b.modules.put("jetquery_seeder", jetquery_dep.module("jetquery_seeder")) catch @panic("Out of memory");
 
+    const jetzig_module = b.addModule("jetzig", .{
+        .root_source_file = b.path("src/jetzig.zig"),
+        .imports = &.{
+            .{ .name = "mime_types", .module = mime_module },
+            .{ .name = "zmpl", .module = zmpl },
+            .{ .name = "args", .module = zig_args },
+            .{ .name = "zmd", .module = zmd },
+            .{ .name = "jetkv", .module = jetkv },
+            .{ .name = "jetquery", .module = jetquery },
+            .{ .name = "jetcommon", .module = jetcommon },
+            .{ .name = "smtp", .module = smtp_client },
+            .{ .name = "httpz", .module = httpz },
+        },
+    });
     jetquery_dep.module("jetquery_seeder").addImport("jetzig", jetzig_module);
     jetquery_dep.module("jetquery_migrate").addImport("jetzig", jetzig_module);
 
-    const smtp_client_dep = b.dependency("smtp_client", .{
-        .target = target,
-        .optimize = optimize,
+    const lib = b.addLibrary(.{
+        .name = "jetzig",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/jetzig.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "zmpl", .module = zmpl },
+            },
+        }),
     });
 
-    lib.root_module.addImport("zmpl", zmpl_module);
-    jetzig_module.addImport("zmpl", zmpl_module);
-    jetzig_module.addImport("args", zig_args_dep.module("args"));
-    jetzig_module.addImport("zmd", zmd_dep.module("zmd"));
-    jetzig_module.addImport("jetkv", jetkv_dep.module("jetkv"));
-    jetzig_module.addImport("jetquery", jetquery_dep.module("jetquery"));
-    jetzig_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
-    jetzig_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
-    jetzig_module.addImport("httpz", httpz_dep.module("httpz"));
+    const test_build_options = b.addOptions();
+    test_build_options.addOption(Environment, "environment", .testing);
+    test_build_options.addOption(bool, "build_static", true);
+    test_build_options.addOption(bool, "debug_console", false);
 
     const main_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/tests.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zmpl", .module = zmpl },
+                .{ .name = "jetkv", .module = jetkv },
+                .{ .name = "jetquery", .module = jetquery },
+                .{ .name = "jetcommon", .module = jetcommon },
+                .{ .name = "httpz", .module = httpz },
+                .{ .name = "smtp", .module = smtp_client },
+                .{ .name = "build_options", .module = test_build_options.createModule() },
+            },
         }),
     });
+
+    const run_main_tests = b.addRunArtifact(main_tests);
+    const test_step = b.step("test", "Run library tests");
+    test_step.dependOn(&run_main_tests.step);
 
     const docs_step = b.step("docs", "Generate documentation");
     const docs_install = b.addInstallDirectory(.{
@@ -137,22 +185,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     docs_step.dependOn(&docs_install.step);
-
-    main_tests.root_module.addImport("zmpl", zmpl_dep.module("zmpl"));
-    main_tests.root_module.addImport("jetkv", jetkv_dep.module("jetkv"));
-    main_tests.root_module.addImport("jetquery", jetquery_dep.module("jetquery"));
-    main_tests.root_module.addImport("jetcommon", jetcommon_dep.module("jetcommon"));
-    main_tests.root_module.addImport("httpz", httpz_dep.module("httpz"));
-    main_tests.root_module.addImport("smtp", smtp_client_dep.module("smtp_client"));
-    const test_build_options = b.addOptions();
-    test_build_options.addOption(Environment, "environment", .testing);
-    test_build_options.addOption(bool, "build_static", true);
-    test_build_options.addOption(bool, "debug_console", false);
-    const run_main_tests = b.addRunArtifact(main_tests);
-    main_tests.root_module.addOptions("build_options", test_build_options);
-
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&run_main_tests.step);
 }
 
 /// Build-time options for Jetzig.
@@ -191,6 +223,46 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         "Render a debug console on error. Default: false.",
     ) orelse false;
 
+    const option_db_exe = b.option(
+        bool,
+        "database_exe",
+        "option to install 'database' executable default is false",
+    ) orelse false;
+
+    const openssl_lib_name = b.option(
+        []const u8,
+        "openssl_lib_name",
+        "OpenSSL library name",
+    );
+
+    const openssl_lib_path = b.option(
+        std.Build.LazyPath,
+        "openssl_lib_path",
+        "OpenSSL library path",
+    );
+
+    const openssl_include_path = b.option(
+        std.Build.LazyPath,
+        "openssl_include_path",
+        "OpenSSL include path",
+    );
+
+    const runner_opt = b.option(
+        bool,
+        "jetzig_runner",
+        "Used internally by `jetzig server` command.",
+    );
+
+    const auth_username = b.option(
+        []const u8,
+        "auth_username",
+        "Auth username",
+    );
+    const auth_password = b.option(
+        []const u8,
+        "auth_password",
+        "Auth password",
+    );
     if (debug_console == true and environment != .development) {
         std.debug.print("Environment must be `development` when `debug_console` is enabled.", .{});
         return error.JetzigBuildError;
@@ -200,10 +272,6 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         "jetzig",
         .{ .optimize = optimize, .target = target },
     );
-
-    const openssl_lib_name = b.option([]const u8, "openssl_lib_name", "OpenSSL library name");
-    const openssl_lib_path = b.option(std.Build.LazyPath, "openssl_lib_path", "OpenSSL library path");
-    const openssl_include_path = b.option(std.Build.LazyPath, "openssl_include_path", "OpenSSL include path");
 
     if (openssl_lib_name == null) {
         std.debug.print("Warning: OpenSSL not configured. PostgreSQL connections will use plain TCP.\n", .{});
@@ -243,7 +311,7 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     exe.root_module.addImport("zmpl", zmpl_module);
     exe.root_module.addImport("zmd", zmd_module);
 
-    if (b.option(bool, "jetzig_runner", "Used internally by `jetzig server` command.")) |jetzig_runner| {
+    if (runner_opt) |jetzig_runner| {
         if (jetzig_runner) {
             const file = try std.fs.cwd().createFile(".jetzig", .{ .truncate = true });
             defer file.close();
@@ -274,16 +342,19 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     const exe_routes_file = b.addExecutable(.{
         .name = "routes",
-        .root_source_file = jetzig_dep.path("src/routes_file.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/routes_file.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "jetkv", .module = jetzig_module },
+                .{ .name = "httpz", .module = jetzig_module },
+                .{ .name = "zmpl", .module = zmpl_module },
+            },
+        }),
         .use_llvm = exe.use_llvm,
     });
-
-    exe_routes_file.root_module.addImport("jetzig", jetzig_module);
-    exe_routes_file.root_module.addImport("jetkv", jetzig_module);
-    exe_routes_file.root_module.addImport("httpz", jetzig_module);
-    exe_routes_file.root_module.addImport("zmpl", zmpl_module);
 
     const run_routes_file_cmd = b.addRunArtifact(exe_routes_file);
     const routes_file_path = run_routes_file_cmd.addOutputFileArg("routes.zig");
@@ -296,46 +367,60 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
         mailers_path,
     });
 
-    const routes_module = b.createModule(.{ .root_source_file = routes_file_path });
-    routes_module.addImport("jetzig", jetzig_module);
+    const routes_module = b.createModule(.{
+        .root_source_file = routes_file_path,
+        .imports = &.{
+            .{ .name = "jetzig", .module = jetzig_module },
+        },
+    });
     exe.root_module.addImport("routes", routes_module);
-
-    const exe_static_routes = b.addExecutable(.{
-        .name = "static",
-        .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
+    const main_module = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
     });
 
-    const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
-    exe_static_routes.root_module.addImport("routes", routes_module);
-    exe_static_routes.root_module.addImport("jetzig", jetzig_module);
-    exe_static_routes.root_module.addImport("zmpl", zmpl_module);
-    exe_static_routes.root_module.addImport("main", main_module);
-
     const schema_module = if (try isSourceFile(b, "src/app/database/Schema.zig"))
-        b.createModule(.{ .root_source_file = b.path("src/app/database/Schema.zig") })
+        b.createModule(.{
+            .root_source_file = b.path("src/app/database/Schema.zig"),
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+            },
+        })
     else
-        jetzig_dep.builder.createModule(
-            .{ .root_source_file = jetzig_dep.builder.path("src/jetzig/DefaultSchema.zig") },
-        );
-    exe_static_routes.root_module.addImport("Schema", schema_module);
-    exe.root_module.addImport("Schema", schema_module);
-
-    schema_module.addImport("jetzig", jetzig_module);
-
-    exe_static_routes.root_module.addImport("routes", routes_module);
-    exe_static_routes.root_module.addImport("jetzig", jetzig_module);
-    exe_static_routes.root_module.addImport("zmpl", zmpl_module);
+        jetzig_dep.builder.createModule(.{
+            .root_source_file = jetzig_dep.builder.path("src/jetzig/DefaultSchema.zig"),
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+            },
+        });
 
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add(
         "markdown_fragments.zig",
         try generateMarkdownFragments(b),
     );
-    const markdown_fragments_module = b.createModule(.{ .root_source_file = path });
-    exe_static_routes.root_module.addImport("markdown_fragments", markdown_fragments_module);
+
+    const markdown_fragments_module = b.createModule(.{
+        .root_source_file = path,
+    });
+
+    const exe_static_routes = b.addExecutable(.{
+        .name = "static",
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/compile_static_routes.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "routes", .module = routes_module },
+                .{ .name = "jezig", .module = jetzig_module },
+                .{ .name = "zmpl", .module = zmpl_module },
+                .{ .name = "main_module", .module = main_module },
+                .{ .name = "Schema", .module = schema_module },
+                .{ .name = "markdown_fragments", .module = markdown_fragments_module },
+            },
+        }),
+        .use_llvm = exe.use_llvm,
+    });
+    exe.root_module.addImport("Schema", schema_module);
 
     const run_static_routes_cmd = b.addRunArtifact(exe_static_routes);
     const static_outputs_path = run_static_routes_cmd.addOutputFileArg("static.zig");
@@ -366,25 +451,37 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
 
     for (try scanSourceFiles(b)) |sub_path| {
         // XXX: We don't use these args, but they help Zig's build system to cache/bust steps.
-        run_routes_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
-        run_tests_file_cmd.addFileArg(.{ .src_path = .{ .owner = b, .sub_path = sub_path } });
+        run_routes_file_cmd.addFileArg(.{ .src_path = .{
+            .owner = b,
+            .sub_path = sub_path,
+        } });
+        run_tests_file_cmd.addFileArg(.{ .src_path = .{
+            .owner = b,
+            .sub_path = sub_path,
+        } });
     }
 
     const exe_unit_tests = b.addTest(.{
-        .root_source_file = tests_file_path,
-        .target = target,
-        .optimize = optimize,
-        .test_runner = .{ .mode = .simple, .path = jetzig_dep.path("src/test_runner.zig") },
+        .root_module = b.createModule(.{
+            .root_source_file = tests_file_path,
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "static", .module = static_module },
+                .{ .name = "routes", .module = routes_module },
+                .{ .name = "main", .module = main_module },
+            },
+        }),
+        .test_runner = .{
+            .mode = .simple,
+            .path = jetzig_dep.path("src/test_runner.zig"),
+        },
     });
-    exe_unit_tests.root_module.addImport("jetzig", jetzig_module);
-    exe_unit_tests.root_module.addImport("static", static_module);
-    exe_unit_tests.root_module.addImport("routes", routes_module);
-    exe_unit_tests.root_module.addImport("main", main_module);
 
     var it = exe.root_module.import_table.iterator();
     while (it.next()) |import| {
         if (std.mem.eql(u8, import.key_ptr.*, "static")) continue;
-
         routes_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_static_routes.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
         exe_unit_tests.root_module.addImport(import.key_ptr.*, import.value_ptr.*);
@@ -409,60 +506,68 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     run_exe_unit_tests.step.dependOn(&run_routes_file_cmd.step);
 
     const routes_step = b.step("jetzig:routes", "List all routes in your app");
-    const exe_routes = b.addExecutable(.{
-        .name = "routes",
-        .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
-        .target = target,
-        .optimize = optimize,
-        .use_llvm = exe.use_llvm,
-    });
-
     const auth_user_create_step = b.step("jetzig:auth:user:create", "List all routes in your app");
     const exe_auth = b.addExecutable(.{
         .name = "auth",
-        .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/auth.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetquery", .module = jetquery_module },
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "jetcommon", .module = jetcommon_module },
+                .{ .name = "Schema", .module = schema_module },
+                .{ .name = "main", .module = main_module },
+            },
+        }),
         .use_llvm = exe.use_llvm,
     });
-    exe_auth.root_module.addImport("jetquery", jetquery_module);
-    exe_auth.root_module.addImport("jetzig", jetzig_module);
-    exe_auth.root_module.addImport("jetcommon", jetcommon_module);
-    exe_auth.root_module.addImport("Schema", schema_module);
-    exe_auth.root_module.addImport("main", main_module);
     const run_auth_user_create_cmd = b.addRunArtifact(exe_auth);
     auth_user_create_step.dependOn(&run_auth_user_create_cmd.step);
     run_auth_user_create_cmd.addArg("user:create");
-    if (b.option([]const u8, "auth_username", "Auth username")) |username| {
+    if (auth_username) |username|
         run_auth_user_create_cmd.addArg(username);
-    }
-    if (b.option([]const u8, "auth_password", "Auth password")) |password| {
+    if (auth_password) |password|
         run_auth_user_create_cmd.addArg(password);
-    }
 
     const exe_database = b.addExecutable(.{
         .name = "database",
-        .root_source_file = jetzig_dep.path("src/commands/database.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/database.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetquery", .module = jetquery_module },
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "jetcommon", .module = jetcommon_module },
+                .{ .name = "jetquery_migrate", .module = jetquery_migrate_module },
+                .{ .name = "jetquery_seeder", .module = jetquery_seeder_module },
+                .{ .name = "jetquery_reflect", .module = jetquery_reflect_module },
+                .{ .name = "Schema", .module = schema_module },
+            },
+        }),
         .use_llvm = exe.use_llvm,
     });
-    exe_database.root_module.addImport("jetquery", jetquery_module);
-    exe_database.root_module.addImport("jetzig", jetzig_module);
-    exe_database.root_module.addImport("jetcommon", jetcommon_module);
-    exe_database.root_module.addImport("jetquery_migrate", jetquery_migrate_module);
-    exe_database.root_module.addImport("jetquery_seeder", jetquery_seeder_module);
-    exe_database.root_module.addImport("jetquery_reflect", jetquery_reflect_module);
-    exe_database.root_module.addImport("Schema", schema_module);
 
     registerDatabaseSteps(b, exe_database);
 
-    const option_db_exe = b.option(bool, "database_exe", "option to install 'database' executable default is false") orelse false;
     if (option_db_exe) b.installArtifact(exe_database);
 
-    exe_routes.root_module.addImport("jetzig", jetzig_module);
-    exe_routes.root_module.addImport("routes", routes_module);
-    exe_routes.root_module.addImport("app", exe.root_module);
+    const exe_routes = b.addExecutable(.{
+        .name = "routes",
+        .root_module = b.createModule(.{
+            .root_source_file = jetzig_dep.path("src/commands/routes.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "jetzig", .module = jetzig_module },
+                .{ .name = "routes", .module = routes_module },
+                .{ .name = "app", .module = exe.root_module },
+            },
+        }),
+        .use_llvm = exe.use_llvm,
+    });
     const run_routes_cmd = b.addRunArtifact(exe_routes);
     routes_step.dependOn(&run_routes_cmd.step);
 }
