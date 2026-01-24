@@ -101,10 +101,8 @@ pub fn build(b: *std.Build) !void {
     const zmd = b.dependency("zmd", .{
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "jetcommon", .module = jetcommon },
-        },
     }).module("zmd");
+    zmd.addImport("jetcommon", jetcommon);
     // zmpl.addImport("jetcommon", jetcommon);
     const httpz = b.dependency("httpz", .{
         .target = target,
