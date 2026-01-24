@@ -1,4 +1,9 @@
 const std = @import("std");
+const SelfInfo = std.debug.SelfInfo;
+const SourceLocation = std.debug.SourceLocation;
+const StackTrace = std.builtin.StackTrace;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 
 const ArrayList = std.ArrayList;
@@ -9,11 +14,11 @@ pub const ErrorInfo = struct {
 };
 
 pub fn sourceLocations(
-    allocator: std.mem.Allocator,
-    debug_info: *std.debug.SelfInfo,
-    stack_trace: *std.builtin.StackTrace,
-) ![]const std.debug.SourceLocation {
-    var source_locations: ArrayList(std.debug.SourceLocation) = .empty;
+    allocator: Allocator,
+    debug_info: *SelfInfo,
+    stack_trace: *StackTrace,
+) ![]const SourceLocation {
+    var source_locations: ArrayList(SourceLocation) = .empty;
 
     if (builtin.strip_debug_info) return error.MissingDebugInfo;
 
@@ -29,19 +34,24 @@ pub fn sourceLocations(
         const module = try debug_info.getModuleForAddress(address);
         const symbol_info = try module.getSymbolAtAddress(debug_info.allocator, address);
 
-        if (symbol_info.source_location) |source_location| {
+        if (symbol_info.source_location) |source_location|
             try source_locations.append(allocator, source_location);
-        }
     }
 
     return try source_locations.toOwnedSlice(allocator);
 }
 
 pub const HtmlStackTrace = struct {
-    allocator: std.mem.Allocator,
-    stack_trace: *std.builtin.StackTrace,
+    allocator: Allocator,
+    stack_trace: *StackTrace,
 
-    pub fn format(self: HtmlStackTrace, _: anytype, _: anytype, writer: anytype) !void {
+    pub fn format(self: HtmlStackTrace, writer: *Writer) Writer.Error!void {
+        self.formatImpl(writer) catch |err| {
+            writer.print("<pre>Failed to get stack trace: {s}</pre>", .{@errorName(err)}) catch {};
+        };
+    }
+
+    fn formatImpl(self: HtmlStackTrace, writer: *Writer) !void {
         const debug_info = try std.debug.getSelfDebugInfo();
         const source_locations = try sourceLocations(
             self.allocator,
@@ -54,12 +64,10 @@ pub const HtmlStackTrace = struct {
                 \\<div class='stack-source-line'>
                 \\  <span class='file-name'>{s}:{d}</span>
                 \\
-            ,
-                .{
-                    source_location.file_name,
-                    source_location.line,
-                },
-            );
+            , .{
+                source_location.file_name,
+                source_location.line,
+            });
             const surrounding_previous = try surroundingLinesFromFile(
                 self.allocator,
                 .previous,
@@ -81,11 +89,20 @@ pub const HtmlStackTrace = struct {
             );
 
             for (surrounding_previous) |source_line| {
-                try writer.print(surrounding_line_template, .{ source_line.line, source_line.content });
+                try writer.print(
+                    surrounding_line_template,
+                    .{ source_line.line, source_line.content },
+                );
             }
-            try writer.print(target_line_template, .{ target_source_line.line, target_source_line.content });
+            try writer.print(
+                target_line_template,
+                .{ target_source_line.line, target_source_line.content },
+            );
             for (surrounding_next) |source_line| {
-                try writer.print(surrounding_line_template, .{ source_line.line, source_line.content });
+                try writer.print(
+                    surrounding_line_template,
+                    .{ source_line.line, source_line.content },
+                );
             }
 
             try writer.print(
@@ -98,7 +115,7 @@ pub const HtmlStackTrace = struct {
 
 const SourceLine = struct { content: []const u8, line: usize };
 
-pub fn readLineFromFile(allocator: std.mem.Allocator, path: []const u8, line: usize) !SourceLine {
+pub fn readLineFromFile(allocator: Allocator, path: []const u8, line: usize) !SourceLine {
     const file = try std.fs.openFileAbsolute(path, .{});
     var buf: [std.heap.pageSize()]u8 = undefined;
 
@@ -155,7 +172,7 @@ pub fn readLineFromFile(allocator: std.mem.Allocator, path: []const u8, line: us
 }
 
 fn surroundingLinesFromFile(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     context: enum { previous, next },
     desired_count: usize,
     path: []const u8,
@@ -174,46 +191,23 @@ fn surroundingLinesFromFile(
 
     switch (context) {
         .previous => {
-            for (start..target_line) |line| {
+            for (start..target_line) |line|
                 try lines.append(allocator, try readLineFromFile(allocator, path, line));
-            }
         },
         .next => {
-            for (0..desired_count, start..) |_, line| {
+            for (0..desired_count, start..) |_, line|
                 try lines.append(allocator, try readLineFromFile(allocator, path, line));
-            }
         },
     }
 
     return try lines.toOwnedSlice(allocator);
 }
 
-pub const console_template =
-    \\<!DOCTYPE html>
-    \\<html>
-    \\  <head>
-    \\    <style>
-    \\{3s}
-    \\    </style>
-    \\  </head>
-    \\  <body>
-    \\    <h1>Encountered Error: {0s}</h1>
-    \\    <div class="stack-trace">
-    \\      {1}
-    \\    </div>
-    \\    <h2>Response Data</h2>
-    \\    <div class="response-data">
-    \\      <pre><code class="language-json">{2s}</code></pre>
-    \\    </div>
-    \\    <script src="/_jetzig_debug.js"></script>
-    \\  </body>
-    \\</html>
-;
-
 const surrounding_line_template =
     \\<div class='line-content surrounding'><pre class="line-number">{d: >4}</pre><pre><code class="language-zig">{s}</code></pre></div>
     \\
 ;
+
 const target_line_template =
     \\<div class='line-content target'><pre class="line-number">{d: >4}</pre><pre><code class="language-zig">{s}</code></pre></div>
     \\

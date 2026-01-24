@@ -1,27 +1,40 @@
 const std = @import("std");
-const builtin = @import("builtin");
-
-const jetzig = @import("../../jetzig.zig");
-const zmpl = @import("zmpl");
-const zmd = @import("zmd");
-const httpz = @import("httpz");
-
+const StackTrace = std.builtin.StackTrace;
+const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Writer = std.Io.Writer;
 
-allocator: std.mem.Allocator,
-logger: jetzig.loggers.Logger,
+const builtin = @import("builtin");
+
+const zmd = @import("zmd");
+const httpz = @import("httpz");
+const zmpl = @import("zmpl");
+const jetzig = @import("../../jetzig.zig");
+const middleware = jetzig.http.middleware;
+const StatusCode = jetzig.http.StatusCode;
+const Route = jetzig.views.Route;
+const GeneralStore = jetzig.kv.Store.GeneralStore;
+const JobQueueStore = jetzig.kv.Store.JobQueueStore;
+const Logger = jetzig.loggers.Logger;
+const CacheStore = jetzig.kv.Store.CacheStore;
+const Repo = jetzig.database.Repo;
+const Response = jetzig.http.Response;
+const Request = jetzig.http.Request;
+const View = jetzig.views.View;
+
+allocator: Allocator,
+logger: Logger,
 env: jetzig.Environment,
-routes: []const *const jetzig.views.Route,
-custom_routes: []const jetzig.views.Route,
+routes: []const *const Route,
+custom_routes: []const Route,
 job_definitions: []const jetzig.JobDefinition,
 mailer_definitions: []const jetzig.MailerDefinition,
 mime_map: *jetzig.http.mime.MimeMap,
 initialized: bool = false,
-store: *jetzig.kv.Store.GeneralStore,
-job_queue: *jetzig.kv.Store.JobQueueStore,
-cache: *jetzig.kv.Store.CacheStore,
-repo: *jetzig.database.Repo,
+store: *GeneralStore,
+job_queue: *JobQueueStore,
+cache: *CacheStore,
+repo: *Repo,
 global: *anyopaque,
 decoded_static_route_params: []const *jetzig.data.Value = &.{},
 debug_mutex: std.Thread.Mutex = .{},
@@ -29,17 +42,17 @@ debug_mutex: std.Thread.Mutex = .{},
 const Server = @This();
 
 pub fn init(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     env: jetzig.Environment,
-    routes: []const *const jetzig.views.Route,
-    custom_routes: []const jetzig.views.Route,
+    routes: []const *const Route,
+    custom_routes: []const Route,
     job_definitions: []const jetzig.JobDefinition,
     mailer_definitions: []const jetzig.MailerDefinition,
     mime_map: *jetzig.http.mime.MimeMap,
-    store: *jetzig.kv.Store.GeneralStore,
-    job_queue: *jetzig.kv.Store.JobQueueStore,
-    cache: *jetzig.kv.Store.CacheStore,
-    repo: *jetzig.database.Repo,
+    store: *GeneralStore,
+    job_queue: *JobQueueStore,
+    cache: *CacheStore,
+    repo: *Repo,
     global: *anyopaque,
 ) Server {
     return .{
@@ -113,7 +126,7 @@ pub fn listen(self: *Server) !void {
 
     self.initialized = true;
 
-    try jetzig.http.middleware.afterLaunch(self);
+    try middleware.afterLaunch(self);
 
     return try httpz_server.listen();
 }
@@ -142,8 +155,8 @@ pub fn processNextRequest(
     var repo = try self.repo.bindConnect(.{ .allocator = httpz_response.arena });
     defer repo.release();
 
-    var response = try jetzig.http.Response.init(httpz_response.arena, httpz_response);
-    var request = try jetzig.http.Request.init(
+    var response: Response = try .init(httpz_response.arena, httpz_response);
+    var request: Request = try .init(
         httpz_response.arena,
         self,
         start_time,
@@ -155,7 +168,7 @@ pub fn processNextRequest(
 
     try request.process();
 
-    var middleware_data = try jetzig.http.middleware.afterRequest(&request);
+    var middleware_data = try middleware.afterRequest(&request);
     if (try maybeMiddlewareRender(&request, &response)) {
         try self.logger.logRequest(&request);
         return;
@@ -164,15 +177,15 @@ pub fn processNextRequest(
     try self.renderResponse(&request);
     try request.response.headers.append("Content-Type", response.contentType());
 
-    try jetzig.http.middleware.beforeResponse(&middleware_data, &request);
+    try middleware.beforeResponse(&middleware_data, &request);
     try request.respond();
-    try jetzig.http.middleware.afterResponse(&middleware_data, &request);
-    jetzig.http.middleware.deinit(&middleware_data, &request);
+    try middleware.afterResponse(&middleware_data, &request);
+    middleware.deinit(&middleware_data, &request);
 
     try self.logger.logRequest(&request);
 }
 
-fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.http.Response) !bool {
+fn maybeMiddlewareRender(request: *Request, response: *const Response) !bool {
     if (request.middleware_rendered) |_| {
         // Request processing ends when a middleware renders or redirects.
         if (request.redirect_state) |state| {
@@ -187,7 +200,7 @@ fn maybeMiddlewareRender(request: *jetzig.http.Request, response: *const jetzig.
     } else return false;
 }
 
-fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
+fn renderResponse(self: *Server, request: *Request) !void {
     const static_resource = self.matchStaticResource(request) catch |err| {
         if (isUnhandledError(err)) return err;
 
@@ -256,7 +269,7 @@ fn renderResponse(self: *Server, request: *jetzig.http.Request) !void {
     if (request.redirect_state) |state| try request.renderRedirect(state);
 }
 
-fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
+fn renderStatic(resource: StaticResource, request: *Request) !void {
     request.setResponse(
         .{ .view = .{ .data = request.response_data }, .content = resource.content },
         .{ .content_type = resource.mime_type },
@@ -265,8 +278,8 @@ fn renderStatic(resource: StaticResource, request: *jetzig.http.Request) !void {
 
 fn renderHTML(
     self: *Server,
-    request: *jetzig.http.Request,
-    route: ?jetzig.views.Route,
+    request: *Request,
+    route: ?Route,
 ) !void {
     if (route) |matched_route| {
         if (zmpl.findPrefixed("views", matched_route.template)) |template| {
@@ -308,8 +321,8 @@ fn renderHTML(
 
 fn renderJSON(
     self: *Server,
-    request: *jetzig.http.Request,
-    route: ?jetzig.views.Route,
+    request: *Request,
+    route: ?Route,
 ) !void {
     if (route) |matched_route| {
         var rendered = try self.renderView(matched_route, request, null);
@@ -328,7 +341,7 @@ fn renderJSON(
     }
 }
 
-fn renderMarkdown(self: *Server, request: *jetzig.http.Request) !?RenderedView {
+fn renderMarkdown(self: *Server, request: *Request) !?RenderedView {
     _ = self;
     // No route recognized, but we can still render a static markdown file if it matches the URI:
     if (request.method != .GET) return null;
@@ -342,12 +355,12 @@ fn renderMarkdown(self: *Server, request: *jetzig.http.Request) !?RenderedView {
     }
 }
 
-pub const RenderedView = struct { view: jetzig.views.View, content: []const u8 };
+pub const RenderedView = struct { view: View, content: []const u8 };
 
 fn renderView(
     self: *Server,
-    route: jetzig.views.Route,
-    request: *jetzig.http.Request,
+    route: Route,
+    request: *Request,
     maybe_template: ?zmpl.Template,
 ) !RenderedView {
     // View functions return a `View` to encourage users to return from a view function with
@@ -415,10 +428,10 @@ fn renderView(
 
 fn renderTemplateWithLayout(
     self: *Server,
-    request: *jetzig.http.Request,
+    request: *Request,
     template: zmpl.Template,
-    view: jetzig.views.View,
-    route: jetzig.views.Route,
+    view: View,
+    route: Route,
 ) ![]const u8 {
     try addTemplateConstants(view, route);
 
@@ -460,7 +473,7 @@ fn renderTemplateWithLayout(
     );
 }
 
-fn addTemplateConstants(view: jetzig.views.View, route: jetzig.views.Route) !void {
+fn addTemplateConstants(view: View, route: Route) !void {
     const action = switch (route.action) {
         .custom => route.name,
         else => |tag| @tagName(tag),
@@ -505,35 +518,31 @@ fn isBadHttpError(err: anyerror) bool {
 
 fn renderInternalServerError(
     self: *Server,
-    request: *jetzig.http.Request,
-    stack_trace: ?*std.builtin.StackTrace,
+    request: *Request,
+    stack_trace: ?*StackTrace,
     err: anyerror,
 ) !RenderedView {
     try self.logger.logError(stack_trace, err);
-
-    const status = jetzig.http.StatusCode.internal_server_error;
-
-    return try self.renderError(request, status, .{ .stack_trace = stack_trace, .err = err });
+    return self.renderError(request, .internal_server_error, .{
+        .stack_trace = stack_trace,
+        .err = err,
+    });
 }
 
-fn renderNotFound(self: *Server, request: *jetzig.http.Request) !RenderedView {
+fn renderNotFound(self: *Server, request: *Request) !RenderedView {
     request.response_data.reset();
-
-    const status: jetzig.http.StatusCode = .not_found;
-    return try self.renderError(request, status, .{});
+    return self.renderError(request, .not_found, .{});
 }
 
-fn renderBadRequest(self: *Server, request: *jetzig.http.Request) !RenderedView {
+fn renderBadRequest(self: *Server, request: *Request) !RenderedView {
     request.response_data.reset();
-
-    const status: jetzig.http.StatusCode = .bad_request;
-    return try self.renderError(request, status, .{});
+    return self.renderError(request, .bad_request, .{});
 }
 
 fn renderError(
     self: Server,
-    request: *jetzig.http.Request,
-    status_code: jetzig.http.StatusCode,
+    request: *Request,
+    status_code: StatusCode,
     error_info: jetzig.debug.ErrorInfo,
 ) !RenderedView {
     if (comptime jetzig.build_options.debug_console) {
@@ -543,19 +552,18 @@ fn renderError(
 
 fn renderGeneralError(
     self: Server,
-    request: *jetzig.http.Request,
-    status_code: jetzig.http.StatusCode,
+    request: *Request,
+    status_code: StatusCode,
 ) !RenderedView {
     if (try self.renderErrorView(request, status_code)) |view| return view;
     if (try renderStaticErrorPage(request, status_code)) |view| return view;
-
     return try renderDefaultError(request, status_code);
 }
 
 fn renderDebugConsole(
     self: Server,
-    request: *jetzig.http.Request,
-    status_code: jetzig.http.StatusCode,
+    request: *Request,
+    status_code: StatusCode,
     error_info: jetzig.debug.ErrorInfo,
 ) !RenderedView {
     if (comptime jetzig.build_options.debug_console) {
@@ -567,16 +575,34 @@ fn renderDebugConsole(
                 .allocator = request.allocator,
                 .stack_trace = stack_trace,
             };
+
             const error_name = if (error_info.err) |err| @errorName(err) else "[UnknownError]";
             try buf.writer.print(
-                jetzig.debug.console_template,
-                .{
-                    error_name,
-                    debug_content,
-                    try request.response_data.toJsonOptions(.{ .pretty = true }),
-                    @embedFile("../../assets/debug.css"),
-                },
-            );
+                \\<!DOCTYPE html>
+                \\<html>
+                \\  <head>
+                \\    <style>
+                \\{[css]s}
+                \\    </style>
+                \\  </head>
+                \\  <body>
+                \\    <h1>Encountered Error: {[error_name]s}</h1>
+                \\    <div class="stack-trace">
+                \\      {[stack_trace]f}
+                \\    </div>
+                \\    <h2>Response Data</h2>
+                \\    <div class="response-data">
+                \\      <pre><code class="language-json">{[json]s}</code></pre>
+                \\    </div>
+                \\    <script src="/_jetzig_debug.js"></script>
+                \\  </body>
+                \\</html>
+            , .{
+                .error_name = error_name,
+                .stack_trace = debug_content,
+                .json = try request.response_data.toJsonOptions(.{ .pretty = true }),
+                .css = @embedFile("../../assets/debug.css"),
+            });
         } else return try self.renderGeneralError(request, status_code);
 
         const content = try buf.toOwnedSlice();
@@ -590,8 +616,8 @@ fn renderDebugConsole(
 
 fn renderErrorView(
     self: Server,
-    request: *jetzig.http.Request,
-    status_code: jetzig.http.StatusCode,
+    request: *Request,
+    status_code: StatusCode,
 ) !?RenderedView {
     for (self.routes) |route| {
         if (std.mem.eql(u8, route.view_name, "errors") and route.action == .index) {
@@ -634,7 +660,7 @@ fn renderErrorView(
     return null;
 }
 
-fn renderStaticErrorPage(request: *jetzig.http.Request, status_code: jetzig.http.StatusCode) !?RenderedView {
+fn renderStaticErrorPage(request: *Request, status_code: StatusCode) !?RenderedView {
     if (request.requestFormat() == .JSON) return null;
 
     var dir = std.fs.cwd().openDir(
@@ -661,15 +687,15 @@ fn renderStaticErrorPage(request: *jetzig.http.Request, status_code: jetzig.http
     };
 
     return .{
-        .view = jetzig.views.View{ .data = request.response_data, .status_code = status_code },
+        .view = .{
+            .data = request.response_data,
+            .status_code = status_code,
+        },
         .content = content,
     };
 }
 
-fn renderDefaultError(
-    request: *const jetzig.http.Request,
-    status_code: jetzig.http.StatusCode,
-) !RenderedView {
+fn renderDefaultError(request: *const Request, status_code: StatusCode) !RenderedView {
     const content = try request.formatStatus(status_code);
     return .{
         .view = jetzig.views.View{ .data = request.response_data, .status_code = status_code },
@@ -679,8 +705,8 @@ fn renderDefaultError(
 
 fn logStackTrace(
     self: Server,
-    stack: *std.builtin.StackTrace,
-    allocator: std.mem.Allocator,
+    stack: *StackTrace,
+    allocator: Allocator,
 ) !void {
     var buf: Writer.Allocating = .init(allocator);
     defer buf.deinit();
@@ -689,20 +715,18 @@ fn logStackTrace(
     if (items.len > 0) try self.logger.ERROR("{s}\n", .{items});
 }
 
-fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {
-    for (self.custom_routes) |custom_route| {
+fn matchCustomRoute(self: Server, request: *const Request) ?Route {
+    for (self.custom_routes) |custom_route|
         if (custom_route.match(request)) return custom_route;
-    }
-
     return null;
 }
 
-fn matchMiddlewareRoute(request: *const jetzig.http.Request) ?jetzig.middleware.MiddlewareRoute {
+fn matchMiddlewareRoute(request: *const Request) ?jetzig.middleware.MiddlewareRoute {
     const middlewares = jetzig.config.get([]const type, "middleware");
 
-    inline for (middlewares) |middleware| {
-        if (@hasDecl(middleware, "routes")) {
-            inline for (middleware.routes) |route| {
+    inline for (middlewares) |mware| {
+        if (@hasDecl(mware, "routes")) {
+            inline for (mware.routes) |route| {
                 if (route.match(request)) return route;
             }
         }
@@ -711,7 +735,7 @@ fn matchMiddlewareRoute(request: *const jetzig.http.Request) ?jetzig.middleware.
     return null;
 }
 
-fn matchRoute(self: *Server, request: *jetzig.http.Request, static: bool) !?jetzig.views.Route {
+fn matchRoute(self: *Server, request: *Request, static: bool) !?Route {
     for (self.routes) |route| {
         // .index routes always take precedence.
         if (route.action == .index and try request.match(route.*)) {
@@ -735,7 +759,7 @@ const StaticResource = struct {
     mime_type: []const u8 = jetzig.http.default_content_type,
 };
 
-fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticResource {
+fn matchStaticResource(self: *Server, request: *Request) !?StaticResource {
     if (comptime jetzig.build_options.debug_console) {
         if (std.mem.eql(u8, request.path.path, "/_jetzig_debug.js")) return .{
             .content = @embedFile("../../assets/debug.js"),
@@ -760,7 +784,7 @@ fn matchStaticResource(self: *Server, request: *jetzig.http.Request) !?StaticRes
     return null;
 }
 
-fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticResource {
+fn matchPublicContent(self: *Server, request: *Request) !?StaticResource {
     const public_routing_path = comptime jetzig.config.get([]const u8, "public_routing_path");
     if (!std.mem.startsWith(u8, request.path.file_path, public_routing_path)) return null;
     if (request.method != .GET) return null;
@@ -809,7 +833,7 @@ fn matchPublicContent(self: *Server, request: *jetzig.http.Request) !?StaticReso
     return null;
 }
 
-fn matchStaticContent(self: *Server, request: *jetzig.http.Request) !?[]const u8 {
+fn matchStaticContent(self: *Server, request: *Request) !?[]const u8 {
     const request_format = request.requestFormat();
     const matched_route = try self.matchRoute(request, true);
 
@@ -861,8 +885,8 @@ pub fn decodeStaticParams(self: *Server) !void {
 fn matchStaticOutput(
     maybe_expected_id: ?[]const u8,
     maybe_expected_params: ?*jetzig.data.Value,
-    route: jetzig.views.Route,
-    request: *const jetzig.http.Request,
+    route: Route,
+    request: *const Request,
     params: jetzig.data.Value,
 ) bool {
     return if (maybe_expected_params) |expected_params| blk: {
