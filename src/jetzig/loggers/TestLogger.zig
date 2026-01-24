@@ -61,7 +61,10 @@ pub fn log(
     const template = "-- test logger: " ++ @tagName(level) ++ " " ++ message ++ "\n";
     switch (self.mode) {
         .stream => std.debug.print(template, args),
-        .file => try self.file.?.writer().print(template, args),
+        .file => {
+            var file = self.file.?.writer(&.{});
+            try file.interface.print(template, args);
+        },
         .disable => {},
     }
 }

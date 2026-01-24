@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 
 const builtin = @import("builtin");
 
@@ -104,17 +105,16 @@ pub const windows_map = std.StaticStringMap(u16).initComptime(windows_colors);
 /// invoke the appropriate Windows API call to set the terminal color before writing each token.
 /// We must do it this way because Windows colors are set by API calls at the time of write, not
 /// encoded into the message string.
-pub fn colorize(color: std.io.tty.Color, buf: []u8, input: []const u8, is_colorized: bool) ![]const u8 {
+pub fn colorize(color: std.Io.tty.Color, buf: []u8, input: []const u8, is_colorized: bool) ![]const u8 {
     if (!is_colorized) return input;
 
-    const config: std.io.tty.Config = .escape_codes;
-    var stream = std.io.fixedBufferStream(buf);
-    const writer = stream.writer();
-    try config.setColor(writer, color);
+    const config: std.Io.tty.Config = .escape_codes;
+    var writer: Writer = .fixed(buf);
+    try config.setColor(&writer, color);
     try writer.writeAll(input);
-    try config.setColor(writer, .reset);
+    try config.setColor(&writer, .reset);
 
-    return stream.getWritten();
+    return writer.buffered();
 }
 
 fn wrap(comptime attribute: []const u8, comptime message: []const u8) []const u8 {
@@ -201,11 +201,9 @@ pub fn runtimeWhite(allocator: std.mem.Allocator, message: []const u8) ![]const 
 
 pub fn duration(buf: *[256]u8, delta: i64, is_colorized: bool) ![]const u8 {
     if (!is_colorized) {
-        return try std.fmt.bufPrint(
-            buf,
-            "{}",
-            .{std.fmt.fmtDurationSigned(delta)},
-        );
+        var writer: Writer = .fixed(buf);
+        try writer.printDurationSigned(delta);
+        return writer.buffered();
     }
 
     const color: std.io.tty.Color = if (delta < 1000000)
@@ -215,10 +213,8 @@ pub fn duration(buf: *[256]u8, delta: i64, is_colorized: bool) ![]const u8 {
     else
         .red;
     var duration_buf: [256]u8 = undefined;
-    const formatted_duration = try std.fmt.bufPrint(
-        &duration_buf,
-        "{}",
-        .{std.fmt.fmtDurationSigned(delta)},
-    );
+    var writer: Writer = .fixed(&duration_buf);
+    try writer.printDurationSigned(delta);
+    const formatted_duration = writer.buffered();
     return try colorize(color, buf, formatted_duration, true);
 }

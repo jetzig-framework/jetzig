@@ -1,4 +1,7 @@
 const std = @import("std");
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
+const ArenaAllocator = std.heap.ArenaAllocator;
 
 const args = @import("args");
 
@@ -6,9 +9,9 @@ const jetzig = @import("../jetzig.zig");
 
 const Environment = @This();
 
-allocator: std.mem.Allocator,
-parent_allocator: std.mem.Allocator,
-arena: *std.heap.ArenaAllocator,
+allocator: Allocator,
+parent_allocator: Allocator,
+arena: *ArenaAllocator,
 logger: jetzig.loggers.Logger,
 bind: []const u8,
 port: u16,
@@ -24,11 +27,11 @@ pub const Vars = struct {
     env_file: ?EnvFile,
 
     pub const EnvFile = struct {
-        allocator: std.mem.Allocator,
+        allocator: Allocator,
         hashmap: *std.StringHashMap([]const u8),
         content: []const u8,
 
-        pub fn init(allocator: std.mem.Allocator, file: std.fs.File) !EnvFile {
+        pub fn init(allocator: Allocator, file: std.fs.File) !EnvFile {
             const stat = try file.stat();
             const content = try file.readToEndAlloc(allocator, stat.size);
             file.close();
@@ -54,7 +57,7 @@ pub const Vars = struct {
         }
     };
 
-    pub fn init(allocator: std.mem.Allocator, env_file: ?std.fs.File) !Vars {
+    pub fn init(allocator: Allocator, env_file: ?std.fs.File) !Vars {
         return .{
             .env_file = if (env_file) |file| try EnvFile.init(allocator, file) else null,
             .env_map = try std.process.getEnvMap(allocator),
@@ -147,8 +150,8 @@ const Options = struct {
 };
 
 const LaunchLogger = struct {
-    stdout: std.fs.File,
-    stderr: std.fs.File,
+    stdout: File,
+    stderr: File,
     silent: bool = false,
 
     pub fn log(
@@ -160,7 +163,9 @@ const LaunchLogger = struct {
         if (self.silent) return;
 
         const target = @field(self, @tagName(jetzig.loggers.logTarget(level)));
-        const writer = target.writer();
+        var file_writer: File.Writer = target.writer(&.{});
+        const writer = &file_writer.interface;
+
         try writer.print(
             std.fmt.comptimePrint("[startup:{s}] {s}\n", .{ @tagName(level), message }),
             log_args,
@@ -172,9 +177,9 @@ pub const EnvironmentOptions = struct {
     silent: bool = false,
 };
 
-pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions) !Environment {
-    const arena = try parent_allocator.create(std.heap.ArenaAllocator);
-    arena.* = std.heap.ArenaAllocator.init(parent_allocator);
+pub fn init(parent_allocator: Allocator, env_options: EnvironmentOptions) !Environment {
+    const arena = try parent_allocator.create(ArenaAllocator);
+    arena.* = .init(parent_allocator);
     const allocator = arena.allocator();
 
     const options = try args.parseForCurrentProcess(Options, allocator, .print);
@@ -184,12 +189,13 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
     const stderr = try getLogFile(.stdout, options.options);
 
     const log_queue = try allocator.create(jetzig.loggers.LogQueue);
-    log_queue.* = jetzig.loggers.LogQueue.init(allocator);
+    log_queue.* = .init(allocator);
 
     try log_queue.setFiles(stdout, stderr);
 
     if (options.options.help) {
-        const writer = std.io.getStdErr().writer();
+        var stderr_writer = File.stderr().writer(&.{});
+        const writer = &stderr_writer.interface;
         try args.printHelp(Options, options.executable_name orelse "<app-name>", writer);
         std.process.exit(0);
     }
@@ -208,31 +214,31 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
         .silent = env_options.silent,
     };
 
-    const logger = switch (options.options.@"log-format") {
-        .development => jetzig.loggers.Logger{
-            .development_logger = jetzig.loggers.DevelopmentLogger.init(
+    const logger: jetzig.loggers.Logger = switch (options.options.@"log-format") {
+        .development => .{
+            .development_logger = .init(
                 allocator,
                 resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 stdout.file,
                 stderr.file,
             ),
         },
-        .production => jetzig.loggers.Logger{
-            .production_logger = jetzig.loggers.ProductionLogger.init(
+        .production => .{
+            .production_logger = .init(
                 allocator,
                 resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 log_queue,
             ),
         },
-        .json => jetzig.loggers.Logger{
-            .json_logger = jetzig.loggers.JsonLogger.init(
+        .json => .{
+            .json_logger = .init(
                 allocator,
                 resolveLogLevel(options.options.@"log-level", jetzig.environment),
                 log_queue,
             ),
         },
-        .null => jetzig.loggers.Logger{
-            .null_logger = jetzig.loggers.NullLogger{},
+        .null => .{
+            .null_logger = .{},
         },
     };
 
@@ -311,9 +317,9 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !jetzig.loggers
     };
 
     if (std.mem.eql(u8, path, "-")) return switch (stream) {
-        .stdout => .{ .file = std.io.getStdOut(), .sync = false },
+        .stdout => .{ .file = std.fs.File.stdout(), .sync = false },
         .stderr => if (std.mem.eql(u8, options.log, "-"))
-            .{ .file = std.io.getStdErr(), .sync = false }
+            .{ .file = std.fs.File.stderr(), .sync = false }
         else
             .{
                 .file = try std.fs.createFileAbsolute(options.log, .{ .truncate = false }),
@@ -327,7 +333,7 @@ fn getLogFile(stream: enum { stdout, stderr }, options: Options) !jetzig.loggers
 }
 
 fn getSecret(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     logger: LaunchLogger,
     environment: EnvironmentName,
 ) ![]const u8 {

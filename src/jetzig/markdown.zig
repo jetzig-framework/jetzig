@@ -1,31 +1,26 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
-const Zmd = @import("zmd").Zmd;
+const zmd = @import("zmd");
 
 const jetzig = @import("../jetzig.zig");
 
-const ArrayList = std.ArrayList;
-
 pub const MarkdownRenderOptions = struct {
-    fragments: ?type = null,
+    formatters: ?zmd.Formatters = null,
 };
 
 pub fn render(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     content: []const u8,
     comptime options: MarkdownRenderOptions,
 ) ![]const u8 {
-    const fragments = options.fragments orelse jetzig.config.get(type, "markdown_fragments");
-
-    var zmd = Zmd.init(allocator);
-    defer zmd.deinit();
-
-    try zmd.parse(content);
-    return try zmd.toHtml(fragments);
+    const formatters = options.formatters orelse jetzig.config.get(zmd.Formatters, "markdown_formatters");
+    return zmd.parse(allocator, content, formatters);
 }
 
 pub fn renderFile(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     path: []const u8,
     comptime options: MarkdownRenderOptions,
 ) !?[]const u8 {

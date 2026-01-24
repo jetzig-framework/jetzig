@@ -1,4 +1,5 @@
 const std = @import("std");
+const Stringify = std.json.Stringify;
 
 const httpz = @import("httpz");
 
@@ -314,7 +315,7 @@ pub fn renderRedirect(self: *Request, state: RedirectState) !void {
             );
         } else try std.fmt.allocPrint(self.allocator, "Redirecting to {s}", .{state.location}),
         .JSON => blk: {
-            break :blk try std.json.stringifyAlloc(
+            break :blk try std.json.Stringify.valueAlloc(
                 self.allocator,
                 .{ .location = state.location, .status = .{
                     .message = status.getMessage(),
@@ -693,7 +694,7 @@ pub fn formatStatus(self: *const Request, status_code: jetzig.http.StatusCode) !
     const status = jetzig.http.status_codes.get(status_code);
 
     return switch (self.requestFormat()) {
-        .JSON => try std.json.stringifyAlloc(self.allocator, .{
+        .JSON => try Stringify.valueAlloc(self.allocator, .{
             .status = .{
                 .message = status.getMessage(),
                 .code = status.getCode(),

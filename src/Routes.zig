@@ -133,7 +133,7 @@ pub fn deinit(self: *Routes) void {
 
 /// Generates the complete route set for the application
 pub fn generateRoutes(self: *Routes) ![]const u8 {
-    var buf: Writer.Allocating = .fromArrayList(self.allocator, &self.buffer);
+    var buf: Writer.Allocating = .init(self.allocator);
     const writer = &buf.writer;
 
     try writer.writeAll(
@@ -178,7 +178,7 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
         \\
     );
 
-    return try self.buffer.toOwnedSlice();
+    return try self.buffer.toOwnedSlice(self.allocator);
 }
 
 pub fn relativePathFrom(
@@ -237,10 +237,10 @@ fn writeRoutes(self: *Routes, writer: *Writer) !void {
         );
 
         for (view_routes.static) |view_route|
-            try self.static_routes.append(view_route);
+            try self.static_routes.append(self.allocator, view_route);
 
         for (view_routes.dynamic) |view_route|
-            try self.dynamic_routes.append(view_route);
+            try self.dynamic_routes.append(self.allocator, view_route);
     }
 
     std.sort.pdq(Function, self.static_routes.items, {}, Function.lessThanFn);
@@ -309,7 +309,7 @@ fn writeRoute(self: *Routes, writer: *Writer, route: Function) !void {
         unreachable;
 
     std.mem.replaceScalar(u8, module_path, '\\', '/');
-    try self.module_paths.append(try self.allocator.dupe(u8, module_path));
+    try self.module_paths.append(self.allocator, try self.allocator.dupe(u8, module_path));
 
     var buf: [32]u8 = undefined;
     try writer.print(
@@ -364,9 +364,7 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
     self.ast = try std.zig.Ast.parse(self.allocator, source, .zig);
 
     var static_routes: ArrayList(Function) = .empty;
-    defer static_routes.deinit(self.allocator);
     var dynamic_routes: ArrayList(Function) = .empty;
-    defer dynamic_routes.deinit(self.allocator);
 
     var static_params: ?*jetzig.data.Value = null;
     for (self.ast.nodes.items(.tag), 0..) |tag, index| {
@@ -427,8 +425,8 @@ fn generateRoutesForView(self: *Routes, dir: std.fs.Dir, path: []const u8) !Rout
     }
 
     return .{
-        .dynamic = dynamic_routes.items,
-        .static = static_routes.items,
+        .dynamic = try dynamic_routes.toOwnedSlice(self.allocator),
+        .static = try static_routes.toOwnedSlice(self.allocator),
     };
 }
 

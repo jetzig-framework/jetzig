@@ -1,6 +1,9 @@
 const std = @import("std");
+const File = std.fs.File;
 
 const jetzig = @import("../jetzig.zig");
+const Request = jetzig.http.Request;
+const Event = jetzig.jetquery.events.Event;
 
 const Self = @This();
 
@@ -13,7 +16,7 @@ pub const NullLogger = @import("loggers/NullLogger.zig");
 pub const LogQueue = @import("loggers/LogQueue.zig");
 
 pub const LogFile = struct {
-    file: std.fs.File,
+    file: File,
     sync: bool = false,
 };
 
@@ -76,13 +79,13 @@ pub const Logger = union(enum) {
         }
     }
 
-    pub fn logRequest(self: *const Logger, request: *const jetzig.http.Request) !void {
+    pub fn logRequest(self: *const Logger, request: *const Request) !void {
         switch (self.*) {
             inline else => |*logger| try logger.logRequest(request),
         }
     }
 
-    pub fn logSql(self: *const Logger, request: jetzig.jetquery.events.Event) !void {
+    pub fn logSql(self: *const Logger, request: Event) !void {
         switch (self.*) {
             inline else => |*logger| try logger.logSql(request),
         }

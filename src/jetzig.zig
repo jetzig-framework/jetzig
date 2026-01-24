@@ -1,7 +1,8 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 pub const zmpl = @import("zmpl").zmpl;
-pub const zmd = @import("zmd").zmd;
+pub const zmd = @import("zmd");
 pub const jetkv = @import("jetkv").jetkv;
 pub const jetquery = @import("jetquery");
 pub const jetcommon = @import("jetcommon");
@@ -96,13 +97,12 @@ pub const initHook: ?*const fn (*App) anyerror!void = if (@hasDecl(root, "init")
 
 /// Initialize a new Jetzig app. Call this from `src/main.zig` and then call
 /// `start(@import("routes").routes)` on the returned value.
-pub fn init(allocator: std.mem.Allocator) !App {
-    const env = try Environment.init(allocator, .{});
+pub fn init(allocator: Allocator) !App {
+    const env: Environment = try .init(allocator, .{});
 
     return .{
         .env = env,
         .allocator = allocator,
-        .custom_routes = std.array_list.Managed(views.Route).init(allocator),
         .initHook = initHook,
     };
 }

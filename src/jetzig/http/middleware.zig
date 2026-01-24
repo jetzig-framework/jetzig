@@ -1,8 +1,9 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
 const jetzig = @import("../../jetzig.zig");
 
 pub const middlewares: []const type = jetzig.config.get([]const type, "middleware");
-pub const MiddlewareData = std.ArrayListUnmanaged(?*anyopaque);
+pub const MiddlewareData = ArrayList(?*anyopaque);
 pub const Enum = MiddlewareEnum();
 
 fn MiddlewareEnum() type {
@@ -57,14 +58,15 @@ pub fn afterLaunch(server: *jetzig.http.Server) !void {
 }
 
 pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
-    var middleware_data = MiddlewareData.init(0) catch unreachable;
+    var middleware_data: MiddlewareData = .empty;
 
+    // XXX: This needs to be reworked as ArrayList no longer has .init
     inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, "init")) {
-            try middleware_data.insert(index, null);
+        if (comptime !@hasDecl(middleware, ".init")) {
+            try middleware_data.insert(request.allocator, index, null);
         } else {
             const data = try @call(.always_inline, middleware.init, .{request});
-            try middleware_data.insert(index, data);
+            try middleware_data.insert(request.allocator, index, data);
         }
     }
 

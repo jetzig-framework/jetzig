@@ -11,7 +11,7 @@ const App = @This();
 
 env: jetzig.Environment,
 allocator: std.mem.Allocator,
-custom_routes: ArrayList(jetzig.views.Route),
+custom_routes: ArrayList(jetzig.views.Route) = .empty,
 initHook: ?*const fn (*App) anyerror!void,
 server: *jetzig.http.Server = undefined,
 

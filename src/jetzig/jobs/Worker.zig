@@ -1,16 +1,17 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const jetzig = @import("../../jetzig.zig");
 const Worker = @This();
 
-allocator: std.mem.Allocator,
+allocator: Allocator,
 job_env: jetzig.jobs.JobEnv,
 id: usize,
 job_queue: *jetzig.kv.Store.JobQueueStore,
 interval: usize,
 
 pub fn init(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     job_env: jetzig.jobs.JobEnv,
     id: usize,
     job_queue: *jetzig.kv.Store.JobQueueStore,
@@ -42,7 +43,7 @@ pub fn work(self: *const Worker) void {
                 self.processJob(job_definition, value);
             }
         } else {
-            std.time.sleep(self.interval);
+            std.Thread.sleep(self.interval);
         }
     }
 

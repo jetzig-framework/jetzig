@@ -1,4 +1,8 @@
 const std = @import("std");
+const Stringify = std.json.Stringify;
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 
 const jetzig = @import("../../jetzig.zig");
 
@@ -21,13 +25,13 @@ const RequestLogMessage = struct {
     duration: i64,
 };
 
-allocator: std.mem.Allocator,
+allocator: Allocator,
 log_queue: *jetzig.loggers.LogQueue,
 level: LogLevel,
 
 /// Initialize a new JSON Logger.
 pub fn init(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     level: LogLevel,
     log_queue: *jetzig.loggers.LogQueue,
 ) JsonLogger {
@@ -56,7 +60,11 @@ pub fn log(
 
     const log_message = LogMessage{ .level = @tagName(level), .timestamp = iso8601, .message = output };
 
-    const json = try std.json.stringifyAlloc(self.allocator, log_message, .{ .whitespace = .minified });
+    const json = try Stringify.valueAlloc(
+        self.allocator,
+        log_message,
+        .{ .whitespace = .minified },
+    );
     defer self.allocator.free(json);
 
     try self.log_queue.print("{s}\n", .{json}, jetzig.loggers.logTarget(level));
@@ -90,26 +98,26 @@ pub fn logRequest(self: *const JsonLogger, request: *const jetzig.http.Request) 
     };
 
     var buf: [4096]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    std.json.stringify(message, .{ .whitespace = .minified }, stream.writer()) catch |err| {
+    var writer: Writer = .fixed(&buf);
+    Stringify.value(message, .{ .whitespace = .minified }, &writer) catch |err| {
         switch (err) {
-            error.NoSpaceLeft => {}, // TODO: Spill to heap
+            error.WriteFailed => {}, // TODO: Spill to heap
             else => return err,
         }
     };
 
-    try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
+    try self.log_queue.print("{s}\n", .{writer.buffered()}, .stdout);
 }
 
 pub fn logSql(self: *const JsonLogger, event: jetzig.jetquery.events.Event) !void {
     var buf: [4096]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    try std.json.stringify(
+    var writer: Writer = .fixed(&buf);
+    try Stringify.value(
         .{ .sql = event.sql, .duration = event.duration },
         .{ .whitespace = .minified },
-        stream.writer(),
+        &writer,
     );
-    try self.log_queue.print("{s}\n", .{stream.getWritten()}, .stdout);
+    try self.log_queue.print("{s}\n", .{writer.buffered()}, .stdout);
 }
 
 pub fn logError(

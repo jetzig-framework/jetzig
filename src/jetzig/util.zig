@@ -1,9 +1,11 @@
 const std = @import("std");
+const Dir = std.fs.Dir;
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
 const builtin = @import("builtin");
 
 const colors = @import("colors.zig");
-
-const Writer = std.Io.Writer;
 
 /// Compare two strings with case-insensitive matching.
 pub fn equalStringsCaseInsensitive(expected: []const u8, actual: []const u8) bool {
@@ -15,7 +17,7 @@ pub fn equalStringsCaseInsensitive(expected: []const u8, actual: []const u8) boo
 }
 
 /// Encode arbitrary input to Base64.
-pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
+pub fn base64Encode(allocator: Allocator, string: []const u8) ![]u8 {
     const encoder = std.base64.Base64Encoder.init(
         std.base64.url_safe_no_pad.alphabet_chars,
         std.base64.url_safe_no_pad.pad_char,
@@ -27,7 +29,7 @@ pub fn base64Encode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
 }
 
 /// Decode arbitrary input from Base64.
-pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
+pub fn base64Decode(allocator: Allocator, string: []const u8) ![]u8 {
     const decoder = std.base64.Base64Decoder.init(
         std.base64.url_safe_no_pad.alphabet_chars,
         std.base64.url_safe_no_pad.pad_char,
@@ -38,7 +40,7 @@ pub fn base64Decode(allocator: std.mem.Allocator, string: []const u8) ![]u8 {
     return ptr;
 }
 
-pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
+pub fn gzip(allocator: Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
     var compressed: Writer.Allocating = .init(allocator);
     defer compressed.deinit();
@@ -47,7 +49,7 @@ pub fn gzip(allocator: std.mem.Allocator, content: []const u8, options: struct {
     return try compressed.toOwnedSlice();
 }
 
-pub fn deflate(allocator: std.mem.Allocator, content: []const u8, options: struct {}) ![]const u8 {
+pub fn deflate(allocator: Allocator, content: []const u8, options: struct {}) ![]const u8 {
     _ = options; // Allow setting compression options later if needed.
     var compressed: Writer.Allocating = .init(allocator);
     defer compressed.deinit();
@@ -71,7 +73,7 @@ pub inline fn unquote(input: []const u8) []const u8 {
 }
 
 /// Generate a secure random string of `len` characters (for cryptographic purposes).
-pub fn generateSecret(allocator: std.mem.Allocator, len: u10) ![]const u8 {
+pub fn generateSecret(allocator: Allocator, len: u10) ![]const u8 {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     const secret = try allocator.alloc(u8, len);
 
@@ -115,7 +117,7 @@ pub fn generateVariableName(buf: *[32]u8) []const u8 {
 /// Write a string of bytes, possibly containing ANSI escape codes. Translate ANSI escape codes
 /// into Windows API console commands. Allow building an ANSI string and writing at once to a
 /// Windows console. In non-Windows environments, output ANSI bytes directly.
-pub fn writeAnsi(file: std.fs.File, writer: anytype, text: []const u8) !void {
+pub fn writeAnsi(file: File, writer: *Writer, text: []const u8) !void {
     if (builtin.os.tag != .windows) {
         try writer.writeAll(text);
     } else {
@@ -157,7 +159,7 @@ pub fn createFile(path: []const u8, content: []const u8) !void {
 
 /// Detects a Jetzig project directory either in the current directory or one of its parent
 /// directories.
-pub fn detectJetzigProjectDir() !std.fs.Dir {
+pub fn detectJetzigProjectDir() !Dir {
     var dir = try std.fs.cwd().openDir(".", .{});
     const max_parent_dirs: usize = 100; // Prevent symlink loops or other weird stuff.
 
@@ -189,7 +191,7 @@ pub fn detectJetzigProjectDir() !std.fs.Dir {
     return error.JetzigCommandError;
 }
 
-fn isPath(dir: std.fs.Dir, sub_path: []const u8, path_type: enum { file, dir }) !bool {
+fn isPath(dir: Dir, sub_path: []const u8, path_type: enum { file, dir }) !bool {
     switch (path_type) {
         .file => {
             _ = dir.statFile(sub_path) catch |err| {

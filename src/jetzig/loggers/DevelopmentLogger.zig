@@ -1,4 +1,7 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
 
 const jetzig = @import("../../jetzig.zig");
 
@@ -7,9 +10,9 @@ const DevelopmentLogger = @This();
 const Timestamp = jetzig.types.Timestamp;
 const LogLevel = jetzig.loggers.LogLevel;
 
-allocator: std.mem.Allocator,
-stdout: std.fs.File,
-stderr: std.fs.File,
+allocator: Allocator,
+stdout: File,
+stderr: File,
 stdout_colorized: bool,
 stderr_colorized: bool,
 level: LogLevel,
@@ -17,10 +20,10 @@ mutex: *std.Thread.Mutex,
 
 /// Initialize a new Development Logger.
 pub fn init(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     level: LogLevel,
-    stdout: std.fs.File,
-    stderr: std.fs.File,
+    stdout: File,
+    stderr: File,
 ) DevelopmentLogger {
     const mutex = allocator.create(std.Thread.Mutex) catch unreachable;
     mutex.* = std.Thread.Mutex{};
@@ -51,7 +54,7 @@ pub fn log(
     const output = try std.fmt.allocPrint(self.allocator, message, args);
     defer self.allocator.free(output);
 
-    const timestamp = Timestamp.init(std.time.timestamp());
+    const timestamp: Timestamp = .init(std.time.timestamp());
     var timestamp_buf: [256]u8 = undefined;
     const iso8601 = try timestamp.iso8601(&timestamp_buf);
 
@@ -261,7 +264,7 @@ pub fn logError(self: *const DevelopmentLogger, stack_trace: ?*std.builtin.Stack
     }
 }
 
-fn logFile(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File {
+fn logFile(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) File {
     const target = comptime jetzig.loggers.logTarget(level);
     return switch (target) {
         .stdout => self.stdout,
@@ -269,8 +272,8 @@ fn logFile(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std
     };
 }
 
-fn logWriter(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) std.fs.File.Writer {
-    return self.logFile(level).writer();
+fn logWriter(self: DevelopmentLogger, comptime level: jetzig.loggers.LogLevel) File.Writer {
+    return self.logFile(level).writer(&.{});
 }
 
 fn print(
@@ -279,22 +282,20 @@ fn print(
     comptime template: []const u8,
     args: anytype,
 ) !void {
-    const log_writer = self.logWriter(level);
+    var log_writer = self.logWriter(level);
     const count = std.fmt.count(template, args);
     const buf_size = 4096;
     if (count <= buf_size) {
         var buf: [buf_size]u8 = undefined;
-        var stream = std.io.fixedBufferStream(&buf);
-        const writer = stream.writer();
+        var writer: Writer = .fixed(&buf);
         try writer.print(template, args);
-        try jetzig.util.writeAnsi(self.logFile(level), log_writer, stream.getWritten());
+        try jetzig.util.writeAnsi(self.logFile(level), &log_writer.interface, writer.buffered());
     } else {
         const buf = try self.allocator.alloc(u8, count);
         defer self.allocator.free(buf);
-        var stream = std.io.fixedBufferStream(buf);
-        const writer = stream.writer();
+        var writer: Writer = .fixed(buf);
         try writer.print(template, args);
-        try jetzig.util.writeAnsi(self.logFile(level), log_writer, stream.getWritten());
+        try jetzig.util.writeAnsi(self.logFile(level), &log_writer.interface, writer.buffered());
     }
 }
 
