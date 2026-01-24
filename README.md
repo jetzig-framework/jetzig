@@ -6,7 +6,9 @@ _Jetzig_ is a web framework written in 100% pure [Zig](https://ziglang.org) :liz
 
 Official website: [jetzig.dev](https://www.jetzig.dev/)
 
-Please note that _Jetzig_'s `main` branch aims to be compatible with the latest [Zig nightly master build](https://ziglang.org/download/) and older versions of _Zig_ are not supported.
+Please note that _Jetzig_'s `main` branch aims to be compatible with the latest [Zig nightly master build](https://ziglang.org/download/). There are branches for older versions of zig but they will not be receiving updates.
+
+For nix users, jetzig can be built with `nix shell github:jetzig-framework/jetzig`. A compatible version of zig and zls are available with `nix develop`.
 
 _Jetzig_ aims to provide a rich set of user-friendly tools for building modern web applications quickly. See the checklist below.
 

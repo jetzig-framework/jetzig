@@ -41,7 +41,7 @@ pub fn repo(allocator: std.mem.Allocator, app: anytype) !Repo {
 fn eventCallback(event: jetzig.jetquery.events.Event, app: anytype) !void {
     try app.server.logger.logSql(event);
     if (event.err) |err| {
-        try app.server.logger.ERROR("[database] {?s}", .{err.message});
+        try app.server.logger.ERROR("[database] {s}", .{err.message});
     }
 }
 

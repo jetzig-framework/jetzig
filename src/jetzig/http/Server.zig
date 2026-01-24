@@ -684,8 +684,9 @@ fn logStackTrace(
 ) !void {
     var buf: Writer.Allocating = .init(allocator);
     defer buf.deinit();
-    try stack.format("", .{}, buf.writer);
-    if (buf.items().len > 0) try self.logger.ERROR("{s}\n", .{buf.items()});
+    try stack.format(&buf.writer);
+    const items = buf.toArrayList().items;
+    if (items.len > 0) try self.logger.ERROR("{s}\n", .{items});
 }
 
 fn matchCustomRoute(self: Server, request: *const jetzig.http.Request) ?jetzig.views.Route {

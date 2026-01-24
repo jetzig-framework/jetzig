@@ -258,7 +258,7 @@ fn printSql(self: *const DevelopmentLogger, sql: []const u8) !void {
 pub fn logError(self: *const DevelopmentLogger, stack_trace: ?*std.builtin.StackTrace, err: anyerror) !void {
     if (stack_trace) |stack| {
         try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
-        try self.log(.ERROR, "Stack trace:\n{}", .{stack});
+        try self.log(.ERROR, "Stack trace:\n{any}", .{stack});
     } else {
         try self.log(.ERROR, "Encountered Error: {s}", .{@errorName(err)});
     }

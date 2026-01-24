@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) !void {
         .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
         .zmpl_templates_paths = templates_paths,
         .zmpl_auto_build = false,
-        .zmpl_markdown_fragments = try generateMarkdownFragments(b),
+        .zmpl_markdown_formatters = try generateMarkdownFragments(b),
         .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
             jetzig_view: []const u8,
             jetzig_action: []const u8,

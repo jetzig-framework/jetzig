@@ -97,7 +97,7 @@ pub const middleware = &.{};
 pub const http_buffer_size: usize = std.math.pow(usize, 2, 16);
 
 /// A struct of fragments to use when rendering Markdown templates.
-pub const markdown_formatters = zmd.Formatters;
+pub const markdown_formatters: zmd.Formatters = .{};
 
 /// The number of worker threads to spawn on startup for processing Jobs (NOT the number of
 /// HTTP server worker threads).
