@@ -178,7 +178,7 @@ pub fn generateRoutes(self: *Routes) ![]const u8 {
         \\
     );
 
-    return try self.buffer.toOwnedSlice(self.allocator);
+    return try buf.toOwnedSlice();
 }
 
 pub fn relativePathFrom(
