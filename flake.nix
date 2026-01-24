@@ -86,17 +86,10 @@ EOF
         packages.default = pkgs.stdenv.mkDerivation {
           pname = "jetzig";
           version = zigVersion;
-          src = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = pkgs.lib.fileset.unions [
-              ./src
-              ./cli
-              ./build.zig
-              ./build.zig.zon
-            ];
-          };
+          src = ./.;
           nativeBuildInputs = [
             pkgs.makeWrapper
+            pkgs.git
           ];
           buildInputs = dependencies;
           dontInstall = false;

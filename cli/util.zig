@@ -263,12 +263,10 @@ fn collectOutput(
     try writeFifoDataToArrayList(allocator, stderr_array, poller.reader(.stderr));
 }
 
-// Borrowed from `std.process.Child.writeFifoDataToArrayList` - non-public but needed in our
-// modified `collectOutput`
+// Copy the buffered data from the poller's reader to the array list.
+// After the poller is done, the reader's buffer contains all the data that was read.
 fn writeFifoDataToArrayList(allocator: std.mem.Allocator, list: *std.ArrayListUnmanaged(u8), reader: *std.Io.Reader) !void {
-    var list_writer_buffer: [256]u8 = undefined;
-    var list_writer = list.writer(allocator).adaptToNewApi(&list_writer_buffer);
-    _ = try reader.streamRemaining(&list_writer.new_interface);
+    try list.appendSlice(allocator, reader.buffered());
 }
 
 /// Generate a full GitHub URL for passing to `zig fetch`.

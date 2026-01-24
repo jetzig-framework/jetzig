@@ -1,4 +1,7 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
+const File = std.fs.File;
+const Allocator = std.mem.Allocator;
 const args = @import("args");
 
 const util = @import("../util.zig");
@@ -302,39 +305,50 @@ fn writeSourceFile(install_dir: std.fs.Dir, path: []const u8, content: []const u
     }
 }
 
+const InputOptions = struct { default: ?[]const u8 };
+
 // Prompt a user for input and return the result. Accepts an optional default value.
 fn promptInput(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     prompt: []const u8,
-    options: struct { default: ?[]const u8 },
+    options: InputOptions,
 ) ![]const u8 {
     var stdin_buffer: [128]u8 = undefined;
-    const stdin = std.fs.File.stdin();
+    const stdin: File = .stdin();
     var stdin_reader = stdin.reader(&stdin_buffer);
     var reader = &stdin_reader.interface;
 
-    var input: std.Io.Writer.Allocating = .init(allocator);
+    var input: Writer.Allocating = .init(allocator);
     defer input.deinit();
 
     while (true) {
         if (options.default) |default| {
             try util.stdout.print(
-                \\{s} [default: "{s}"]: 
+                \\{s} [default: "{s}"]:
             , .{ prompt, default });
         } else {
             try util.stdout.print(
-                \\{s}: 
+                \\{s}:
             , .{prompt});
         }
-        const num_bytes_read = try reader.streamDelimiterEnding(&input.writer, '\n');
-        if (num_bytes_read != 0) {
-            defer input.writer.flush() catch unreachable;
-            const stripped_input = util.strip(input.written());
+        _ = try reader.streamDelimiterEnding(&input.writer, '\n');
+        const got_delimiter = if (reader.peekByte()) |byte| byte == '\n' else |_| false;
 
-            if (std.mem.eql(u8, stripped_input, "")) {
-                if (options.default) |default| return try allocator.dupe(u8, util.strip(default));
-            } else return try allocator.dupe(u8, stripped_input);
+        if (!got_delimiter) {
+            const default = options.default orelse
+                return error.EndOfInput;
+            return allocator.dupe(u8, util.strip(default));
         }
+
+        reader.toss(1);
+
+        const stripped_input = util.strip(input.written());
+
+        if (!std.mem.eql(u8, stripped_input, ""))
+            return allocator.dupe(u8, stripped_input);
+        if (options.default) |default|
+            return allocator.dupe(u8, util.strip(default));
+        input.clearRetainingCapacity();
     }
 }
 
