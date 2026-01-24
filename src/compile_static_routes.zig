@@ -1,8 +1,12 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator(.{});
+const ArenaAllocator = std.heap.ArenaAllocator;
+const Writer = std.Io.Writer;
 const jetzig = @import("jetzig");
 const routes = @import("routes").routes;
 const zmpl = @import("zmpl");
-const markdown_fragments = @import("markdown_fragments");
+const markdown_formatters = @import("markdown_formatters");
 pub const Global = if (@hasDecl(@import("main"), "Global"))
     @import("main").Global
 else
@@ -19,11 +23,11 @@ pub const jetzig_options = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: GeneralPurposeAllocator = .init;
     defer std.debug.assert(gpa.deinit() == .ok);
     const gpa_allocator = gpa.allocator();
 
-    var arena = std.heap.ArenaAllocator.init(gpa_allocator);
+    var arena: ArenaAllocator = .init(gpa_allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
 
@@ -32,14 +36,15 @@ pub fn main() !void {
     while (it.next()) |arg| : (index += 1) {
         if (index == 0) continue;
         const file = try std.fs.cwd().createFile(arg, .{});
-        const writer = file.writer();
+        var file_writer = file.writer(&.{});
+        const writer = &file_writer.interface;
         try compileStaticRoutes(allocator, writer);
         file.close();
         break;
     }
 }
 
-fn compileStaticRoutes(allocator: std.mem.Allocator, writer: anytype) !void {
+fn compileStaticRoutes(allocator: Allocator, writer: *Writer) !void {
     var count: usize = 0;
 
     try writer.writeAll(
@@ -79,8 +84,8 @@ fn compileStaticRoutes(allocator: std.mem.Allocator, writer: anytype) !void {
 }
 
 fn writeContent(
-    allocator: std.mem.Allocator,
-    writer: anytype,
+    allocator: Allocator,
+    writer: *Writer,
     route: jetzig.views.Route,
     request: *jetzig.http.StaticRequest,
     index: ?usize,
@@ -124,7 +129,7 @@ fn writeContent(
 }
 
 fn renderMarkdown(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     route: jetzig.views.Route,
     view: jetzig.views.View,
 ) !?[]const u8 {
@@ -133,7 +138,7 @@ fn renderMarkdown(
     const content = try jetzig.markdown.renderFile(
         allocator,
         path,
-        .{ .fragments = markdown_fragments },
+        .{ .fragments = markdown_formatters },
     ) orelse return null;
 
     if (route.layout) |layout_name| {
@@ -156,7 +161,7 @@ fn renderMarkdown(
 }
 
 fn renderZmplTemplate(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     route: jetzig.views.Route,
     view: jetzig.views.View,
 ) !?[]const u8 {
@@ -177,19 +182,17 @@ fn renderZmplTemplate(
                     &.{},
                     .{ .layout = layout },
                 );
-            } else {
-                std.debug.print("Unknown layout: {s}\n", .{layout_name});
-                return try allocator.dupe(u8, "");
             }
-        } else {
-            return try template.render(view.data, jetzig.TemplateContext, .{}, &.{}, .{});
+            std.debug.print("Unknown layout: {s}\n", .{layout_name});
+            return try allocator.dupe(u8, "");
         }
+        return try template.render(view.data, jetzig.TemplateContext, .{}, &.{}, .{});
     } else return null;
 }
 
-fn zigEscape(allocator: std.mem.Allocator, content: []const u8) ![]const u8 {
-    var buf = std.array_list.Managed(u8).init(allocator);
-    const writer = buf.writer();
-    try std.zig.stringEscape(content, "", .{}, writer);
+fn zigEscape(allocator: Allocator, content: []const u8) ![]const u8 {
+    var buf: Writer.Allocating = .init(allocator);
+    const writer = &buf.writer;
+    try std.zig.stringEscape(content, writer);
     return try buf.toOwnedSlice();
 }

@@ -54,21 +54,22 @@ pub fn run(allocator: Allocator, params: *Value, env: JobEnv) !void {
     if (env.environment == .development and !jetzig.config.get(bool, "force_development_email_delivery")) {
         try env.logger.INFO(
             \\Skipping mail delivery in development environment:
-            \\To: {?s}
-            \\{s}
-        ,
-            .{ test_mail.get(.to), try jetzig.mail.render(allocator, test_mail) },
-        );
-    } else {
-        try jetzig.mail.deliver(allocator, env, .{
-            .subject = mail_params.get(.subject) orelse "(No subject)",
-            .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
-            .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
-            .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
-            .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
-        }, .{});
-        try env.logger.INFO("Delivered mail to: {f}", .{test_mail.to.?});
+            \\To: {[to]any}
+            \\{[content]s}
+        , .{
+            .to = test_mail.to.?,
+            .content = try jetzig.mail.render(allocator, test_mail),
+        });
+        return;
     }
+    try jetzig.mail.deliver(allocator, env, .{
+        .subject = mail_params.get(.subject) orelse "(No subject)",
+        .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
+        .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
+        .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
+        .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
+    }, .{});
+    try env.logger.INFO("Delivered mail to {d} recipient(s)", .{test_mail.to.?.len});
 }
 
 fn resolveSubject(subject: ?*const Value) ?[]const u8 {

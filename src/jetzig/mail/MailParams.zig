@@ -1,3 +1,6 @@
+const std = @import("std");
+const Writer = std.Io.Writer;
+
 subject: ?[]const u8 = null,
 from: ?Address = null,
 to: ?[]const Address = null,
@@ -15,7 +18,10 @@ pub const Address = struct {
     email: []const u8,
 
     pub fn format(address: Address, writer: *Writer) !void {
-        try writer.print("{s} <{s}>", .{ address.name orelse address.email, address.email });
+        try writer.print("{s} <{s}>", .{
+            address.name orelse address.email,
+            address.email,
+        });
     }
 };
 
@@ -35,6 +41,3 @@ pub fn get(
 } {
     return @field(self, @tagName(field));
 }
-
-const std = @import("std");
-const Writer = std.Io.Writer;
