@@ -604,17 +604,15 @@ fn generateMarkdownFormatters(b: *std.Build) ![]const u8 {
     };
     const stat = try file.stat();
     const source = try file.readToEndAllocOptions(b.allocator, @intCast(stat.size), null, .of(u8), 0);
-    if (try getMarkdownFormattersSource(b.allocator, source)) |markdown_formatters_source| {
-        return try std.fmt.allocPrint(b.allocator,
-            \\const std = @import("std");
-            \\const zmd = @import("zmd");
-            \\
-            \\{s};
-            \\
-        , .{markdown_formatters_source});
-    } else {
+    const markdown_formatters_source = try getMarkdownFormattersSource(b.allocator, source) orelse
         return "";
-    }
+    return try std.fmt.allocPrint(b.allocator,
+        \\const std = @import("std");
+        \\const zmd = @import("zmd");
+        \\
+        \\{s};
+        \\
+    , .{markdown_formatters_source});
 }
 
 fn getMarkdownFormattersSource(allocator: std.mem.Allocator, source: [:0]const u8) !?[]const u8 {
