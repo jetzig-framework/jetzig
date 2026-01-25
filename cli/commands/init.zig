@@ -1,4 +1,5 @@
 const std = @import("std");
+const Dir = std.fs.Dir;
 const Writer = std.Io.Writer;
 const File = std.fs.File;
 const Allocator = std.mem.Allocator;
@@ -34,7 +35,7 @@ pub const Options = struct {
 
 /// Run the `jetzig init` command.
 pub fn run(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     options: Options,
     T: type,
     main_options: T,
@@ -58,7 +59,7 @@ pub fn run(
         return;
     }
 
-    var install_dir: std.fs.Dir = undefined;
+    var install_dir: Dir = undefined;
     defer install_dir.close();
 
     var project_name: []const u8 = undefined;
@@ -245,8 +246,8 @@ const Replace = struct {
 };
 
 fn copySourceFile(
-    allocator: std.mem.Allocator,
-    install_dir: std.fs.Dir,
+    allocator: Allocator,
+    install_dir: Dir,
     src: []const u8,
     dest: []const u8,
     replace: ?[]const Replace,
@@ -279,7 +280,7 @@ fn copySourceFile(
 }
 
 // Read a file from Jetzig source code.
-fn readSourceFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+fn readSourceFile(allocator: Allocator, path: []const u8) ![]const u8 {
     inline for (init_data) |file| {
         if (std.mem.eql(u8, path, file.path)) return try util.base64Decode(allocator, file.data);
     }
@@ -287,7 +288,7 @@ fn readSourceFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
 }
 
 // Write a file to the new project's directory.
-fn writeSourceFile(install_dir: std.fs.Dir, path: []const u8, content: []const u8) !void {
+fn writeSourceFile(install_dir: Dir, path: []const u8, content: []const u8) !void {
     // TODO: Detect presence and ask for confirmation if necessary.
     if (std.fs.path.dirname(path)) |dirname| {
         var dir = try install_dir.makeOpenPath(dirname, .{});
@@ -297,12 +298,12 @@ fn writeSourceFile(install_dir: std.fs.Dir, path: []const u8, content: []const u
         defer file.close();
 
         try file.writeAll(content);
-    } else {
-        const file = try install_dir.createFile(path, .{ .truncate = true });
-        defer file.close();
-
-        try file.writeAll(content);
+        return;
     }
+    const file = try install_dir.createFile(path, .{ .truncate = true });
+    defer file.close();
+
+    try file.writeAll(content);
 }
 
 const InputOptions = struct { default: ?[]const u8 };
@@ -353,7 +354,7 @@ fn promptInput(
 }
 
 // Initialize a new Git repository when setting up a new project (optional).
-fn gitSetup(allocator: std.mem.Allocator, install_dir: *std.fs.Dir) !void {
+fn gitSetup(allocator: Allocator, install_dir: *Dir) !void {
     try util.runCommandInDir(
         allocator,
         &[_][]const u8{

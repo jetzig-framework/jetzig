@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const cli = @import("../../cli.zig");
 const util = @import("../../util.zig");
@@ -19,7 +20,7 @@ const help_msg =
 ;
 
 pub fn run(
-    allocator: std.mem.Allocator,
+    allocator: Allocator,
     cwd: std.fs.Dir,
     args: []const []const u8,
     options: cli.database.Options,
@@ -50,7 +51,7 @@ pub fn run(
     );
 }
 
-fn runCommand(allocator: std.mem.Allocator, environment: anytype, comptime action: []const u8) !void {
+fn runCommand(allocator: Allocator, environment: anytype, comptime action: []const u8) !void {
     try util.runCommand(allocator, &.{
         "zig",
         "build",
