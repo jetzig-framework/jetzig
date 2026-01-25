@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const jetzig = @import("../../jetzig.zig");
+const zmpl = jetzig.zmpl;
 const JobEnv = jetzig.jobs.JobEnv;
 const Value = jetzig.data.Value;
 const MailParams = jetzig.mail.MailParams;
@@ -27,59 +28,48 @@ pub fn run(allocator: Allocator, params: *Value, env: JobEnv) !void {
         return error.JetzigUnknownMailerName;
     };
 
-    const subject = params.get("subject");
-    const from = params.get("from");
-
-    const html = params.get("html");
-    const text = params.get("text");
-
-    const to = try resolveTo(allocator, params);
-
     var mail_params: MailParams = .{
-        .subject = resolveSubject(subject),
-        .from = resolveFrom(from),
-        .to = to,
+        .subject = resolveSubject(params.get("subject")),
+        .from = resolveFrom(params.get("from")),
+        .to = try resolveTo(allocator, params),
     };
 
     try mailer.deliverFn(allocator, &mail_params, params.get("params").?, env);
 
-    const test_mail: MailParams = .{
+    const mail: MailParams = .{
         .subject = mail_params.get(.subject) orelse "(No subject)",
-        .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
-        .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
-        .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
-        .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
+        .from = mail_params.get(.from) orelse
+            return error.JetzigMailerMissingFromAddress,
+        .to = mail_params.get(.to) orelse
+            return error.JetzigMailerMissingToAddress,
+        .html = mail_params.get(.html) orelse
+            try resolveHtml(allocator, mailer, params.get("html"), params),
+        .text = mail_params.get(.text) orelse
+            try resolveText(allocator, mailer, params.get("text"), params),
     };
 
-    if (env.environment == .development and !jetzig.config.get(bool, "force_development_email_delivery")) {
-        try env.logger.INFO(
-            \\Skipping mail delivery in development environment:
-            \\To: {[to]any}
-            \\{[content]s}
-        , .{
-            .to = test_mail.to.?,
-            .content = try jetzig.mail.render(allocator, test_mail),
-        });
+    if (env.environment != .development or jetzig.config.get(bool, "force_development_email_delivery")) {
+        try jetzig.mail.deliver(allocator, env, mail, .{});
+        try env.logger.INFO("Delivered mail to {d} recipient(s)", .{mail.to.?.len});
         return;
     }
-    try jetzig.mail.deliver(allocator, env, .{
-        .subject = mail_params.get(.subject) orelse "(No subject)",
-        .from = mail_params.get(.from) orelse return error.JetzigMailerMissingFromAddress,
-        .to = mail_params.get(.to) orelse return error.JetzigMailerMissingToAddress,
-        .html = mail_params.get(.html) orelse try resolveHtml(allocator, mailer, html, params),
-        .text = mail_params.get(.text) orelse try resolveText(allocator, mailer, text, params),
-    }, .{});
-    try env.logger.INFO("Delivered mail to {d} recipient(s)", .{test_mail.to.?.len});
+    try env.logger.INFO(
+        \\Skipping mail delivery in development environment:
+        \\To: {[to]any}
+        \\{[content]s}
+    , .{
+        .to = mail.to.?,
+        .content = try jetzig.mail.render(allocator, mail),
+    });
 }
 
 fn resolveSubject(subject: ?*const Value) ?[]const u8 {
-    if (subject) |capture| {
-        return switch (capture.*) {
-            .null => null,
-            .string => |string| string.value,
-            else => unreachable,
-        };
-    } else return null;
+    const capture = subject orelse return null;
+    return switch (capture.*) {
+        .null => null,
+        .string => |string| string.value,
+        else => unreachable,
+    };
 }
 
 fn resolveFrom(from: ?*const Value) ?Address {
@@ -120,15 +110,13 @@ fn resolveText(
     text: ?*const Value,
     params: *Value,
 ) !?[]const u8 {
-    if (text) |capture| {
-        return switch (capture.*) {
-            .null => try defaultText(allocator, mailer, params),
-            .string => |string| string.value,
-            else => unreachable,
-        };
-    } else {
-        return try defaultText(allocator, mailer, params);
-    }
+    const capture = text orelse
+        return defaultText(allocator, mailer, params);
+    return switch (capture.*) {
+        .null => defaultText(allocator, mailer, params),
+        .string => |string| string.value,
+        else => unreachable,
+    };
 }
 
 fn resolveHtml(
@@ -137,15 +125,13 @@ fn resolveHtml(
     text: ?*const Value,
     params: *Value,
 ) !?[]const u8 {
-    if (text) |capture| {
-        return switch (capture.*) {
-            .null => try defaultHtml(allocator, mailer, params),
-            .string => |string| string.value,
-            else => unreachable,
-        };
-    } else {
-        return try defaultHtml(allocator, mailer, params);
-    }
+    const capture = text orelse
+        return defaultHtml(allocator, mailer, params);
+    return switch (capture.*) {
+        .null => defaultHtml(allocator, mailer, params),
+        .string => |string| string.value,
+        else => unreachable,
+    };
 }
 
 fn defaultHtml(
@@ -157,13 +143,12 @@ fn defaultHtml(
     data.value = if (params.get("params")) |capture|
         capture
     else
-        try jetzig.zmpl.Data.createObject(data.allocator);
+        try zmpl.Data.createObject(data.allocator);
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
-    return if (jetzig.zmpl.findPrefixed("mailers", mailer.html_template)) |template|
-        try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{})
-    else
-        null;
+    const template = zmpl.findPrefixed("mailers", mailer.html_template) orelse
+        return null;
+    return try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{});
 }
 
 fn defaultText(
@@ -175,18 +160,16 @@ fn defaultText(
     data.value = if (params.get("params")) |capture|
         capture
     else
-        try jetzig.zmpl.Data.createObject(data.allocator);
+        try zmpl.Data.createObject(data.allocator);
     try data.addConst("jetzig_view", data.string(""));
     try data.addConst("jetzig_action", data.string(""));
-    return if (jetzig.zmpl.findPrefixed("mailers", mailer.text_template)) |template|
-        try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{})
-    else
-        null;
+    const template = zmpl.findPrefixed("mailers", mailer.text_template) orelse
+        return null;
+    return try template.render(&data, jetzig.TemplateContext, .{}, &.{}, .{});
 }
 
 fn findMailer(name: []const u8, env: JobEnv) ?MailerDefinition {
-    for (env.mailers) |mailer| {
+    for (env.mailers) |mailer|
         if (std.mem.eql(u8, mailer.name, name)) return mailer;
-    }
     return null;
 }

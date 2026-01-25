@@ -1,6 +1,14 @@
 const std = @import("std");
+const GeneralPurposeAllocator = std.heap.GeneralPurposeAllocator(.{});
+const ArrayList = std.ArrayList;
+const StackTrace = std.builtin.StackTrace;
+const Level = std.log.Level;
+const Allocator = std.mem.Allocator;
+const Writer = std.Io.Writer;
+const File = std.fs.File;
 const builtin = @import("builtin");
 const jetzig = @import("jetzig");
+const MimeMap = jetzig.http.mime.MimeMap;
 pub const static = @import("static");
 
 pub const std_options = std.Options{
@@ -10,7 +18,7 @@ pub const std_options = std.Options{
 pub const jetzig_options = @import("main").jetzig_options;
 
 pub fn log(
-    comptime message_level: std.log.Level,
+    comptime message_level: Level,
     comptime scope: @Type(.enum_literal),
     comptime format: []const u8,
     args: anytype,
@@ -52,7 +60,7 @@ const Test = struct {
             .{ .function = test_fn.func, .name = test_fn.name };
     }
 
-    pub fn run(self: *Test, allocator: std.mem.Allocator) !void {
+    pub fn run(self: *Test, allocator: Allocator) !void {
         std.testing.allocator_instance = .{};
         const start = std.time.nanoTimestamp();
 
@@ -74,18 +82,14 @@ const Test = struct {
         if (std.testing.allocator_instance.deinit() == .leak) self.leaked = true;
     }
 
-    fn formatStackTrace(self: *Test, maybe_trace: ?*std.builtin.StackTrace) !?[]const u8 {
-        return if (maybe_trace) |trace| blk: {
-            var stream = std.io.fixedBufferStream(&self.stack_trace_buf);
-            const writer = stream.writer();
-            try trace.format("", .{}, writer);
-            break :blk stream.getWritten();
-        } else null;
+    fn formatStackTrace(self: *Test, maybe_trace: ?*StackTrace) !?[]const u8 {
+        const trace = maybe_trace orelse return null;
+        var writer: Writer = .fixed(&self.stack_trace_buf);
+        try trace.format(&writer);
+        return writer.buffered();
     }
 
-    pub fn print(self: Test, stream: anytype) !void {
-        const writer = stream.writer();
-
+    pub fn print(self: Test, writer: *Writer) !void {
         switch (self.result) {
             .success => {
                 try self.printPassed(writer);
@@ -102,21 +106,21 @@ const Test = struct {
         try writer.writeByte('\n');
     }
 
-    fn printPassed(self: Test, writer: anytype) !void {
+    fn printPassed(self: Test, writer: *Writer) !void {
         try writer.print(
             jetzig.colors.green("[PASS] ") ++ name_template,
             .{ self.module orelse "tests", self.name },
         );
     }
 
-    fn printFailure(self: Test, failure: Failure, writer: anytype) !void {
+    fn printFailure(self: Test, failure: Failure, writer: *Writer) !void {
         try writer.print(
             jetzig.colors.red("[FAIL] ") ++ name_template ++ jetzig.colors.yellow("({s})"),
             .{ self.module orelse "tests", self.name, @errorName(failure.err) },
         );
     }
 
-    fn printFailureDetail(self: Test, index: usize, failure: Failure, writer: anytype) !void {
+    fn printFailureDetail(self: Test, index: usize, failure: Failure, writer: *Writer) !void {
         try writer.print("\n", .{});
 
         const count = " FAILURE: ".len + (self.module orelse "tests").len + ":".len + self.name.len + 4;
@@ -144,19 +148,19 @@ const Test = struct {
         }
     }
 
-    fn printSkipped(self: Test, writer: anytype) !void {
+    fn printSkipped(self: Test, writer: *Writer) !void {
         try writer.print(
             "[" ++ jetzig.colors.yellow("SKIP") ++ "]" ++ name_template,
             .{ self.module orelse "tests", self.name },
         );
     }
 
-    fn printLeaked(self: Test, writer: anytype) !void {
+    fn printLeaked(self: Test, writer: *Writer) !void {
         _ = self;
         try writer.print("[" ++ jetzig.colors.red("LEAKED") ++ "] ", .{});
     }
 
-    fn printDuration(self: Test, writer: anytype) !void {
+    fn printDuration(self: Test, writer: *Writer) !void {
         var buf: [256]u8 = undefined;
         try writer.print(
             "[" ++ jetzig.colors.cyan("{s}") ++ "]",
@@ -168,26 +172,29 @@ const Test = struct {
 pub fn main() !void {
     const start = std.time.nanoTimestamp();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: GeneralPurposeAllocator = .init;
     const allocator = gpa.allocator();
-    var tests = std.array_list.Managed(Test).init(allocator);
-    defer tests.deinit();
+    var tests: ArrayList(Test) = .empty;
+    defer tests.deinit(allocator);
 
-    var mime_map = jetzig.http.mime.MimeMap.init(allocator);
+    var mime_map: MimeMap = .init(allocator);
     try mime_map.build();
     jetzig.testing.mime_map = &mime_map;
 
-    try std.io.getStdErr().writer().writeAll("\n[jetzig] Launching Test Runner...\n\n");
+    var stderr_file: File = .stderr();
+    var stderr_writer = stderr_file.writer(&.{});
+    const writer = &stderr_writer.interface;
+    try writer.writeAll("\n[jetzig] Launching Test Runner...\n\n");
 
-    jetzig.testing.logger = jetzig.testing.Logger.init(allocator);
+    jetzig.testing.logger = .init(allocator);
     jetzig.testing.state = .ready;
 
     for (builtin.test_functions, 0..) |test_function, index| {
         jetzig.testing.logger.index = index;
-        var t = Test.init(test_function);
+        var t: Test = .init(test_function);
         try t.run(allocator);
-        try t.print(std.io.getStdErr());
-        try tests.append(t);
+        try t.print(writer);
+        try tests.append(allocator, t);
     }
 
     try printSummary(tests.items, start);
@@ -210,7 +217,9 @@ fn printSummary(tests: []const Test, start: i128) !void {
     const tick = jetzig.colors.green("✔");
     const cross = jetzig.colors.red("✗");
 
-    const writer = std.io.getStdErr().writer();
+    var stderr_file: File = .stderr();
+    var stderr_writer = stderr_file.writer(&.{});
+    const writer = &stderr_writer.interface;
 
     var total_duration_buf: [256]u8 = undefined;
     const total_duration = try jetzig.colors.duration(
@@ -258,7 +267,7 @@ fn printSummary(tests: []const Test, start: i128) !void {
     }
 }
 
-fn indent(message: []const u8, comptime indent_sequence: []const u8, writer: anytype) !void {
+fn indent(message: []const u8, comptime indent_sequence: []const u8, writer: *Writer) !void {
     var it = std.mem.tokenizeScalar(u8, message, '\n');
     var color: ?[]const u8 = null;
 

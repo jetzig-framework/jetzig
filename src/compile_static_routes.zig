@@ -138,7 +138,7 @@ fn renderMarkdown(
     const content = try jetzig.markdown.renderFile(
         allocator,
         path,
-        .{ .fragments = markdown_formatters },
+        .{ .formatters = markdown_formatters.markdown_formatters },
     ) orelse return null;
 
     if (route.layout) |layout_name| {

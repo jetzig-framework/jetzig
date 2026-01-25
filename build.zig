@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) !void {
         .use_llvm = b.option(bool, "use_llvm", "Use LLVM") orelse use_llvm_default,
         .zmpl_templates_paths = templates_paths,
         .zmpl_auto_build = false,
-        .zmpl_markdown_formatters = try generateMarkdownFragments(b),
+        .zmpl_markdown_formatters = try generateMarkdownFormatters(b),
         .zmpl_constants = try zmpl_build.addTemplateConstants(b, struct {
             jetzig_view: []const u8,
             jetzig_action: []const u8,
@@ -394,11 +394,14 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
     const markdown_fragments_write_files = b.addWriteFiles();
     const path = markdown_fragments_write_files.add(
         "markdown_fragments.zig",
-        try generateMarkdownFragments(b),
+        try generateMarkdownFormatters(b),
     );
 
     const markdown_fragments_module = b.createModule(.{
         .root_source_file = path,
+        .imports = &.{
+            .{ .name = "zmd", .module = zmd_module },
+        },
     });
 
     const exe_static_routes = b.addExecutable(.{
@@ -411,9 +414,9 @@ pub fn jetzigInit(b: *std.Build, exe: *std.Build.Step.Compile, options: JetzigIn
                 .{ .name = "routes", .module = routes_module },
                 .{ .name = "jezig", .module = jetzig_module },
                 .{ .name = "zmpl", .module = zmpl_module },
-                .{ .name = "main_module", .module = main_module },
+                .{ .name = "main", .module = main_module },
                 .{ .name = "Schema", .module = schema_module },
-                .{ .name = "markdown_fragments", .module = markdown_fragments_module },
+                .{ .name = "markdown_formatters", .module = markdown_fragments_module },
             },
         }),
         .use_llvm = exe.use_llvm,
@@ -592,7 +595,7 @@ fn registerDatabaseSteps(b: *std.Build, exe_database: *std.Build.Step.Compile) v
     }
 }
 
-fn generateMarkdownFragments(b: *std.Build) ![]const u8 {
+fn generateMarkdownFormatters(b: *std.Build) ![]const u8 {
     const file = std.fs.cwd().openFile(b.pathJoin(&.{ "src", "main.zig" }), .{}) catch |err| {
         switch (err) {
             error.FileNotFound => return "",
@@ -601,20 +604,20 @@ fn generateMarkdownFragments(b: *std.Build) ![]const u8 {
     };
     const stat = try file.stat();
     const source = try file.readToEndAllocOptions(b.allocator, @intCast(stat.size), null, .of(u8), 0);
-    if (try getMarkdownFragmentsSource(b.allocator, source)) |markdown_fragments_source| {
+    if (try getMarkdownFormattersSource(b.allocator, source)) |markdown_formatters_source| {
         return try std.fmt.allocPrint(b.allocator,
             \\const std = @import("std");
             \\const zmd = @import("zmd");
             \\
             \\{s};
             \\
-        , .{markdown_fragments_source});
+        , .{markdown_formatters_source});
     } else {
         return "";
     }
 }
 
-fn getMarkdownFragmentsSource(allocator: std.mem.Allocator, source: [:0]const u8) !?[]const u8 {
+fn getMarkdownFormattersSource(allocator: std.mem.Allocator, source: [:0]const u8) !?[]const u8 {
     var ast = try std.zig.Ast.parse(allocator, source, .zig);
     defer ast.deinit(allocator);
 
@@ -623,7 +626,7 @@ fn getMarkdownFragmentsSource(allocator: std.mem.Allocator, source: [:0]const u8
             .simple_var_decl => {
                 const decl = ast.simpleVarDecl(@enumFromInt(index));
                 const identifier = ast.tokenSlice(decl.ast.mut_token + 1);
-                if (std.mem.eql(u8, identifier, "markdown_fragments")) {
+                if (std.mem.eql(u8, identifier, "markdown_formatters")) {
                     return ast.getNodeSource(@enumFromInt(index));
                 }
             },

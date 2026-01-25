@@ -168,55 +168,63 @@ pub const jetzig_options = struct {
     /// Force email delivery in development mode (instead of printing email body to logger).
     pub const force_development_email_delivery = false;
 
-    // Set custom fragments for rendering markdown templates. Any values will fall back to
-    // defaults provided by Zmd (https://github.com/jetzig-framework/zmd/blob/main/src/zmd/html.zig).
-    pub const markdown_fragments = struct {
-        pub const root = .{
-            "<div class='p-5'>",
-            "</div>",
-        };
-        pub const h1 = .{
-            "<h1 class='text-2xl mb-3 text-green font-bold'>",
-            "</h1>",
-        };
-        pub const h2 = .{
-            "<h2 class='text-xl mb-3 font-bold'>",
-            "</h2>",
-        };
-        pub const h3 = .{
-            "<h3 class='text-lg mb-3 font-bold'>",
-            "</h3>",
-        };
-        pub const paragraph = .{
-            "<p class='p-3'>",
-            "</p>",
-        };
-        pub const code = .{
-            "<span class='font-mono bg-gray-900 p-2 text-white'>",
-            "</span>",
-        };
-
-        pub const unordered_list = .{
-            "<ul class='list-disc ms-8 leading-8'>",
-            "</ul>",
-        };
-
-        pub const ordered_list = .{
-            "<ul class='list-decimal ms-8 leading-8'>",
-            "</ul>",
-        };
-
-        pub fn block(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
-            return try std.fmt.allocPrint(allocator,
-                \\<pre class="w-1/2 font-mono mt-4 ms-3 bg-gray-900 p-2 text-white"><code class="language-{?s}">{s}</code></pre>
-            , .{ node.meta, node.content });
-        }
-
-        pub fn link(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
-            return try std.fmt.allocPrint(allocator,
-                \\<a class="underline decoration-sky-500" href="{0s}" title={1s}>{1s}</a>
-            , .{ node.href.?, node.title.? });
-        }
+    // Set custom formatters for rendering markdown templates. Any unspecified handlers
+    // fall back to defaults provided by Zmd.
+    pub const markdown_formatters: zmd.Formatters = .{
+        .root = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<div class='p-5'>{s}</div>", .{node.content});
+            }
+        }.f,
+        .h1 = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<h1 class='text-2xl mb-3 text-green font-bold'>{s}</h1>\n", .{node.content});
+            }
+        }.f,
+        .h2 = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<h2 class='text-xl mb-3 font-bold'>{s}</h2>\n", .{node.content});
+            }
+        }.f,
+        .h3 = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<h3 class='text-lg mb-3 font-bold'>{s}</h3>\n", .{node.content});
+            }
+        }.f,
+        .paragraph = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<p class='p-3'>{s}</p>\n", .{node.content});
+            }
+        }.f,
+        .code = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<span class='font-mono bg-gray-900 p-2 text-white'>{s}</span>", .{node.content});
+            }
+        }.f,
+        .unordered_list = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<ul class='list-disc ms-8 leading-8'>{s}</ul>", .{node.content});
+            }
+        }.f,
+        .ordered_list = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator, "<ol class='list-decimal ms-8 leading-8'>{s}</ol>", .{node.content});
+            }
+        }.f,
+        .block = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator,
+                    \\<pre class="w-1/2 font-mono mt-4 ms-3 bg-gray-900 p-2 text-white"><code class="language-{?s}">{s}</code></pre>
+                , .{ node.meta, node.content });
+            }
+        }.f,
+        .link = struct {
+            fn f(allocator: std.mem.Allocator, node: zmd.Node) ![]const u8 {
+                return std.fmt.allocPrint(allocator,
+                    \\<a class="underline decoration-sky-500" href="{0s}" title="{1s}">{1s}</a>
+                , .{ node.href.?, node.title.? });
+            }
+        }.f,
     };
 };
 
