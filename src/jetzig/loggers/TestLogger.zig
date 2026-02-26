@@ -33,11 +33,12 @@ pub fn FATAL(self: TestLogger, comptime message: []const u8, args: anytype) !voi
 
 pub fn logRequest(self: TestLogger, request: *const jetzig.http.Request) !void {
     const status = jetzig.http.status_codes.get(request.response.status_code);
+    const colorized = self.mode == .stream;
     var buf: [256]u8 = undefined;
     try self.log(.INFO, "[{s}|{s}|{s}] {s}", .{
-        request.fmtMethod(true),
-        try jetzig.colors.duration(&buf, jetzig.util.duration(request.start_time), true),
-        status.getFormatted(.{ .colorized = true }),
+        request.fmtMethod(colorized),
+        try jetzig.colors.duration(&buf, jetzig.util.duration(request.start_time), colorized),
+        status.getFormatted(.{ .colorized = colorized }),
         request.path.path,
     });
 }
