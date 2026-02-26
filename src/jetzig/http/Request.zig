@@ -429,6 +429,18 @@ pub fn file(self: *Request, name: []const u8) !?jetzig.http.File {
     }
 }
 
+/// Retrieve all files matching a field name from a `multipart/form-data`-encoded
+/// request body. Useful for `<input type="file" multiple>` fields where several
+/// files share the same name.
+pub fn files(self: *Request, name: []const u8) ![]const jetzig.http.File {
+    _ = try self.parseQuery();
+    if (self.multipart) |multipart| {
+        return multipart.getFiles(name);
+    } else {
+        return &.{};
+    }
+}
+
 /// Return a `*Value` representing request parameters. This function **always** returns the
 /// parsed query string and never the request body.
 pub fn queryParams(self: *Request) !*jetzig.data.Value {
