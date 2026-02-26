@@ -13,6 +13,7 @@ pub const views = @import("jetzig/views.zig");
 pub const colors = @import("jetzig/colors.zig");
 pub const middleware = @import("jetzig/middleware.zig");
 pub const util = @import("jetzig/util.zig");
+pub const Rss = @import("jetzig/Rss.zig");
 pub const types = @import("jetzig/types.zig");
 pub const markdown = @import("jetzig/markdown.zig");
 pub const jobs = @import("jetzig/jobs.zig");
