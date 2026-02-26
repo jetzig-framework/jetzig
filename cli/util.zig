@@ -37,7 +37,7 @@ pub fn printFailure() void {
 const PrintContext = enum { success, failure };
 /// Print some output in with a given context to stderr.
 pub fn print(comptime context: PrintContext, comptime message: []const u8, args: anytype) !void {
-    const writer = std.io.getStdErr().writer();
+    const writer = stderrAnsiWriter();
     switch (context) {
         .success => try writer.print(
             std.fmt.comptimePrint("{s} {s}\n", .{ icons.check, colors.green(message) }),
@@ -47,6 +47,51 @@ pub fn print(comptime context: PrintContext, comptime message: []const u8, args:
             std.fmt.comptimePrint("{s} {s}\n", .{ icons.cross, colors.red(message) }),
             args,
         ),
+    }
+}
+
+/// A stderr writer that translates ANSI escape codes to Windows console API
+/// calls. On non-Windows, writes pass through directly to stderr.
+const StderrAnsiWriter = struct {
+    pub fn writeAll(_: StderrAnsiWriter, bytes: []const u8) !void {
+        const stderr = std.io.getStdErr();
+        try writeAnsi(stderr, stderr.writer(), bytes);
+    }
+
+    pub fn writeByte(self: StderrAnsiWriter, byte: u8) !void {
+        try self.writeAll(&.{byte});
+    }
+
+    pub fn print(self: StderrAnsiWriter, comptime format: []const u8, args: anytype) !void {
+        try std.fmt.format(self, format, args);
+    }
+};
+
+fn stderrAnsiWriter() StderrAnsiWriter {
+    return .{};
+}
+
+/// Write a string of bytes, possibly containing ANSI escape codes. Translate
+/// ANSI escape codes into Windows API console commands. In non-Windows
+/// environments, output ANSI bytes directly.
+fn writeAnsi(file: std.fs.File, writer: anytype, text: []const u8) !void {
+    if (builtin.os.tag != .windows) {
+        try writer.writeAll(text);
+    } else {
+        var it = std.mem.tokenizeSequence(u8, text, "\x1b[");
+        while (it.next()) |token| {
+            if (std.mem.indexOfScalar(u8, token, 'm')) |index| {
+                if (index > 0 and index + 1 < token.len) {
+                    if (colors.windows_map.get(token[0..index])) |color| {
+                        try std.os.windows.SetConsoleTextAttribute(file.handle, color);
+                        try writer.writeAll(token[index + 1 ..]);
+                        continue;
+                    }
+                }
+            }
+            // Fallback
+            try writer.writeAll(token);
+        }
     }
 }
 

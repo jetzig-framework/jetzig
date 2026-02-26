@@ -18,6 +18,28 @@ pub fn log(
     jetzig.testing.logger.log(message_level, scope, format, args);
 }
 
+/// A stderr writer that translates ANSI escape codes to Windows console API
+/// calls via `jetzig.util.writeAnsi`. On non-Windows, writes pass through
+/// directly to stderr.
+const StderrAnsiWriter = struct {
+    pub fn writeAll(_: StderrAnsiWriter, bytes: []const u8) !void {
+        const stderr = std.io.getStdErr();
+        try jetzig.util.writeAnsi(stderr, stderr.writer(), bytes);
+    }
+
+    pub fn writeByte(self: StderrAnsiWriter, byte: u8) !void {
+        try self.writeAll(&.{byte});
+    }
+
+    pub fn print(self: StderrAnsiWriter, comptime format: []const u8, args: anytype) !void {
+        try std.fmt.format(self, format, args);
+    }
+};
+
+fn stderrAnsiWriter() StderrAnsiWriter {
+    return .{};
+}
+
 const Test = struct {
     name: []const u8,
     function: TestFn,
@@ -83,9 +105,7 @@ const Test = struct {
         } else null;
     }
 
-    pub fn print(self: Test, stream: anytype) !void {
-        const writer = stream.writer();
-
+    pub fn print(self: Test, writer: anytype) !void {
         switch (self.result) {
             .success => {
                 try self.printPassed(writer);
@@ -177,7 +197,7 @@ pub fn main() !void {
     try mime_map.build();
     jetzig.testing.mime_map = &mime_map;
 
-    try std.io.getStdErr().writer().writeAll("\n[jetzig] Launching Test Runner...\n\n");
+    try stderrAnsiWriter().writeAll("\n[jetzig] Launching Test Runner...\n\n");
 
     jetzig.testing.logger = jetzig.testing.Logger.init(allocator);
     jetzig.testing.state = .ready;
@@ -186,7 +206,7 @@ pub fn main() !void {
         jetzig.testing.logger.index = index;
         var t = Test.init(test_function);
         try t.run(allocator);
-        try t.print(std.io.getStdErr());
+        try t.print(stderrAnsiWriter());
         try tests.append(t);
     }
 
@@ -210,7 +230,7 @@ fn printSummary(tests: []const Test, start: i128) !void {
     const tick = jetzig.colors.green("✔");
     const cross = jetzig.colors.red("✗");
 
-    const writer = std.io.getStdErr().writer();
+    const writer = stderrAnsiWriter();
 
     var total_duration_buf: [256]u8 = undefined;
     const total_duration = try jetzig.colors.duration(
