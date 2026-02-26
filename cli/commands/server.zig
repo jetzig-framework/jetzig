@@ -12,6 +12,13 @@ pub const watch_changes_pause_duration = 1 * 1000 * 1000 * 1000;
 pub const Options = struct {
     reload: bool = true,
     debug: bool = true,
+    bind: []const u8 = "127.0.0.1",
+    port: u16 = 8080,
+
+    pub const shorthands = .{
+        .b = "bind",
+        .p = "port",
+    };
 
     pub const meta = .{
         .full_text =
@@ -21,10 +28,13 @@ pub const Options = struct {
         \\
         \\  jetzig server
         \\  jetzig server --reload=false --debug=false
+        \\  jetzig server --bind 0.0.0.0 --port 3000
         ,
         .option_docs = .{
             .reload = "Enable or disable automatic reload on update (default: true)",
             .debug = "Enable or disable the development debug console (default: true)",
+            .bind = "IP address/hostname to bind to (default: 127.0.0.1)",
+            .port = "Port to listen on (default: 8080)",
         },
     };
 };
@@ -95,7 +105,21 @@ pub fn run(
 
         defer allocator.free(exe_path.?);
 
-        var process = std.process.Child.init(&.{exe_path.?}, allocator);
+        var run_argv: ArrayList([]const u8) = .empty;
+        defer run_argv.deinit(allocator);
+
+        try run_argv.append(allocator, exe_path.?);
+
+        if (!std.mem.eql(u8, options.bind, "127.0.0.1")) {
+            try run_argv.appendSlice(allocator, &.{ "--bind", options.bind });
+        }
+        var port_buf: [5]u8 = undefined;
+        if (options.port != 8080) {
+            const port_str = try std.fmt.bufPrint(&port_buf, "{d}", .{options.port});
+            try run_argv.appendSlice(allocator, &.{ "--port", port_str });
+        }
+
+        var process = std.process.Child.init(run_argv.items, allocator);
         process.stdin_behavior = .Inherit;
         process.stdout_behavior = .Inherit;
         process.stderr_behavior = .Inherit;
