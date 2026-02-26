@@ -181,7 +181,7 @@ pub fn init(parent_allocator: std.mem.Allocator, env_options: EnvironmentOptions
     defer options.deinit();
 
     const stdout = try getLogFile(.stdout, options.options);
-    const stderr = try getLogFile(.stdout, options.options);
+    const stderr = try getLogFile(.stderr, options.options);
 
     const log_queue = try allocator.create(jetzig.loggers.LogQueue);
     log_queue.* = jetzig.loggers.LogQueue.init(allocator);
