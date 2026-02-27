@@ -1,4 +1,5 @@
 const std = @import("std");
+const Writer = std.Io.Writer;
 const jetzig = @import("../../jetzig.zig");
 
 pub const KVOptions = struct {
@@ -104,15 +105,18 @@ pub fn Store(comptime options: KVOptions) type {
             const json = try self.store.get(data.allocator, key);
             const value = try parseValue(data, json);
             const end = std.time.nanoTimestamp();
+            var buf: Writer.Allocating = .init(data.allocator);
+            defer buf.deinit();
+            try buf.writer.printDuration(@as(i64, @intCast(end - start)), .{});
             if (self.role == .cache) {
                 if (value == null) {
                     try self.logger.DEBUG("[cache:miss] {s}", .{key});
                 } else {
                     try self.logger.DEBUG(
-                        "[cache:{s}:hit:{}] {s}",
+                        "[cache:{s}:hit:{s}] {s}",
                         .{
                             @tagName(self.store.backend),
-                            std.fmt.fmtDuration(@intCast(end - start)),
+                            try buf.toOwnedSlice(),
                             key,
                         },
                     );

@@ -186,7 +186,7 @@ pub fn init(parent_allocator: Allocator, env_options: EnvironmentOptions) !Envir
     defer options.deinit();
 
     const stdout = try getLogFile(.stdout, options.options);
-    const stderr = try getLogFile(.stdout, options.options);
+    const stderr = try getLogFile(.stderr, options.options);
 
     const log_queue = try allocator.create(jetzig.loggers.LogQueue);
     log_queue.* = .init(allocator);

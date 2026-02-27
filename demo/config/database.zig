@@ -5,7 +5,7 @@ pub const database = .{
         .password = "postgres",
         .hostname = "localhost",
         .database = "jetzig_demo_dev",
-        .port = 14173, // See `compose.yml`
+        .port = 5432,
     },
     // This configuration is used for CI
     // in GitHub

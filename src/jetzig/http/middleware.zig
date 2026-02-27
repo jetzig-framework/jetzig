@@ -60,9 +60,8 @@ pub fn afterLaunch(server: *jetzig.http.Server) !void {
 pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
     var middleware_data: MiddlewareData = .empty;
 
-    // XXX: This needs to be reworked as ArrayList no longer has .init
     inline for (middlewares, 0..) |middleware, index| {
-        if (comptime !@hasDecl(middleware, ".init")) {
+        if (comptime !@hasDecl(middleware, "init")) {
             try middleware_data.insert(request.allocator, index, null);
         } else {
             const data = try @call(.always_inline, middleware.init, .{request});
@@ -76,7 +75,7 @@ pub fn afterRequest(request: *jetzig.http.Request) !MiddlewareData {
         if (comptime !@hasDecl(middleware, "afterRequest")) continue;
 
         if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(index).?;
+            const data = middleware_data.items[index].?;
             try @call(
                 .always_inline,
                 middleware.afterRequest,
@@ -106,7 +105,7 @@ pub fn beforeResponse(
         if (comptime !@hasDecl(middleware, "beforeResponse")) continue;
         if (request.state == .before_response) {
             if (comptime @hasDecl(middleware, "init")) {
-                const data = middleware_data.get(index).?;
+                const data = middleware_data.items[index].?;
                 try @call(
                     .always_inline,
                     middleware.beforeResponse,
@@ -138,7 +137,7 @@ pub fn afterResponse(
     inline for (middlewares, 0..) |middleware, index| {
         if (comptime !@hasDecl(middleware, "afterResponse")) continue;
         if (comptime @hasDecl(middleware, "init")) {
-            const data = middleware_data.get(index).?;
+            const data = middleware_data.items[index].?;
             try @call(
                 .always_inline,
                 middleware.afterResponse,
@@ -154,7 +153,7 @@ pub fn deinit(middleware_data: *MiddlewareData, request: *jetzig.http.Request) v
     inline for (middlewares, 0..) |middleware, index| {
         if (comptime @hasDecl(middleware, "init")) {
             if (comptime @hasDecl(middleware, "deinit")) {
-                const data = middleware_data.get(index);
+                const data = middleware_data.items[index];
                 @call(
                     .always_inline,
                     middleware.deinit,

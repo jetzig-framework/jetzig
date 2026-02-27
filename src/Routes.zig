@@ -718,7 +718,6 @@ fn writeMailers(self: Routes, writer: *Writer) !void {
             \\    .{{
             \\        .name = "{0s}",
             \\        .deliverFn = @import("{1s}").deliver,
-            \\        .defaults = if (@hasDecl(@import("{1s}"), "defaults")) @import("{1s}").defaults else null,
             \\        .html_template = "{0s}/html",
             \\        .text_template = "{0s}/text",
             \\    }},

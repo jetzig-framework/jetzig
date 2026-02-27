@@ -24,10 +24,6 @@
             .url = "https://github.com/jetzig-framework/jetkv/archive/7d793d1d95e830468849fa00169beef33698bdeb.tar.gz",
             .hash = "jetkv-0.0.0-zCv0foOLAgBFvqbzeDP0nhnOd5cqGIVYQSbwSDOjm2Cv",
         },
-        .zmpl = .{
-            .url = "https://github.com/jetzig-framework/zmpl/archive/d88e821d4b9b5f2e53d82820386197a13ec0fa8b.tar.gz",
-            .hash = "zmpl-0.0.1-SYFGBvQABADEZMKs3NjRxMa61hFYeAUOZ4g3ySd698MU",
-        },
         .httpz = .{
             .url = "https://github.com/karlseguin/http.zig/archive/90e7fc07ef7157a4da6922571fb4daef38b48998.tar.gz",
             .hash = "httpz-0.0.0-PNVzrHLABgDoVnzqKpEbx2rZIzmMclEdoEmdJDfZmxsv",
@@ -35,6 +31,10 @@
         .jetquery = .{
             .url = "https://github.com/jetzig-framework/jetquery/archive/2d7659ddba9252fad2b73c14204a43fd73e4fc12.tar.gz",
             .hash = "jetquery-0.0.0-TNf3zjTDBgBjArdWf0K49scPrXrogdEC8ZYvDCye9-xb",
+        },
+        .zmpl = .{
+            .url = "https://github.com/jetzig-framework/zmpl/archive/3390a643b0e527448c0a4596575a97d8b66c9252.tar.gz",
+            .hash = "zmpl-0.0.1-SYFGBrUCBACz1jqtVhboZxFo24KUlditybFrtNl0nrJQ",
         },
     },
 

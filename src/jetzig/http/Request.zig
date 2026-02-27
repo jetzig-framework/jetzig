@@ -270,7 +270,7 @@ pub fn middleware(
 ) jetzig.http.middleware.Type(name) {
     inline for (jetzig.http.middleware.middlewares, 0..) |T, index| {
         if (@hasDecl(T, "middleware_name") and std.mem.eql(u8, @tagName(name), T.middleware_name)) {
-            const middleware_data = self.middleware_data.get(index);
+            const middleware_data = self.middleware_data.items[index];
             return @as(*jetzig.http.middleware.Type(name), @ptrCast(@alignCast(middleware_data))).*;
         }
     }
